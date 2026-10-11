@@ -85,6 +85,19 @@ export type InstallationRecord = {
   contentHash: string;
 };
 
+export type MemoryEntry = {
+  text: string;
+  /** Mined from recurring corrections, or added by the user. */
+  origin: "mined" | "added";
+  /** Forgotten entries stay so a later scan does not bring them back. */
+  status: "active" | "forgotten";
+  /** Independent sessions behind a mined entry. */
+  sessions: number;
+  updatedAt: string;
+};
+
+export type MemoryState = { enabled: boolean };
+
 const SCHEMA_VERSION = 4;
 
 const SCHEMA = `
@@ -147,6 +160,17 @@ CREATE TABLE IF NOT EXISTS embeddings (
   key TEXT PRIMARY KEY,
   model TEXT NOT NULL,
   vector BLOB NOT NULL
+);
+CREATE TABLE IF NOT EXISTS memory_entries (
+  text TEXT PRIMARY KEY,
+  origin TEXT NOT NULL CHECK (origin IN ('mined','added')),
+  status TEXT NOT NULL DEFAULT 'active' CHECK (status IN ('active','forgotten')),
+  sessions INTEGER NOT NULL DEFAULT 0,
+  updated_at TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS settings (
+  key TEXT PRIMARY KEY,
+  value TEXT NOT NULL
 );
 CREATE TABLE IF NOT EXISTS installations (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -461,5 +485,71 @@ export class Store {
   /** Drop cached vectors for sessions that are no longer in the working set. */
   pruneEmbeddings(keep: string[]): void {
     this.db.prepare("DELETE FROM embeddings WHERE key NOT IN (SELECT value FROM json_each(?))").run(JSON.stringify(keep));
+  }
+
+  /** Replace the mined memory with the latest result. User decisions (forgotten, added) are kept. */
+  syncMinedMemory(rules: Array<{ text: string; sessions: number }>): void {
+    const now = new Date().toISOString();
+    this.db.exec("BEGIN");
+    try {
+      const keep = new Set(rules.map((r) => r.text));
+      for (const row of this.db.prepare("SELECT text FROM memory_entries WHERE origin = 'mined' AND status = 'active'").all() as Array<{ text: string }>) {
+        if (!keep.has(row.text)) this.db.prepare("DELETE FROM memory_entries WHERE text = ?").run(row.text);
+      }
+      const upsert = this.db.prepare(
+        `INSERT INTO memory_entries (text, origin, status, sessions, updated_at) VALUES (?, 'mined', 'active', ?, ?)
+         ON CONFLICT(text) DO UPDATE SET sessions = excluded.sessions, updated_at = excluded.updated_at`,
+      );
+      for (const r of rules) upsert.run(r.text, r.sessions, now);
+      this.db.exec("COMMIT");
+    } catch (err) {
+      this.db.exec("ROLLBACK");
+      throw err;
+    }
+  }
+
+  /** Every memory entry: active first, most-supported first. */
+  memoryEntries(): MemoryEntry[] {
+    const rows = this.db
+      .prepare("SELECT * FROM memory_entries ORDER BY status = 'forgotten', origin = 'mined', sessions DESC, text")
+      .all() as Array<Record<string, unknown>>;
+    return rows.map((r) => ({
+      text: String(r.text),
+      origin: r.origin as MemoryEntry["origin"],
+      status: r.status as MemoryEntry["status"],
+      sessions: Number(r.sessions),
+      updatedAt: String(r.updated_at),
+    }));
+  }
+
+  addMemory(text: string): void {
+    this.db
+      .prepare(
+        `INSERT INTO memory_entries (text, origin, status, sessions, updated_at) VALUES (?, 'added', 'active', 0, ?)
+         ON CONFLICT(text) DO UPDATE SET status = 'active', updated_at = excluded.updated_at`,
+      )
+      .run(text, new Date().toISOString());
+  }
+
+  setMemoryStatus(text: string, status: MemoryEntry["status"]): void {
+    this.db.prepare("UPDATE memory_entries SET status = ?, updated_at = ? WHERE text = ?").run(status, new Date().toISOString(), text);
+  }
+
+  /** Remove an entry entirely (user-added entries; mined ones are forgotten instead). */
+  deleteMemory(text: string): void {
+    this.db.prepare("DELETE FROM memory_entries WHERE text = ?").run(text);
+  }
+
+  memoryState(): MemoryState {
+    const row = this.db.prepare("SELECT value FROM settings WHERE key = 'memory'").get() as { value: string } | undefined;
+    try {
+      return { enabled: row ? Boolean((JSON.parse(row.value) as MemoryState).enabled) : false };
+    } catch {
+      return { enabled: false };
+    }
+  }
+
+  setMemoryState(state: MemoryState): void {
+    this.db.prepare("INSERT INTO settings (key, value) VALUES ('memory', ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value").run(JSON.stringify(state));
   }
 }

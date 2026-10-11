@@ -1,7 +1,7 @@
 import { ClaudeCodeAdapter, CodexAdapter, CursorAdapter } from "@reflex/adapters";
 import { SOURCE_IDS, type SourceId, type TokenUsage, type WorkflowTrace, totalTokens } from "@reflex/core";
 import { displayPath } from "@reflex/safety";
-import { detectTargets } from "@reflex/skills";
+import { detectTargets, memoryTargets, removeMemory, syncMemory } from "@reflex/skills";
 import { type ScanRecord, Store, reflexHome } from "@reflex/storage";
 import type { Attention, Day, Item, TuiData } from "../model";
 import { toCells } from "../render/text";
@@ -56,6 +56,22 @@ export function createLiveSource(opts: LiveSourceOptions = {}): DataSource {
       }
     },
     setAutopilot: async () => unavailable("autopilot is not available yet: the router only suggests models"),
+    async setMemory(on) {
+      const store = new Store();
+      try {
+        store.setMemoryState({ enabled: on });
+        const writes = on ? (await syncMemory(store, { mine: !!store.latestScan() })).writes : await removeMemory();
+        const skipped = writes.filter((w) => w.skipped);
+        if (skipped.length) return { ok: false, message: `memory ${on ? "on" : "off"} · skipped ${skipped.map((w) => w.target.label).join(", ")} (symlinked file)`, tone: "warn" };
+        if (!on) return { ok: true, message: "memory off · removed from your agents' instructions", tone: "dim" };
+        const files = writes.map((w) => toCells(displayPath(w.path))).join(" + ");
+        return { ok: true, message: files ? `memory on · ${files}` : "memory on · no Claude Code or Codex found", tone: "ok" };
+      } catch (e) {
+        return { ok: false, message: errorText(e), tone: "bad" };
+      } finally {
+        store.close();
+      }
+    },
     async rescan() {
       if (!opts.rescan || !hasScan()) return unavailable(NOT_SCANNED);
       try {
@@ -105,6 +121,9 @@ async function loadLive(now: Date): Promise<{ data: TuiData; search?: LiveSearch
       skills,
       attention: attention(skills.items),
     };
+    data.memory = await agentMemory(store);
+    if (data.memory.entries.length && !data.memory.enabled)
+      data.attention.push({ tone: "ok", text: `${data.memory.entries.length} corrections your agents could remember · press m`, view: "dashboard" });
     if (!scan) return { data };
     data.scannedAt = clockLabel(new Date(scan.startedAt));
     Object.assign(data, usage(scan, traces, now));
@@ -202,4 +221,14 @@ function attention(items: Item[]): Attention[] {
   if (fresh) out.push({ tone: "ok", text: `${fresh} new ${fresh === 1 ? "skill" : "skills"} to review`, view: "skills" });
   if (stale) out.push({ tone: "bad", text: `${stale} retired ${stale === 1 ? "skill is" : "skills are"} still installed`, view: "skills" });
   return out;
+}
+
+/** Memory entries and where they go. Mining happens at scan time; this only reads. */
+async function agentMemory(store: Store): Promise<NonNullable<TuiData["memory"]>> {
+  const entries = store
+    .memoryEntries()
+    .filter((e) => e.status === "active")
+    .map((e) => ({ text: toCells(e.text), sessions: e.sessions, origin: e.origin }));
+  const files = (await memoryTargets()).filter((t) => t.detected).map((t) => toCells(displayPath(t.file)));
+  return { enabled: store.memoryState().enabled, entries, files };
 }

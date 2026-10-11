@@ -21,6 +21,7 @@ export type Effect =
   | { type: "rescan" }
   | { type: "toggle"; kind: "skills" | "workflows"; name: string; on: boolean }
   | { type: "autopilot"; on: boolean }
+  | { type: "memory"; on: boolean }
   | { type: "resume"; sessionId: string; turn: number }
   /** (Re)start the search debounce: after QUERY_DEBOUNCE_MS the app sends `{ type: "query" }`. */
   | { type: "debounce" };
@@ -180,6 +181,7 @@ function key(ui: UiState, ev: { name: string; ch?: string; ctrl?: boolean; alt?:
   if (name === "up" || k === "k") return { ui: move(ui, data, -1), effects: [] };
   if (name === "space" || name === "enter" || k === " ") return activate(ui, data);
   if (k === "r") return ui.scanning ? same : { ui: { ...ui, scanning: true }, effects: [{ type: "rescan" }] };
+  if (k === "m") return data.memory ? { ui, effects: [{ type: "memory", on: !data.memory.enabled }] } : { ui: withToast(ui, "memory is not available yet", "dim"), effects: [] };
   if (k === "q") return { ui, effects: [{ type: "quit" }] };
   return same;
 }

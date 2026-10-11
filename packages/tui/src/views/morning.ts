@@ -158,6 +158,14 @@ export function renderMorning(w: number, h: number, data: TuiData, _ui: UiState)
   if (data.workflows?.runAs) al.push(S(" + ", "dim"), S(data.workflows.items.filter((x) => x.on).length + " workflows", "hi"));
   if (data.activeDirs.length) al.push(S("  in " + data.activeDirs.join("  "), "dim"));
   L.push(al);
+  const mem = data.memory;
+  if (mem) {
+    const ml: Line = [S("MEMORY  ", "dim", BOLD), S(mem.enabled ? "on" : "off", mem.enabled ? "ok" : "dim", BOLD), S(` · ${mem.entries.length} remembered`, "hi")];
+    if (mem.enabled && mem.files.length) ml.push(S("  in " + mem.files.join("  "), "dim"));
+    else if (!mem.enabled && mem.entries.length) ml.push(S("  press m to share with new agent sessions", "dim"));
+    if (mem.entries[0]) ml.push(S(`  · "${mem.entries[0].text}"`, "dim"));
+    L.push(ml);
+  }
 
   const dl: Line = [S("DATA    ", "dim", BOLD), S(data.dataDir, "fg")];
   if (data.reads.length) dl.push(S("  reads " + data.reads.join("  "), "dim"));

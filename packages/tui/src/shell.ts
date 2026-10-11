@@ -182,6 +182,8 @@ function sidebar(sw: number, h: number, data: TuiData, ui: UiState): Line[] {
   else L.push([S(" " + ns + " skills", "fg"), S("  ·  ", "dim"), ...(nw === undefined ? [S("—", "dim"), S(" workflows", "fg")] : [S(nw + " workflows", "fg")])]);
   const r = data.router;
   L.push([S(" autopilot ", "dim"), r ? S(r.autopilot ? "on" : "off", r.autopilot ? "ok" : "dim", BOLD) : S("—", "dim")]);
+  const m = data.memory;
+  if (m) L.push([S(" memory ", "dim"), S(m.enabled ? "on" : "off", m.enabled ? "ok" : "dim", BOLD), S(` · ${m.entries.length} remembered`, "dim")]);
   while (L.length < h - 2) L.push([]);
   L.length = Math.max(0, h - 2);
   L.push([S(" nothing leaves this machine", "dim")]);
@@ -198,13 +200,13 @@ function topbar(W: number, data: TuiData, ui: UiState): Line {
 }
 
 /** Status bar key chips for the view (prototype `statusbar`). */
-function statusbar(W: number, view: ViewId): Line {
+function statusbar(W: number, view: ViewId, memory = false): Line {
   const ks: Array<[string, string]> =
     view === "search"
       ? [["0-6", "jump"], ["/", "type"], ["↑↓", "results"], ["tab", "tool"], ["enter", "resume"], ["esc", "done"]]
       : [["0-6", "jump"], ["/", "search"]];
   if (view === "skills" || view === "workflows" || view === "router") ks.push(["↑↓", "select"], ["space", view === "router" ? "autopilot" : "toggle"]);
-  if (view !== "search") ks.push(["r", "rescan"], ["b", "sidebar"], ["q", "quit"]);
+  if (view !== "search") ks.push(["r", "rescan"], ...(memory ? ([["m", "memory"]] as Array<[string, string]>) : []), ["b", "sidebar"], ["q", "quit"]);
   const l: Line = [];
   for (const [k, d] of ks) l.push(S(" " + k + " ", "hi", { bold: true, b: COLOR.key }), S(" " + d + "  "));
   const r: Line = [S("● local · offline ", "dim")];
@@ -252,7 +254,7 @@ export function compose(W: number, H: number, data: TuiData, ui: UiState): Frame
   const out = RENDER[ui.view](CW, Math.max(0, CH - 1), data, ui);
   const body: Line[] = [[] as Line].concat(out.lines).slice(0, CH);
   while (body.length < CH) body.push([]);
-  const lines: Line[] = [topbar(W, data, ui), ...body.map((l, i) => [...(side[i] ?? []), S(" "), ...fit(l, CW), S(" ")]), statusbar(W, ui.view)];
+  const lines: Line[] = [topbar(W, data, ui), ...body.map((l, i) => [...(side[i] ?? []), S(" "), ...fit(l, CW), S(" ")]), statusbar(W, ui.view, !!data.memory)];
   const grid = lines.slice(0, Math.max(1, H)).map((l) => cells(fit(l, W)));
 
   const t = ui.toast;

@@ -130,7 +130,8 @@ describe("reflex tui on fixture history", () => {
       expect(i.path).toBe(join(root, "claude-skills", i.name, "SKILL.md"));
     }
     expect(data.skills.targets).toEqual(["claude", "codex", "cursor"].map((t) => `${join(root, `${t}-skills`)}/<name>/SKILL.md`));
-    expect(data.attention).toEqual([{ tone: "ok", text: "3 new skills to review", view: "skills" }]);
+    expect(data.attention.filter((a) => a.view === "skills")).toEqual([{ tone: "ok", text: "3 new skills to review", view: "skills" }]);
+    expect(data.memory?.enabled).toBe(false);
 
     expect(data.limits).toBeUndefined();
     expect(data.plansFile).toBeUndefined();
@@ -254,7 +255,8 @@ describe("reflex tui on fixture history", () => {
     const data = await source.load();
     expect(item(data, "fix-ci")).toMatchObject({ on: true, state: "" });
     expect(item(data, "fix-ci")!.markdown.join("\n")).toBe(reflexCopy.trimEnd());
-    expect(data.attention).toEqual([{ tone: "ok", text: "2 new skills to review", view: "skills" }]);
+    expect(data.attention.filter((a) => a.view === "skills")).toEqual([{ tone: "ok", text: "2 new skills to review", view: "skills" }]);
+    expect(data.memory?.enabled).toBe(false);
   });
 
   it("skips a target where a different skill has the name, and records an identical copy as installed", async () => {

@@ -121,6 +121,8 @@ export interface DataSource {
   toggleItem(kind: "skills" | "workflows", name: string, on: boolean): Promise<ActionResult>;
   /** Turn the router autopilot hook on or off. */
   setAutopilot(on: boolean): Promise<ActionResult>;
+  /** Turn agent memory on or off (optional: sources without memory toast that it is unavailable). */
+  setMemory?(on: boolean): Promise<ActionResult>;
   /** Re-read history. Runs off the UI thread; the UI keeps responding while it runs. */
   rescan(): Promise<RescanResult>;
   /** How to resume a search hit in its own CLI, or a message when that is not possible. */

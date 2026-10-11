@@ -39,6 +39,7 @@ shows full names and summaries; below that it is a narrow rail.
 | `space` / `enter` | Skills: install a new or uninstalled skill, remove an installed one |
 | `r` | Rescan in the background; the top bar shows `rescanning…` until it finishes |
 | `b` | Full sidebar or rail (needs 140+ columns) |
+| `m` | Agent memory on or off (live data only). Morning's MEMORY line and the sidebar show what new sessions are told |
 | `q`, `ctrl-c` | Quit |
 | `/`, `tab` | Search; for now they answer `search is not available yet` |
 
