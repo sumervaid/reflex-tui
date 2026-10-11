@@ -156,7 +156,9 @@ every load (at start, after a rescan and after each toggle).
 | `window`, `days`, `yesterday` | Token sums from the stored traces' `usage`, per local day of the scan window; yesterday only when the scan covers all of it |
 | `skills` | Generated skills and pending suggestions; `new` = pending, `retired` = the latest scan no longer found it, `on` = an installation record whose file is still there |
 | `attention` | New suggestions to review, retired skills still installed |
-| `money`, `limits`, `plansFile`, `topPrompts`, `topSessions`, `workflows`, `router`, `search` | Not recorded yet, so absent |
+| `workflows` | Pending and approved suggestions with their evidence; `on` = the skill generated from it is installed. No `runAs`: a workflow installs as its skill |
+| `search` | Each stored trace's excerpt (turn 1) and display steps (turns 2..), keyed by the first 8 characters of the native session id |
+| `money`, `limits`, `plansFile`, `topPrompts`, `topSessions`, `router` | Not recorded, so absent |
 
 Sessions found twice (the same session id in two places) count once in token sums. Cursor records
 no tokens, so a day or window with only Cursor sessions has no token value. More in

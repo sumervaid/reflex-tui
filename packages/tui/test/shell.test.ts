@@ -113,6 +113,18 @@ describe("sidebar empty states", () => {
     for (const y of [7, 16, 19]) expect(text(f, y).slice(27, 30)).toBe("   ");
   });
 
+  it("workflows that install as their skill: counted as found, not again as installed", () => {
+    const d = liveShapeData();
+    d.workflows = { items: d.skills.items.map((i) => ({ ...i, state: "" as const })), targets: d.skills.targets };
+    d.search = { indexed: 4348, query: () => [], session: () => ({ turns: [] }) };
+    const f = compose(150, 45, d, designUi("dashboard"));
+    const side = (y: number): string => text(f, y).slice(0, 30).trimEnd();
+    expect(side(17)).toBe("     6 found · 3 installed");
+    expect(side(23)).toBe("     / 4,348 turns indexed");
+    expect(side(26)).toBe(" 3 skills");
+    expect(attention(d, { seen: [] }).workflows).toBeNull();
+  });
+
   it("live-shape data, rail", () => {
     const c = cellsOf(compose(120, 40, liveShapeData(), designUi("dashboard")));
     expect(c[9]![2]).toMatchObject({ ch: "●", fg: COLOR.ok });

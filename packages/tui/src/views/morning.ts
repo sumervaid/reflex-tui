@@ -126,7 +126,7 @@ export function renderMorning(w: number, h: number, data: TuiData, _ui: UiState)
     const c = SCOL[k];
     const o: Line[] = [[S(String(xs.length), c, BOLD), S(" " + k.toUpperCase(), c, BOLD)], [S("━".repeat(Math.max(0, cw3)), c)]];
     xs.slice(0, cap).forEach((e) =>
-      o.push([S(e.k.padEnd(6), "dim"), S(tr((e.k === "wf" ? "/wf-" : "") + e.x.name, cw3 - 16), "fg"), S(rp(e.x.support + " sess", 10), "dim")]),
+      o.push([S(e.k.padEnd(6), "dim"), S(tr((e.k === "wf" ? (data.workflows?.runAs ?? "") : "") + e.x.name, cw3 - 16), "fg"), S(rp(e.x.support + " sess", 10), "dim")]),
     );
     if (xs.length > cap) o.push([S("      +" + (xs.length - cap) + " more", "dim")]);
     return o;
@@ -155,7 +155,7 @@ export function renderMorning(w: number, h: number, data: TuiData, _ui: UiState)
   L.push(rl);
 
   const al: Line = [S("ACTIVE  ", "dim", BOLD), S(data.skills.items.filter((x) => x.on).length + " skills", "hi")];
-  if (data.workflows) al.push(S(" + ", "dim"), S(data.workflows.items.filter((x) => x.on).length + " workflows", "hi"));
+  if (data.workflows?.runAs) al.push(S(" + ", "dim"), S(data.workflows.items.filter((x) => x.on).length + " workflows", "hi"));
   if (data.activeDirs.length) al.push(S("  in " + data.activeDirs.join("  "), "dim"));
   L.push(al);
 

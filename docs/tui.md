@@ -1,15 +1,17 @@
 # Terminal UI
 
-`reflex tui` is a full-screen view of what Reflex has stored locally: the last scan's sessions and
-token counts, and the skills it generated or wants you to review. It reads nothing new on its own.
-The only writes are the ones you ask for with `space` (install or remove a skill) and `r` (scan
-again the way you last scanned).
+`reflex tui` (or `reflex` on its own, in a terminal) is a full-screen view of what Reflex has stored
+locally: the last scan's sessions and token counts, the skills it generated or wants you to review,
+the workflows behind them, and a search over every scanned session. It reads nothing new on its
+own, except the first lines of a Claude Code transcript to find the folder to resume it in. The
+only writes are the ones you ask for with `space` (install or remove a skill) and `r` (scan again
+the way you last scanned); enter in Search hands the terminal to `claude` or `codex`.
 
 ## Run it
 
 ```sh
 reflex scan --days 7     # choose what Reflex may read; the UI shows the result of the last scan
-reflex tui
+reflex                   # same as `reflex tui`; without a terminal it prints help
 ```
 
 It needs an interactive terminal (`reflex tui needs an interactive terminal` otherwise) of at least
@@ -24,9 +26,9 @@ shows full names and summaries; below that it is a narrow rail.
 | `1` | Morning | Yesterday's sessions and context/output tokens, new and retired skills, where skills are installed, what Reflex reads |
 | `2` | Tokens | The scan window: token identity (fresh input, cache writes, cache reads, output), cache hit rate, sessions per tool, tokens per day |
 | `3` | Skills | Generated skills and pending suggestions, with the SKILL.md in a scrollable preview |
-| `4` | Workflows | `not measured yet` |
+| `4` | Workflows | Every repeated workflow the last analysis found (rejected ones left out), with its evidence: sessions, repositories and tools, confidence, median tokens, tool calls and duration, each step with how many sessions had it, recurring corrections, uncertainty and the sessions themselves. `space` approves or installs its skill, or removes it |
 | `5` | Router | `not measured yet` |
-| `6` | Search | `not indexed yet` |
+| `6` | Search | Each scanned session's redacted opening request (`you`, turn 1) and its normalized steps (`ai`, turns 2..). `tab` filters by tool; enter resumes a Codex session with `codex resume <id>` and a Claude Code session with `claude --resume <id>` in the folder it ran in. Cursor chats are not resumed |
 
 ## Keys
 
@@ -87,9 +89,10 @@ heading and `not measured yet`; a missing value inside a block shows `—`.
 | Cost in dollars, cache savings, budget | not measured | Reflex has no pricing |
 | Usage limits and pace | not measured | no plans file |
 | Cost by model and project, most expensive prompts and sessions | not measured | |
-| Workflows | not measured | not mined yet |
+| Workflows: support, steps, evidence, installed | yes | `suggestions` (pending and approved), their skills' installation records; a workflow installs as its skill, so it has no `runAs` and is not counted again as an installed workflow |
 | Router and autopilot | not measured | no router |
-| Search and resume | not indexed | no turn index |
+| Search | yes | stored traces: `excerpt` and `displaySteps`, each session once. Raw transcripts are not stored, so later prompts and replies are not searchable |
+| Resume | Claude Code, Codex | native session id from the trace; Claude's folder from the `cwd` in the first 256 KB of its transcript (no symlinks) |
 
 Cursor records no tokens, so a day with only Cursor sessions has no token value.
 

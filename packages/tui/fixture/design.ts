@@ -337,7 +337,7 @@ export function designData(): TuiData {
       prompt,
     })),
     skills: list(items(SKILLS, true), ["~/.claude/skills/<name>/SKILL.md", "~/.codex/prompts/<name>.md"]),
-    workflows: list(items(WFS, false), ["~/.claude/commands/wf-<name>.md", "~/.codex/prompts/wf-<name>.md"]),
+    workflows: { ...list(items(WFS, false), ["~/.claude/commands/wf-<name>.md", "~/.codex/prompts/wf-<name>.md"]), runAs: "/wf-" },
     router: {
       autopilot: true,
       sessions: 1284,

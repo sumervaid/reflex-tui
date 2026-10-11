@@ -77,6 +77,17 @@ describe("items view (skills, workflows)", () => {
     });
   }
 
+  it("workflows that install as their skill: plain targets, no slash command", () => {
+    const data = liveShapeData();
+    data.workflows = { items: data.skills.items.map((i) => ({ ...i, state: "" as const })), targets: data.skills.targets };
+    // At 140+ view columns the hint spells out what `space` does.
+    const wide = renderItems("workflows", 146, 42, data, designUi("workflows"));
+    expect(text(wide.lines[0]!)).toMatch(/^space toggles the workflow's skill: installs or removes ~\/\.claude\/skills\/<name>\/SKILL\.md, /);
+    const narrow = render("workflows", 120, 40, data);
+    expect(text(narrow.lines[0]!)).toMatch(/^space installs\/removes ~\/\.claude\/skills\/<name>\/SKILL\.md \+ /);
+    for (const out of [wide, narrow]) expect(out.lines.map(text).join("\n")).not.toContain("/wf-");
+  });
+
   it("rows select and the preview scrolls", () => {
     for (const kind of KINDS)
       for (const [W, H] of SIZES) {

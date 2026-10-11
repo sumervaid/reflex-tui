@@ -1,4 +1,4 @@
-import { lstat, mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { lstat, mkdir, mkdtemp, readFile, readdir, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
@@ -133,10 +133,71 @@ describe("reflex tui on fixture history", () => {
     expect(data.skills.targets).toEqual(["claude", "codex", "cursor"].map((t) => `${join(root, `${t}-skills`)}/<name>/SKILL.md`));
     expect(data.attention).toEqual([{ tone: "ok", text: "3 new skills to review", view: "skills" }]);
 
-    for (const k of ["money", "limits", "plansFile", "topPrompts", "topSessions", "workflows", "router", "search"] as const) expect(data[k]).toBeUndefined();
+    for (const k of ["money", "limits", "plansFile", "topPrompts", "topSessions", "router"] as const) expect(data[k]).toBeUndefined();
     expect(JSON.stringify(data)).not.toMatch(/usd/i);
     // Pending previews are generated in memory only.
     expect(await exists(join(root, "reflex", "skills"))).toBe(false);
+  });
+
+  it("lists every workflow the scan found, with the evidence behind its skill", async () => {
+    const data = await source.load();
+    const wf = data.workflows!;
+    expect(wf.runAs).toBeUndefined();
+    expect(wf.targets).toEqual(data.skills.targets);
+    expect(wf.items.map((i) => i.name).sort()).toEqual(["debug-dependency", "fix-ci", "review-pr"]);
+    const ci = wf.items.find((i) => i.name === "fix-ci")!;
+    expect(ci).toMatchObject({ on: false, state: "", support: 6 });
+    expect(ci.steps).toBeGreaterThan(0);
+    expect(ci.markdown[0]).toMatch(/^# /);
+    for (const heading of ["## Steps", "## Recurring corrections", "## Sessions"]) expect(ci.markdown).toContain(heading);
+    expect(ci.markdown).toContain("- Don't change ci workflow. (2 sessions)");
+    expect(ci.markdown.filter((l) => /^- \d\d [A-Z][a-z]{2} {2}(claude|codex) {2}/.test(l))).toHaveLength(6);
+  });
+
+  it("searches every scanned session's opening request and steps", async () => {
+    const { traces } = latest();
+    const data = await source.load();
+    const idx = data.search!;
+    const unique = new Map(traces.map((t) => [t.sessionId, t]));
+    const expected = [...unique.values()].reduce((a, t) => a + (t.excerpt.trim() ? 1 : 0) + t.displaySteps.filter((s) => s.trim()).length, 0);
+    expect(idx.indexed).toBe(expected);
+    expect(idx.query("", "all")).toHaveLength(expected);
+
+    const hits = idx.query("GITHUB ACTIONS", "all");
+    expect(hits.length).toBeGreaterThan(0);
+    expect(hits.every((h) => h.text.toLowerCase().includes("github actions"))).toBe(true);
+    expect(hits.some((h) => h.role === "you" && h.turn === 1)).toBe(true);
+    expect(idx.query("pnpm", "codex").every((h) => h.tool === "codex")).toBe(true);
+    expect(idx.query("zzz-no-such-text", "all")).toEqual([]);
+
+    const ctx = idx.session(hits[0]!.session);
+    expect(ctx.turns[0]).toMatchObject({ turn: 1, role: "you" });
+    expect(ctx.turns.slice(1).every((t) => t.role === "ai")).toBe(true);
+  });
+
+  it("resumes Codex sessions directly and Claude Code sessions in their own folder", async () => {
+    const { traces } = latest();
+    const idx = (await source.load()).search!;
+    const nativeOf = (key: string, src: string) => traces.find((t) => t.source === src && t.sessionId.slice(src.length + 1).startsWith(key))!.sessionId.slice(src.length + 1);
+
+    const codex = idx.query("", "codex")[0]!;
+    expect(source.resume(codex.session, 1)).toEqual({ cmd: "codex", args: ["resume", nativeOf(codex.session, "codex")] });
+
+    const claude = idx.query("", "claude")[0]!;
+    const id = nativeOf(claude.session, "claude-code");
+    // The fixture's folders don't exist on this machine, so Claude cannot be started there.
+    expect(source.resume(claude.session, 1)).toEqual({ ok: false, message: `run \`claude --resume ${id}\` in the session's project folder`, tone: "dim" });
+
+    const claudeRoot = process.env.REFLEX_CLAUDE_DIR!;
+    for (const dir of await readdir(claudeRoot)) {
+      const file = join(claudeRoot, dir, `${id}.jsonl`);
+      if (!(await exists(file))) continue;
+      const text = await readFile(file, "utf8");
+      const cwd = (JSON.parse(text.split("\n").find((l) => l.includes('"cwd"'))!) as { cwd: string }).cwd;
+      await writeFile(file, text.replaceAll(JSON.stringify(cwd), JSON.stringify(root)));
+    }
+    expect(source.resume(claude.session, 1)).toEqual({ cmd: "claude", args: ["--resume", id], cwd: root });
+    expect(source.resume("no-such-session", 1)).toEqual({ ok: false, message: "this session cannot be resumed", tone: "dim" });
   });
 
   it("toggling a new skill on approves it and installs it into every detected target", async () => {
@@ -182,10 +243,19 @@ describe("reflex tui on fixture history", () => {
     expect(item(await source.load(), "fix-ci")!.on).toBe(true);
   });
 
+  it("toggling a workflow installs and removes the skill generated from it", async () => {
+    expect(await source.toggleItem("workflows", "debug-dependency", true)).toEqual({ ok: true, message: "installed debug-dependency", tone: "ok" });
+    for (const t of ["claude", "codex", "cursor"]) expect(await exists(target(t, "debug-dependency"))).toBe(true);
+    let data = await source.load();
+    expect(data.workflows!.items.find((i) => i.name === "debug-dependency")!.on).toBe(true);
+    expect(item(data, "debug-dependency")!.on).toBe(true);
+    expect(await source.toggleItem("workflows", "debug-dependency", false)).toEqual({ ok: true, message: "removed debug-dependency", tone: "dim" });
+    data = await source.load();
+    expect(data.workflows!.items.find((i) => i.name === "debug-dependency")!.on).toBe(false);
+  });
+
   it("answers unavailable features plainly", async () => {
-    expect(await source.toggleItem("workflows", "fix-ci", true)).toEqual({ ok: false, message: "workflows are not available yet", tone: "dim" });
     expect(await source.setAutopilot(true)).toEqual({ ok: false, message: "the router is not available yet", tone: "dim" });
-    expect(source.resume("claude-code:abc", 3)).toEqual({ ok: false, message: "search is not available yet", tone: "dim" });
     expect(await source.rescan()).toEqual({ ok: false, message: NOT_SCANNED, tone: "dim" });
     const rescan = vi.fn(async () => ({ ok: true, message: "rescanned: 1 sessions, 0 new", tone: "ok" as const }));
     expect((await createLiveSource({ rescan }).rescan()).message).toBe("rescanned: 1 sessions, 0 new");

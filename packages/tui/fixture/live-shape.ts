@@ -1,6 +1,6 @@
-// Data shapes for empty-state rendering and tests: what the TUI sees before the first scan, and
-// what the live source can provide today (sessions, tokens, skills; no money, limits, router,
-// workflows or search). Dev and test only.
+// Data shapes for empty-state rendering and tests: what the TUI sees before the first scan, and a
+// live-like scan (sessions, tokens, skills; no money, limits or router). Workflows and search are
+// left out here so the views' absent states stay covered; tests add them where needed. Dev and test only.
 import type { Item, TuiData } from "../src/model";
 
 const md = (name: string, steps: string[]): string[] => [
@@ -43,7 +43,7 @@ export function emptyData(): TuiData {
   };
 }
 
-/** What the live source provides in this release. */
+/** A live-like scan without workflows or search. */
 export function liveShapeData(): TuiData {
   const labels = ["04 Oct", "05 Oct", "06 Oct", "07 Oct", "08 Oct", "09 Oct", "10 Oct"];
   const tokens = [21.4e6, 8.2e6, 31.9e6, 44.1e6, 38.7e6, 27.3e6, 35.0e6];

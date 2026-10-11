@@ -36,7 +36,15 @@ const program = new Command();
 program
   .name("reflex")
   .description("Find workflows you keep re-teaching Claude Code, Codex and Cursor, and turn proven repeats into reusable skills. Everything runs locally.")
-  .version("0.1.0");
+  .version("0.2.0")
+  .allowExcessArguments()
+  .action(
+    run(async () => {
+      if (program.args.length) program.error(`error: unknown command '${program.args[0]}'. See \`reflex --help\`.`);
+      if (process.stdin.isTTY && process.stdout.isTTY) await tui();
+      else program.help();
+    }),
+  );
 
 program.command("doctor").description("check the environment and detected history locations").action(run(doctor));
 
@@ -93,7 +101,7 @@ program
 
 program
   .command("tui")
-  .description("open the terminal UI: sessions and tokens from the last scan, skills to review, install and remove")
+  .description("open the terminal UI (also what `reflex` alone opens): sessions, tokens, skills, workflows and search")
   .action(run(tui));
 
 const model = program.command("model").description("optional local embedding model for matching requests by meaning");

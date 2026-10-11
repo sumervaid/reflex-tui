@@ -107,8 +107,8 @@ export type ActionResult = { ok: boolean; message: string; tone: Tone };
 
 export type RescanResult = ActionResult & { sessions?: number; added?: number };
 
-/** A command that resumes a session in its own CLI. */
-export type ResumeCommand = { cmd: string; args: string[] };
+/** A command that resumes a session in its own CLI, run in `cwd` when the CLI looks sessions up per folder. */
+export type ResumeCommand = { cmd: string; args: string[]; cwd?: string };
 
 /**
  * Where the TUI gets its data and how it acts on it. The live source reads Reflex's store; the

@@ -7,7 +7,9 @@ import type { Attention, Day, Item, TuiData } from "../model";
 import { toCells } from "../render/text";
 import type { ActionResult, DataSource, RescanResult } from "../types";
 import { clockLabel, dayLabel, dayStart, rangeLabel, weekdayLabel } from "./labels";
+import { type LiveSearch, buildSearch, resumeCommand } from "./search";
 import { TOOL_OF, errorText, skillItems, turnOff, turnOn } from "./skills";
+import { workflowItems } from "./workflows";
 
 export type LiveSourceOptions = {
   /** Re-read history the way the latest scan did. The CLI runs `reflex scan` in a child process. */
@@ -30,17 +32,23 @@ const unavailable = (message: string): ActionResult => ({ ok: false, message, to
 
 /**
  * The TUI's data from Reflex's own store: the latest scan's sessions and token usage, generated
- * skills and pending suggestions. Everything Reflex does not record (money, limits, workflows,
- * the router, search) is left out, so the views show it as not measured.
+ * skills and pending suggestions, the workflows behind them and a search over every scanned
+ * session. Everything Reflex does not record (money, limits, the router) is left out, so the views
+ * show it as not measured.
  */
 export function createLiveSource(opts: LiveSourceOptions = {}): DataSource {
   const now = opts.now ?? (() => new Date());
+  let search: LiveSearch | undefined;
   return {
-    load: () => loadLive(now()),
+    async load() {
+      const live = await loadLive(now());
+      search = live.search;
+      return live.data;
+    },
     async toggleItem(kind, name, on) {
-      if (kind === "workflows") return unavailable("workflows are not available yet");
       try {
-        return on ? await turnOn(name) : await turnOff(name);
+        const skill = kind === "workflows" ? skillFor(name) : name;
+        return on ? await turnOn(skill) : await turnOff(skill);
       } catch (e) {
         return { ok: false, message: errorText(e), tone: "bad" };
       }
@@ -54,8 +62,18 @@ export function createLiveSource(opts: LiveSourceOptions = {}): DataSource {
         return { ok: false, message: errorText(e), tone: "bad" };
       }
     },
-    resume: () => unavailable("search is not available yet"),
+    resume: (sessionId) => resumeCommand(search?.sessions.get(sessionId)),
   };
+}
+
+/** The skill a workflow installs as: the one generated from it (possibly renamed), else its own slug. */
+function skillFor(slug: string): string {
+  const store = new Store();
+  try {
+    return store.skills().find((k) => k.suggestionSlug === slug)?.name ?? slug;
+  } finally {
+    store.close();
+  }
 }
 
 function hasScan(): boolean {
@@ -67,12 +85,13 @@ function hasScan(): boolean {
   }
 }
 
-async function loadLive(now: Date): Promise<TuiData> {
+async function loadLive(now: Date): Promise<{ data: TuiData; search?: LiveSearch }> {
   const targets = await detectTargets();
   const store = new Store();
   try {
     const scan = store.latestScan();
     const skills = await skillItems(store, scan, targets, now);
+    const traces = uniqueSessions(store.traces());
     const read = scan ? SOURCE_IDS.filter((s) => scan.sources[s] !== undefined) : [];
     const data: TuiData = {
       sessions: scan?.sessions ?? 0,
@@ -84,11 +103,14 @@ async function loadLive(now: Date): Promise<TuiData> {
       skills,
       attention: attention(skills.items),
     };
-    if (scan) {
-      data.scannedAt = clockLabel(new Date(scan.startedAt));
-      Object.assign(data, usage(scan, uniqueSessions(store.traces()), now));
-    }
-    return data;
+    if (!scan) return { data };
+    data.scannedAt = clockLabel(new Date(scan.startedAt));
+    Object.assign(data, usage(scan, traces, now));
+    const skillOf = new Map(store.skills().map((k) => [k.suggestionSlug, k.name]));
+    data.workflows = workflowItems(store.suggestions(), skillOf, skills, dayLabel(new Date(scan.startedAt)));
+    const search = buildSearch(traces);
+    data.search = search.index;
+    return { data, search };
   } finally {
     store.close();
   }
