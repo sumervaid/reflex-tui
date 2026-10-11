@@ -76,14 +76,19 @@ export function vchart(vals: number[], rows: number, cw: number, col: (v: number
 }
 
 /** Bold title, then one row per item: name, bar scaled to the largest value, right-aligned USD. */
-export function hbars(title: string, items: Array<[string, number]>, w: number, o: { nw?: number; col?: ColorToken | Hex } = {}): Line[] {
+export function hbars(
+  title: string,
+  items: Array<[string, number]>,
+  w: number,
+  o: { nw?: number; col?: ColorToken | Hex; fmt?: (v: number) => string } = {},
+): Line[] {
   const nw = o.nw || 12;
   const vw = 9;
   const bw = Math.max(4, w - nw - vw - 2);
   const mx = Math.max(...items.map((x) => x[1]));
   return [
     [S(title, "hi", BOLD)],
-    ...items.map(([n, v]): Line => [S(tr(n, nw), "fg"), S(" "), S(hb(v, mx, bw).padEnd(bw), o.col || "gb"), S(rp(usd(v), vw + 1), "fg")]),
+    ...items.map(([n, v]): Line => [S(tr(n, nw), "fg"), S(" "), S(hb(v, mx, bw).padEnd(bw), o.col || "gb"), S(rp((o.fmt ?? usd)(v), vw + 1), "fg")]),
   ];
 }
 

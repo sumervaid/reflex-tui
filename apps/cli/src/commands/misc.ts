@@ -1,7 +1,7 @@
 import { spawnSync } from "node:child_process";
 import { rm, stat } from "node:fs/promises";
 import { join } from "node:path";
-import { SOURCE_LABELS } from "@reflex/core";
+import { SOURCE_LABELS, totalTokens } from "@reflex/core";
 import { createAdapters } from "@reflex/adapters";
 import { deduplicate, isGenericTrace } from "@reflex/analysis";
 import { displayPath, excerpt, pathExists } from "@reflex/safety";
@@ -53,7 +53,8 @@ export async function sessions(): Promise<void> {
     title(`${plural(traces.length, "session")} from the last scan (${shortDate(scan.startedAt)}, ${scan.mode})`);
     for (const t of traces) {
       const tag = !primary.has(t.sessionId) ? c.yellow(" duplicate") : isGenericTrace(t) ? c.dim(" generic") : "";
-      out(`  ${c.dim(shortDate(t.startedAt))}  ${SOURCE_LABELS[t.source].padEnd(11)} ${(t.projectName ?? "?").padEnd(14)} ${excerpt(t.excerpt, 60)}${tag}`);
+      const model = t.models?.[0] ?? Object.entries(t.usageByModel ?? {}).sort((a, b) => totalTokens(b[1]) - totalTokens(a[1]))[0]?.[0] ?? "—";
+      out(`  ${c.dim(shortDate(t.startedAt))}  ${SOURCE_LABELS[t.source].padEnd(11)} ${(t.projectName ?? "?").padEnd(14)} ${c.dim(model.slice(0, 18).padEnd(18))} ${excerpt(t.excerpt, 60)}${tag}`);
     }
     out();
   } finally {

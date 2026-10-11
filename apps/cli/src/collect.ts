@@ -140,7 +140,8 @@ export async function collect(adapters: TranscriptAdapter[], store: Store, opts:
       const cached = store.cachedFile(file.path);
       if (!opts.full && unchanged(cached, file, opts.keys)) {
         const traces = store.fileTraces(file.path);
-        if (!opts.needsDocument || !traces.some((t) => inWindow(t.trace) && opts.needsDocument!(t.trace))) {
+        const stale = (t: WorkflowTrace) => opts.needsDocument?.(t) || a.needsReread?.(t);
+        if (!traces.some((t) => inWindow(t.trace) && stale(t.trace))) {
           result.reused++;
           result.skippedRecords += cached.skippedRecords;
           const n = take(a.id, traces, inWindow);

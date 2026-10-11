@@ -137,6 +137,7 @@ export function buildTrace(session: NormalizedSession): WorkflowTrace {
     sourceFile: session.sourceRef.file,
     usage: session.usage,
     usageByModel: session.usageByModel,
+    models: session.models,
     requests: session.requests.length,
     toolErrors: session.events.filter((e) => "isError" in e && e.isError === true).length,
     toolCalls,

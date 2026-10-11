@@ -70,7 +70,9 @@ tool, model and project, the most expensive sessions, what caching saved), gener
 suggestions waiting for review, every repeated workflow with the evidence behind it, router
 suggestions (which model was cheapest and about as reliable, per kind of task), and a search over
 each session's opening request and steps. Enter reopens a Claude Code or Codex session, or opens a
-Cursor chat's workspace in Cursor. Cursor records no tokens, so its sessions have no cost. Usage
+Cursor chat's workspace in Cursor. Cursor records no tokens, so its sessions have no cost; if you
+allow it, Reflex reads which model each Cursor chat used and Tokens counts Cursor sessions per
+model. Usage
 limits are not recorded, so that block says `not measured yet`. Run `reflex scan` again (or press
 `r`) after upgrading: costs need the model of each session, which older scans did not store.
 

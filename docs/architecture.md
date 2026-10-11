@@ -62,7 +62,12 @@ Token usage, where recorded, is attached to the session as `{input, output, cach
 - Codex: the last cumulative `event_msg` `token_count.info.total_token_usage`. `input_tokens`
   includes `cached_input_tokens`, so the cached part is moved into `cacheRead`. Like the rest of the
   Codex parser, this follows the protocol types and is tested on fixtures only.
-- Cursor: no usage in its transcripts.
+- Cursor: no usage in its transcripts. Its app database (`state.vscdb`, table `cursorDiskKV`) has
+  per-message `tokenCount` fields, but they are always 0. With a second consent, Reflex reads the
+  model names instead: `bubbleId:<chat id>:*` rows (`modelInfo.modelName`, counted per message),
+  falling back to `composerData:<chat id>` (`modelConfig.modelName`). The transcript id is the chat
+  id. Names land in `trace.models`, most used first, unpriced. Cached traces scanned before consent
+  are re-read once.
 
 ## From sessions to suggestions
 

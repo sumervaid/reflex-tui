@@ -174,6 +174,17 @@ function totals(traces: WorkflowTrace[]): Totals {
   return { sessions: traces.length, usage, measured: traces.length === 0 || recorded > 0 };
 }
 
+/** Cursor sessions by the model they mostly used. */
+function cursorModels(traces: WorkflowTrace[]): Array<{ name: string; sessions: number }> | undefined {
+  const counts = new Map<string, number>();
+  for (const t of traces) {
+    const m = t.source === "cursor" ? t.models?.[0] : undefined;
+    if (m) counts.set(m, (counts.get(m) ?? 0) + 1);
+  }
+  if (!counts.size) return undefined;
+  return [...counts].map(([name, sessions]) => ({ name: toCells(name), sessions })).sort((a, b) => b.sessions - a.sessions || a.name.localeCompare(b.name));
+}
+
 const startedIn = (traces: WorkflowTrace[], from: Date, to: Date): WorkflowTrace[] =>
   traces.filter((t) => {
     const at = t.startedAt ? Date.parse(t.startedAt) : NaN;
@@ -201,7 +212,7 @@ function usage(scan: ScanRecord, traces: WorkflowTrace[], now: Date): Pick<TuiDa
   });
   const out: Pick<TuiData, "days" | "window" | "yesterday"> = { days };
   const all = totals(traces);
-  if (all.measured) out.window = { days: scan.days, range: rangeLabel(start, end), sessions: scan.sessions, tokens: all.usage };
+  if (all.measured) out.window = { days: scan.days, range: rangeLabel(start, end), sessions: scan.sessions, tokens: all.usage, cursorModels: cursorModels(traces) };
   const y0 = dayStart(now, -1);
   const t0 = dayStart(now);
   if (start.getTime() <= y0.getTime() && end.getTime() >= t0.getTime()) {

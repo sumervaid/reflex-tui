@@ -67,6 +67,8 @@ export type NormalizedSession = {
   usage?: TokenUsage;
   /** The same usage split by the model the source recorded for it. */
   usageByModel?: Record<string, TokenUsage>;
+  /** Models the source named for this session, most used first, when it records no usage per model (Cursor). */
+  models?: string[];
 };
 
 export type DetectionResult = {
@@ -111,6 +113,8 @@ export interface TranscriptAdapter {
   detect(): Promise<DetectionResult>;
   /** Asks the user (through the injected prompt) before any transcript content is read. */
   requestPermission(ask: (message: string) => Promise<boolean>, days: number): Promise<boolean>;
+  /** A cached trace from an unchanged file that this adapter would now read differently (e.g. newly granted data). */
+  needsReread?(trace: WorkflowTrace): boolean;
   discover(options: DiscoveryOptions): Promise<TranscriptFile[]>;
   parse(file: TranscriptFile, options: DiscoveryOptions): Promise<ParseResult>;
 }
@@ -191,6 +195,8 @@ export type WorkflowTrace = {
   usage?: TokenUsage;
   /** Usage per model, for pricing. Optional in traces stored before it existed. */
   usageByModel?: Record<string, TokenUsage>;
+  /** Models named without usage (Cursor), most used first. `[]` means looked up and none recorded; undefined means not looked up. */
+  models?: string[];
   /** Requests the developer typed. Optional in traces stored before it existed. */
   requests?: number;
   /** Tool calls that failed. Optional in traces stored before it existed. */

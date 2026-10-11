@@ -1,11 +1,12 @@
 import { existsSync, statSync } from "node:fs";
-import { readdir } from "node:fs/promises";
+import { lstat, readdir } from "node:fs/promises";
 import { homedir } from "node:os";
 import { basename, join } from "node:path";
 import { z } from "zod";
-import type { DetectionResult, DiscoveryOptions, ParseResult, TranscriptAdapter, TranscriptFile } from "@reflex/core";
+import type { DetectionResult, DiscoveryOptions, ParseResult, TranscriptAdapter, TranscriptFile, WorkflowTrace } from "@reflex/core";
 import { debug } from "@reflex/core";
 import { displayPath } from "@reflex/safety";
+import { CursorModelIndex, defaultCursorStateDb } from "./cursor-models";
 import { readJsonl } from "./jsonl";
 import { SessionBuilder, clean, cutoffFor, isDirectory, listFiles, patchedFiles, toTranscriptFiles } from "./common";
 
@@ -44,6 +45,14 @@ const FILE_TOOLS: Record<string, "read" | "write" | "edit"> = {
 const TOOL_ALIASES: Record<string, string> = { rg: "Grep", SemanticSearch: "Grep", codebase_search: "Grep" };
 
 const SHELL_TOOLS = new Set(["Shell", "run_terminal_cmd"]);
+
+async function isFile(path: string): Promise<boolean> {
+  try {
+    return (await lstat(path)).isFile();
+  } catch {
+    return false;
+  }
+}
 
 function str(value: unknown): string | undefined {
   return typeof value === "string" ? value : undefined;
@@ -90,9 +99,19 @@ export class CursorAdapter implements TranscriptAdapter {
   readonly id = "cursor" as const;
   readonly label = "Cursor";
   readonly root: string;
+  /** Cursor's app database, for model names. Undefined for a custom transcript folder, which reads only that folder. */
+  readonly stateDb?: string;
+  private models?: CursorModelIndex;
 
-  constructor(root?: string) {
+  constructor(root?: string, stateDb?: string) {
     this.root = root ?? process.env.REFLEX_CURSOR_DIR ?? join(homedir(), ".cursor", "projects");
+    const custom = root ?? process.env.REFLEX_CURSOR_DIR;
+    this.stateDb = stateDb ?? process.env.REFLEX_CURSOR_STATE_DB ?? (custom ? undefined : defaultCursorStateDb());
+  }
+
+  /** Whether the user allowed reading model names from Cursor's app database in this scan. */
+  get readsModels(): boolean {
+    return this.models !== undefined;
   }
 
   private async transcriptPaths(): Promise<string[]> {
@@ -121,7 +140,18 @@ export class CursorAdapter implements TranscriptAdapter {
   }
 
   async requestPermission(ask: (message: string) => Promise<boolean>, days: number): Promise<boolean> {
-    return ask(`Read Cursor agent sessions from the last ${days} day${days === 1 ? "" : "s"} at ${displayPath(this.root)}?`);
+    if (!(await ask(`Read Cursor agent sessions from the last ${days} day${days === 1 ? "" : "s"} at ${displayPath(this.root)}?`))) return false;
+    if (this.stateDb && (await isFile(this.stateDb))) {
+      const allowed = await ask(
+        `Also read which model each Cursor chat used, from Cursor's app database at ${displayPath(this.stateDb)}? Read-only; only model names are extracted, never messages.`,
+      );
+      if (allowed) this.models = new CursorModelIndex(this.stateDb);
+    }
+    return true;
+  }
+
+  needsReread(trace: WorkflowTrace): boolean {
+    return this.readsModels && trace.source === "cursor" && trace.models === undefined;
   }
 
   async discover(options: DiscoveryOptions): Promise<TranscriptFile[]> {
@@ -177,6 +207,7 @@ export class CursorAdapter implements TranscriptAdapter {
 
     b.touch(file.modifiedAt.toISOString());
     const session = b.build();
+    if (this.models) session.models = this.models.modelsFor(b.nativeId);
     const sessions = session.requests.length > 0 && (!session.endedAt || session.endedAt >= cutoff) ? [session] : [];
     debug("file parsed", { adapter: this.id, records: totalRecords, skipped: skippedRecords, sessions: sessions.length });
     return { sessions, skippedRecords, totalRecords, unreadable: false };

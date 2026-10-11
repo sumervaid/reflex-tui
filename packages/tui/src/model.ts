@@ -114,6 +114,8 @@ export type TokenWindow = {
   usd?: TokenSplit & { total: number; uncached: number };
   byModel?: Bar[];
   byProject?: Bar[];
+  /** Cursor records models but no tokens: sessions per model, unpriced. */
+  cursorModels?: Array<{ name: string; sessions: number }>;
 };
 
 export type Bar = { name: string; usd: number };
