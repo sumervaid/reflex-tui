@@ -2,6 +2,7 @@ import type { ActionCategory, CommandFingerprint, NormalizedSession, WorkflowTra
 import { shortHash } from "@reflex/core";
 import { excerpt } from "@reflex/safety";
 import { type FileCategory, MODIFY_ACTIONS, VERIFY_ACTIONS, classifyCommand, fileAction, fileCategory } from "./classify";
+import { extractCorrections } from "./corrections";
 import { intentTerms } from "./intents";
 
 const TOOL_ACTIONS: Record<string, ActionCategory> = {
@@ -136,6 +137,7 @@ export function buildTrace(session: NormalizedSession): WorkflowTrace {
     usage: session.usage,
     toolCalls,
     skillsUsed: [...skills].sort(),
+    corrections: extractCorrections(session.requests.map((r) => r.text)),
   };
 }
 

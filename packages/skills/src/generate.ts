@@ -97,6 +97,11 @@ export function generateSkill(s: Suggestion, now = new Date()): GeneratedSkill {
     if (step.examples.length) lines.push(`   Commands seen: ${step.examples.map((e) => `\`${e}\``).join(", ")}`);
   });
 
+  if (s.constraints?.length) {
+    lines.push("", "## Constraints", "", "The developer gave these corrections in more than one past session:", "");
+    for (const c of s.constraints) lines.push(`- ${c.text} (${c.sessions} sessions)`);
+  }
+
   lines.push("", "## Completion criteria", "");
   for (const c of s.completion) lines.push(`- ${c}`);
 

@@ -64,7 +64,9 @@ least 3 independent sessions with consistent behavior; one-offs, read-and-answer
 generic "read, edit, test" patterns are not suggested.
 
 The skill contains only steps seen in at least half the sessions, in the order they usually
-happened, with example commands that recurred and passed a safety filter. No transcript text.
+happened, with example commands that recurred and passed a safety filter. Corrections you gave in
+follow-up messages ("don't change the CI workflow") become constraints when the same correction
+appears in at least 2 sessions; only the words those sessions share are kept. No transcript excerpts.
 Details: [docs/architecture.md](docs/architecture.md).
 
 ## Measuring a skill

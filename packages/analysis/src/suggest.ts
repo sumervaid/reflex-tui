@@ -5,6 +5,7 @@ import { FAMILIES } from "./catalog";
 import { CLUSTER_THRESHOLD, clusterTraces } from "./cluster";
 import { type DedupStats, type WorkflowInstance, deduplicate } from "./dedup";
 import { MODIFY_TARGET_LABEL, STEP_TEXT, type StepKind } from "./steps";
+import { type Constraint, recurringCorrections } from "./corrections";
 import { type WorkflowCost, median, workflowCost } from "./impact";
 import { isGenericTrace, usedSkill } from "./trace";
 
@@ -26,6 +27,14 @@ const UNSAFE_EXAMPLE =
 export function isSafeExample(cmd: string): boolean {
   const withoutPlaceholders = cmd.replace(/<(n|file|ref|sha|arg|str|url)>/g, "x");
   return cmd.length <= 80 && !UNSAFE_EXAMPLE.test(withoutPlaceholders) && !/\[REDACTED/.test(cmd);
+}
+
+/** Words that try to steer the agent reading the skill rather than describe the task. */
+const STEERING = /\b(ignore|disregard|override|bypass|instructions?|prompts?|system|previous|jailbreak|hesitate|forget|pretend|secrets?|tokens?|passwords?|credentials?|keys?|env)\b/;
+const MAX_CONSTRAINTS = 5;
+
+export function isSafeConstraint(text: string): boolean {
+  return text.length <= 80 && !UNSAFE_EXAMPLE.test(text) && !STEERING.test(text.toLowerCase()) && !/\[REDACTED/i.test(text);
 }
 
 export type ConsensusStep = {
@@ -82,6 +91,8 @@ export type Suggestion = {
   sourceSessions: string[];
   /** Cost of the runs that did not load a skill with this name: the baseline for `reflex impact`. */
   cost?: WorkflowCost;
+  /** Corrections the developer gave in at least two independent sessions. */
+  constraints?: Constraint[];
 };
 
 export type AnalysisStats = {
@@ -324,6 +335,9 @@ export function analyze(traces: WorkflowTrace[]): Analysis {
       medianMinutes: median(durations),
       sourceSessions: group.flatMap((g) => [g.primary.sessionId, ...g.merged.map((m) => m.sessionId)]),
       cost: workflowCost(group.map((g) => g.primary).filter((t) => !usedSkill(t, slug))),
+      constraints: recurringCorrections(group.map((g) => g.primary.corrections ?? []))
+        .filter((c) => isSafeConstraint(c.text))
+        .slice(0, MAX_CONSTRAINTS),
     });
   }
 

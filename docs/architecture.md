@@ -85,6 +85,14 @@ Token usage, where recorded, is attached to the session as `{input, output, cach
 7. **Rank.** Confidence is a heuristic over cohesion, instance count, repository spread, step
    consensus and verification rate. It is shown as a ranking signal, not a probability.
 
+8. **Constraints.** Follow-up requests (not the first) are split into clauses. A clause counts as a
+   correction if it says "don't / never / stop / avoid …" (avoid) or "X instead of Y / always … /
+   no, X" (prefer). The trace keeps its plain words without filler; a clause with any non-word token
+   is dropped. Within a cluster, corrections with the same polarity from different sessions match at
+   word Jaccard ≥ 0.5 with ≥ 2 shared words. A matched group in ≥ 2 sessions becomes a rule from its
+   shared words only. Rules pass the command safety filter and a steering-word filter; at most 5
+   per skill.
+
 A small family catalog (`fix-ci`, `review-pr`, `debug-dependency`, …) names clusters. It never
 creates or admits one.
 

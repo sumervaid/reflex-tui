@@ -46,6 +46,11 @@ export function renderSuggestion(entry: StoredSuggestion): void {
     const variants = st.variants ? c.dim(`  ${st.variants.join(" · ")}`) : "";
     out(`    ${String(i + 1).padStart(2)}. ${st.label.padEnd(width)}  ${c.dim(`${seen}/${s.instances}`)}${variants}`);
   });
+  if (s.constraints?.length) {
+    out();
+    out("  Your recurring corrections (become constraints in the skill)");
+    for (const k of s.constraints) out(`    - ${k.text} ${c.dim(`${k.sessions} sessions`)}`);
+  }
   if (s.notes.length) {
     out();
     out("  Uncertainty");
