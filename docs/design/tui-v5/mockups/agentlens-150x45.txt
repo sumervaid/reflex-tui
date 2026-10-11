@@ -1,0 +1,329 @@
+=== [0] Dashboard  150x45 ===
+ ◆ agentlens   dashboard   [0]                                                                                               scanned 08:02   08:14:07 
+ LENSES                                                                                                                                               
+ local only · 1,284 sessions   USAGE LIMITS   how much of each plan you have used · estimated from local usage                                        
+                                                                                                                                                      
+▌ 0  Dashboard                 ╭─ claude · Max 5x ──────────────────╮ ╭─ codex · Pro ──────────────────────╮ ╭─ cursor · Pro ───────────────────────╮ 
+     opus 83% · today $12.40   │ ▄▀▀▄ ▀▀▀▄ ▀  █   wk opus used      │ │ █  █ ▀▀▀█ ▀  █   weekly used       │ │ ▀▀▀█ ▄█  ▀  █   monthly used         │ 
+                               │ ▄▀▀▄  ▀▀▄  ▄▀    resets Thu 9:00   │ │ █▄▄█  ▄▀   ▄▀    resets Mon 7:30   │ │  ▄▀   █   ▄▀    resets 1 Nov         │ 
+  1  Morning                ●  │ ▀▄▄▀ ▄▄▄▀ █  ▄   highest of 3      │ │    █  █   █  ▄   highest of 2      │ │  █   ▄█▄ █  ▄   highest of 2         │ 
+     $41.27  +32% vs avg       │                                    │ │                                    │ │                                      │ 
+                               │ 5-hour   ██████░░░░  64%  in 3h26m │ │ 5-hour   ██░░░░░░░░  22%  in 1h05m │ │ monthly  █████████░░░  71%     1 Nov │ 
+  2  Tokens                    │ weekly   ████░░░░░░  38%  Thu 9:00 │ │ weekly   █████░░░░░  47%  Mon 7:30 │ │ fast req █████░░░░░░░  44%     1 Nov │ 
+     $968.40 · last 30 days    │ wk opus  ████████░░  83%  Thu 9:00 │ │                                    │ │                                      │ 
+                               │ hits opus limit Wed 16:00          │ │ on pace to end the week near 71%   │ │ on pace for about 96% by 1 Nov       │ 
+  3  Skills                 ●  ╰────────────────────────────────────╯ ╰────────────────────────────────────╯ ╰──────────────────────────────────────╯ 
+     9 new · 3 upd · 2 ret     plans in ~/.config/agentlens/plans.toml · red at 90%, yellow at 70%                                                    
+                                                                                                                                                      
+  4  Workflows              ●  TODAY              YESTERDAY          30 DAYS            ALL TIME           CACHE SAVED        ROUTER                  
+     2 new · 3 upd · 1 ret     $12.40             $41.27             $968.40            $4,735.80          $2,246.50          $114/mo                 
+                               6 sessions so far  +32% vs usual      612 sessions       since 14 Mar       last 30 days       if you follow picks     
+  5  Router                 ●                                                                                                                         
+     5 switches · autopilot on NEEDS A LOOK                                                   LAST 14 DAYS BY TOOL   █ claude  ▓ codex  ░ cursor      
+                               ● weekly opus limit 83%, on pace to run out Wed         [0]                ░░                                          
+  6  Search                    ● 11 new skills and workflows to review                 [3]                ░░                                          
+     / 41,208 turns indexed    ● debug and refactor now route to cheaper models        [5]                ▓▓                                          
+                               ● 5 days over the $40 daily budget this month           [2]          ░░    ▓▓                         ░░               
+ INSTALLED                     ● 3 retired recipes are still installed                 [3]       ░░ ▓▓ ▓▓ ██                ▓▓       ░░               
+ 9 skills  ·  5 workflows                                                                        ▓▓ ▓▓ ▓▓ ██       ▓▓ ▓▓    ▓▓ ▓▓    ▓▓               
+ autopilot on                                                                                 ▓▓ ▓▓ ██ ██ ██       ▓▓ ▓▓ ▓▓ ██ ▓▓ ▓▓ ██               
+                                                                                              ██ ██ ██ ██ ██       ██ ██ ▓▓ ██ ██ ██ ██               
+                                                                                              ██ ██ ██ ██ ██ ░░    ██ ██ ██ ██ ██ ██ ██               
+                                                                                              ██ ██ ██ ██ ██ ▓▓ ░░ ██ ██ ██ ██ ██ ██ ██               
+                                                                                              ██ ██ ██ ██ ██ ██ ██ ██ ██ ██ ██ ██ ██ ██               
+                                                                                              ██ ██ ██ ██ ██ ██ ██ ██ ██ ██ ██ ██ ██ ██               
+                                                                                              27 Sep                              yday                
+                                                                                                                                                      
+                                                                                                                                                      
+                                                                                                                                                      
+                                                                                                                                                      
+                                                                                                                                                      
+                                                                                                                                                      
+                                                                                                                                                      
+                                                                                                                                                      
+ nothing leaves this machine                                                                                                                          
+ ~/.local/share/agentlens                                                                                                                             
+ 0-6  jump   /  search   r  rescan   b  sidebar   q  quit                                                                           ● local · offline 
+
+=== [1] Morning  150x45 ===
+ ◆ agentlens   morning   [1]                                                                                                 scanned 08:02   08:14:07 
+ LENSES                                                                                                                                               
+ local only · 1,284 sessions   YESTERDAY   sat 10 oct                                                                last 8 days   ╌ 7-day avg        
+                                                                                                                 $41                 ▄▄▄         ███  
+  0  Dashboard                  ▄█▄▄ █  █ ▄█    ▄▀▀▄ ▀▀▀█     ▄  ▀▀▀▄ ▄▀▀▄ ▀  █                                          ▁▁▁ ▆▆▆     ███ ▃▃▃     ███  
+     opus 83% · today $12.40   ▀▄█▄  █▄▄█  █      ▄▀  ▄▀     ▀█▀  ▀▀▄   ▄▀  ▄▀                                   $31 ╌╌╌╌███╌███╌▃▃▃╌███╌███╌▁▁▁╌███╌ 
+                               ▄▄█▄▀    █ ▄█▄ ▄ ▄█▄▄  █          ▄▄▄▀ ▄█▄▄ █  ▄                                          ███ ███ ███ ███ ███ ███ ███  
+▌ 1  Morning                ●                                                                                            ███ ███ ███ ███ ███ ███ ███  
+     $41.27  +32% vs avg       above your 7-day average of $31.30 by $9.97                                               ███ ███ ███ ███ ███ ███ ███  
+                               23 sessions    18.4M context    312k output tokens                                        ███ ███ ███ ███ ███ ███ ███  
+  2  Tokens                    all time $4,735.80 since 14 Mar    this month $246.40                             $10 ▆▆▆ ███ ███ ███ ███ ███ ███ ███  
+     $968.40 · last 30 days                                                                                          03  04  05  06  07  08  09  yday 
+                                                                                                                                                      
+  3  Skills                 ●  by cli tool                             by model                                by project                             
+     9 new · 3 upd · 2 ret     claude   █████████████████    $30.12    opus-4-1    ██████████████    $19.40    billing-svc ████████████████    $14.90 
+                               codex    ████▊                 $8.35    sonnet-4-5  ████████▊         $12.05    api-gateway ████████████▏       $11.32 
+  4  Workflows              ●  cursor   █▋                    $2.80    gpt-5-codex █████              $6.92    web-dash    ███████▋             $7.15 
+     2 new · 3 upd · 1 ret                                             haiku-4-5   █▏                 $1.48    infra-tf    █████                $4.60 
+                                                                       gpt-5       █                  $1.42    ml-eval     ██▎                  $2.10 
+  5  Router                 ●                                                                                                                         
+     5 switches · autopilot on 11 NEW                                  6 UPDATED                               3 RETIRED                              
+                               ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━  
+  6  Search                    skill pytest-fixture-triage   14 sess   skill flaky-test-bisect       22 sess   skill celery-retry-audit       5 sess  
+     / 41,208 turns indexed    skill alembic-migration-re…    9 sess   skill k8s-crashloop-debug     31 sess   skill jest-snapshot-cleanup    4 sess  
+                               skill terraform-plan-diff     11 sess   skill log-grep-incident       27 sess   wf    /wf-release-notes-dr…    5 sess  
+ INSTALLED                     skill sql-explain-tuning       8 sess   wf    /wf-incident-first-h…   12 sess                                          
+ 9 skills  ·  5 workflows      skill react-hook-refactor     12 sess   wf    /wf-dep-upgrade-sweep   15 sess                                          
+ autopilot on                  skill dockerfile-slimming      6 sess   wf    /wf-test-gap-fill       18 sess                                          
+                               skill benchmark-regression     9 sess                                                                                  
+                               skill rate-limit-tuning        8 sess                                                                                  
+                                     +3 more                                                                                                          
+                                                                                                                                                      
+                               ROUTER  debug  opus-4-1 -> gpt-5-codex     refactor  sonnet-4-5 -> haiku-4-5                                           
+                               ACTIVE  9 skills + 5 workflows  in ~/.claude/skills  ~/.claude/commands  ~/.codex/prompts                              
+                               DATA    ~/.local/share/agentlens  reads ~/.claude/projects  ~/.codex/sessions                                          
+                                                                                                                                                      
+                                                                                                                                                      
+                                                                                                                                                      
+                                                                                                                                                      
+                                                                                                                                                      
+                                                                                                                                                      
+                                                                                                                                                      
+ nothing leaves this machine                                                                                                                          
+ ~/.local/share/agentlens                                                                                                                             
+ 0-6  jump   /  search   r  rescan   b  sidebar   q  quit                                                                           ● local · offline 
+
+=== [2] Tokens  150x45 ===
+ ◆ agentlens   tokens   [2]                                                                                                  scanned 08:02   08:14:07 
+ LENSES                                                                                                                                               
+ local only · 1,284 sessions   LAST 30 DAYS   11 sep – 10 oct   612 sessions   all time $4,735.80                                                     
+                                ▄█▄▄ ▄▀▀▄ ▄▀▀  ▄▀▀▄   █  █ ▄▀▀▄    paid             ████████████████                                       $968.40    
+  0  Dashboard                 ▀▄█▄  ▀▄▄█ █▀▀▄ ▄▀▀▄   █▄▄█ █  █    without caching  █████████████████████████████████████████████████████  $3,214.90  
+     opus 83% · today $12.40   ▄▄█▄▀  ▄▄▀ ▀▄▄▀ ▀▄▄▀ ▄    █ ▀▄▄▀    caching saved    $2,246.50  70% off the uncached price                             
+                                                                                                                                                      
+  1  Morning                ●  █████████████████████████████████████████████▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒░░░░░░░░░░░░░░ 
+     $41.27  +32% vs avg       █████████████████████████████████████████████▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒░░░░░░░░░░░░░░ 
+                               █ output $370.20 38%    ▓ cache reads $308.60 32%    ▒ cache writes $171.40 18%    ░ fresh input $118.20 12%           
+▌ 2  Tokens                    context 412.6M tok = fresh input 28.3M + cache writes 31.9M + cache reads 352.4M, plus output 7.9M                     
+     $968.40 · last 30 days    cache hit rate 85.4% of context served from cache    output share 1.9% of tokens, 38% of cost                          
+                                                                                                                                                      
+  3  Skills                 ●  CLI TOOLS             cost share, last 30 days                               30 days share      all time               
+     9 new · 3 upd · 2 ret     claude     420 sess   █████████████████████████████████████▋                 $701.20   72%     $3,412.60               
+                               codex      148 sess   ███████████▌                                           $214.60   22%     $1,108.30               
+  4  Workflows              ●  cursor      44 sess   ██▉                                                     $52.60    5%       $214.90               
+     2 new · 3 upd · 1 ret                                                                                                                            
+                               DAILY COST   max $58.00   5 days over $40                         by model                                             
+  5  Router                 ●    $58                                     █                       opus-4-1    ██████████████████████████████   $512.30 
+     5 switches · autopilot on                                           █                       sonnet-4-5  ███████████████▊                 $268.90 
+                                                       ▁   ▅         ▂   █                 ▁     gpt-5-codex ███████▊                         $132.70 
+  6  Search                      $40 ╌╌╌╌╌╌╌╌▇╌╌╌╌╌╌╌▅╌█╌▂╌█╌╌╌╌╌╌╌▃╌█╌▆╌█╌╌╌╌╌╌╌▂╌╌╌▆╌╌╌╌╌█╌    gpt-5       █▊                                $30.40 
+     / 41,208 turns indexed            ▃   █ █     ▆ █ █ █ █     ▁ █ █ █ █     ▇ █ ▃ █ █ ▂ █     haiku-4-5   █▍                                $24.10 
+                                       █ ▇ █ █     █ █ █ █ █     █ █ █ █ █     █ █ █ █ █ █ █                                                          
+ INSTALLED                           ▇ █ █ █ █     █ █ █ █ █     █ █ █ █ █ ▁   █ █ █ █ █ █ █     by project                                           
+ 9 skills  ·  5 workflows            █ █ █ █ █ ▁   █ █ █ █ █ ▅   █ █ █ █ █ █ ▂ █ █ █ █ █ █ █     api-gateway ██████████████████████████████   $296.10 
+ autopilot on                        █ █ █ █ █ █ ▅ █ █ █ █ █ █ ▇ █ █ █ █ █ █ █ █ █ █ █ █ █ █     billing-svc █████████████████████▊           $214.60 
+                                  $0 █ █ █ █ █ █ █ █ █ █ █ █ █ █ █ █ █ █ █ █ █ █ █ █ █ █ █ █     web-dash    █████████████████▍               $171.80 
+                                     13 Sep        20 Sep        27 Sep        04 Oct  10 Oct    ml-eval     ███████████▍                     $112.40 
+                               tok/d ▄ ▅ ▄ ▅ ▆ ▂ ▂ ▅ ▆ ▆ ▅ ▇ ▃ ▂ ▄ ▆ ▆ ▆ █ ▃ ▂ ▅ ▆ ▅ ▆ ▅ ▅ ▆     infra-tf    ██████████                        $98.20 
+                                                                                                                                                      
+                               MOST EXPENSIVE PROMPTS   the message that started the spend                                                            
+                                $14.82 ██████████  billing-svc   the reconciliation job double-counts refunds when the webhook retries, find where a… 
+                                $11.06 ███████▌    api-gateway   migrate every handler under internal/routes from the old middleware chain to the ne… 
+                                 $9.71 ██████▌     ml-eval       rerun the eval harness against all 14 checkpoints and tell me which regressions are… 
+                                 $8.40 █████▋      web-dash      why is the dashboard bundle 4.1MB now, it was 1.8MB last month, bisect the dependen… 
+                                                                                                                                                      
+                               MOST EXPENSIVE SESSIONS   date · source · project · class · turns · tools · context                                    
+                                $31.40 ██████████  08 Oct  claude billing-svc debug       142t  318x  9.8M  the reconciliation job double-counts ref… 
+                                $24.15 ███████▊    03 Oct  claude api-gateway refactor     96t  260x  7.1M  migrate every handler under internal/rou… 
+                                $19.88 ██████▍     01 Oct  codex  infra-tf    infra        88t  191x  6.4M  plan shows 212 changes after the provide… 
+ nothing leaves this machine    $17.02 █████▍      29 Sep  claude ml-eval     explain      61t   77x  5.2M  rerun the eval harness against all 14 ch… 
+ ~/.local/share/agentlens                                                                                                                             
+ 0-6  jump   /  search   r  rescan   b  sidebar   q  quit                                                                           ● local · offline 
+
+=== [3] Skills  150x45 ===
+ ◆ agentlens   skills   [3]                                                                                                  scanned 08:02   08:14:07 
+ LENSES                                                                                                                                               
+ local only · 1,284 sessions   space installs/removes ~/.claude/skills/<name>/SKILL.md + ~/.codex/prompts/<name>.md                                   
+                                                                                                                                                      
+  0  Dashboard                 ╭─ skills  18 · 9 on ─────────────────────────╮ ╭─ ~/.claude/skills/flaky-test-bisect/SKILL.md ──────────────────────╮ 
+     opus 83% · today $12.40   │ on  name                    sup  upd     st │ │ ---                                                                │ 
+                               │ ●   pytest-fixture-triage    14  10 Oct   6 │ │ name: flaky-test-bisect                                            │ 
+  1  Morning                ●  │ ●   alembic-migration-rev…    9  10 Oct   5 │ │ description: Isolate a flaky test by bisecting order, seed and     │ 
+     $41.27  +32% vs avg       │ ○   terraform-plan-diff      11  10 Oct   4 │ │ parallelism before touching code.                                  │ 
+                               │ ●   flaky-test-bisect        22  10 Oct   7 │ │ support: 22 sessions (17 claude, 5 codex)                          │ 
+  2  Tokens                    │ ●   openapi-client-regen     17  08 Oct   5 │ │ generated: agentlens 0.4.2, 10 Oct 2026                            │ 
+     $968.40 · last 30 days    │ ●   k8s-crashloop-debug      31  10 Oct   8 │ │ ---                                                                │ 
+                               │ ○   sql-explain-tuning        8  10 Oct   6 │ │                                                                    │ 
+▌ 3  Skills                 ●  │ ●   pr-description-writer    46  05 Oct   3 │ │ # flaky-test-bisect                                                │ 
+     9 new · 3 upd · 2 ret     │ ○   react-hook-refactor      12  10 Oct   5 │ │                                                                    │ 
+                               │ ●   dependency-bump-triage   19  07 Oct   4 │ │ Isolate a flaky test by bisecting order, seed and parallelism      │ 
+  4  Workflows              ●  │ ●   log-grep-incident        27  10 Oct   6 │ │ before touching code.                                              │ 
+     2 new · 3 upd · 1 ret     │ ○   dockerfile-slimming       6  10 Oct   4 │ │                                                                    │ 
+                               │ ●   grpc-proto-compat        10  03 Oct   5 │ │ ## Steps                                                           │ 
+  5  Router                 ●  │ ○   celery-retry-audit        5  10 Oct   3 │ │ 1. Reproduce with the CI seed and worker count                     │ 
+     5 switches · autopilot on │ ○   jest-snapshot-cleanup     4  10 Oct   2 │ │ 2. Run the test alone 20 times to measure the base flake rate      │ 
+                               │ ○   benchmark-regression      9  10 Oct   6 │ │ 3. Bisect test order with pytest-randomly and a fixed seed         │ 
+  6  Search                    │ ○   rate-limit-tuning         8  10 Oct   5 │ │ 4. Toggle parallelism: -n 0 against -n auto                        │ 
+     / 41,208 turns indexed    │ ○   schema-drift-check        8  10 Oct   5 │ │ 5. Look for shared state: time, network, temp dirs, module globals │ 
+                               │                                             │ │ 6. Fix the dependency, not the assertion                           │ 
+ INSTALLED                     │                                             │ │ 7. Re-run 50 times and report the new flake rate                   │ 
+ 9 skills  ·  5 workflows      │                                             │ │                                                                    │ 
+ autopilot on                  │                                             │ │ ## Evidence                                                        │ 
+                               │                                             │ │ - 03 Oct  ml-eval      codex   39 turns                            │ 
+                               │                                             │ │ - 26 Sep  web-dash     claude  66 turns                            │ 
+                               │                                             │ │ - 08 Oct  billing-svc  claude  33 turns                            │ 
+                               │                                             │ │ - 01 Oct  api-gateway  codex   60 turns                            │ 
+                               │                                             │ │ - 22 Sep  agentlens    claude  27 turns                            │ 
+                               │                                             │ │ - 17 more sessions                                                 │ 
+                               │                                             │ │                                                                    │ 
+                               │                                             │ │                                                                    │ 
+                               │                                             │ │                                                                    │ 
+                               │                                             │ │                                                                    │ 
+                               │                                             │ │                                                                    │ 
+                               │                                             │ │                                                                    │ 
+                               │                                             │ │                                                                    │ 
+                               │                                             │ │                                                                    │ 
+ nothing leaves this machine   │                                             │ │                                                                    │ 
+ ~/.local/share/agentlens      ╰────────────────────────────────────── 4/18 ─╯ ╰──────────────────────────────────────────────────────── installed ─╯ 
+ 0-6  jump   /  search   ↑↓  select   space  toggle   r  rescan   b  sidebar   q  quit                                              ● local · offline 
+
+=== [4] Workflows  150x45 ===
+ ◆ agentlens   workflows   [4]                                                                                               scanned 08:02   08:14:07 
+ LENSES                                                                                                                                               
+ local only · 1,284 sessions   space installs ~/.claude/commands/wf-<name>.md (/wf-<name> <task>) + ~/.codex/prompts/wf-<name>.md                     
+                                                                                                                                                      
+  0  Dashboard                 ╭─ workflows  9 · 5 on ───────────────────────╮ ╭─ ~/.claude/commands/wf-incident-first-hour.md ─────────────────────╮ 
+     opus 83% · today $12.40   │ on  name                    sup  upd     st │ │ ---                                                                │ 
+                               │ ●   ship-small-fix           38  06 Oct   5 │ │ name: wf-incident-first-hour                                       │ 
+  1  Morning                ●  │ ●   incident-first-hour      12  10 Oct   6 │ │ description: First hour of a production incident: timeline, blast  │ 
+     $41.27  +32% vs avg       │ ○   migration-with-backfi…    9  10 Oct   5 │ │ radius, mitigation.                                                │ 
+                               │ ●   dep-upgrade-sweep        15  10 Oct   5 │ │ argument-hint: <task>                                              │ 
+  2  Tokens                    │ ●   api-endpoint-scaffold    21  01 Oct   5 │ │ support: 12 sessions (8 claude, 4 codex)                           │ 
+     $968.40 · last 30 days    │ ○   perf-regression-hunt      7  10 Oct   4 │ │ generated: agentlens 0.4.2, 10 Oct 2026                            │ 
+                               │ ○   release-notes-draft       5  10 Oct   3 │ │ ---                                                                │ 
+  3  Skills                 ●  │ ○   feature-flag-rollout      8  30 Sep   4 │ │                                                                    │ 
+     9 new · 3 upd · 2 ret     │ ●   test-gap-fill            18  10 Oct   4 │ │ # /wf-incident-first-hour <task>                                   │ 
+                               │                                             │ │                                                                    │ 
+▌ 4  Workflows              ●  │                                             │ │ First hour of a production incident: timeline, blast radius,       │ 
+     2 new · 3 upd · 1 ret     │                                             │ │ mitigation. Apply to: $ARGUMENTS                                   │ 
+                               │                                             │ │ Run the phases in order. Stop and report if a phase check fails.   │ 
+  5  Router                 ●  │                                             │ │                                                                    │ 
+     5 switches · autopilot on │                                             │ │ ## Phases                                                          │ 
+                               │                                             │ │ 1. Window: pin start time and affected services                    │ 
+  6  Search                    │                                             │ │ 2. Logs: skill log-grep-incident                                   │ 
+     / 41,208 turns indexed    │                                             │ │ 3. Pods: skill k8s-crashloop-debug if any service is restarting    │ 
+                               │                                             │ │ 4. Blast radius: which customers and endpoints                     │ 
+ INSTALLED                     │                                             │ │ 5. Mitigate: roll back or flag off before root-causing             │ 
+ 9 skills  ·  5 workflows      │                                             │ │ 6. Write: timeline and next steps for the channel                  │ 
+ autopilot on                  │                                             │ │                                                                    │ 
+                               │                                             │ │ ## Evidence                                                        │ 
+                               │                                             │ │ - 26 Sep  web-dash     claude  26 turns                            │ 
+                               │                                             │ │ - 08 Oct  billing-svc  codex   40 turns                            │ 
+                               │                                             │ │ - 01 Oct  api-gateway  claude  54 turns                            │ 
+                               │                                             │ │ - 22 Sep  agentlens    claude  68 turns                            │ 
+                               │                                             │ │ - 06 Oct  infra-tf     codex   22 turns                            │ 
+                               │                                             │ │ - 7 more sessions                                                  │ 
+                               │                                             │ │                                                                    │ 
+                               │                                             │ │                                                                    │ 
+                               │                                             │ │                                                                    │ 
+                               │                                             │ │                                                                    │ 
+                               │                                             │ │                                                                    │ 
+                               │                                             │ │                                                                    │ 
+                               │                                             │ │                                                                    │ 
+ nothing leaves this machine   │                                             │ │                                                                    │ 
+ ~/.local/share/agentlens      ╰─────────────────────────────────────── 2/9 ─╯ ╰──────────────────────────────────────────────────────── installed ─╯ 
+ 0-6  jump   /  search   ↑↓  select   space  toggle   r  rescan   b  sidebar   q  quit                                              ● local · offline 
+
+=== [5] Router  150x45 ===
+ ◆ agentlens   router   [5]                                                                                                  scanned 08:02   08:14:07 
+ LENSES                                                                                                                                               
+ local only · 1,284 sessions    AUTOPILOT   ON   Claude Code picks the model for each prompt you send   space turns off                               
+                               built automatically from 1,284 sessions in your history · 8 kinds of task found · rebuilt 08:02                        
+  0  Dashboard                                                                                                                                        
+     opus 83% · today $12.40   a month of savings                              how it decides                                                         
+                                ▄█▄▄ ▄█  ▄█  █  █                              1 sorts every past session by the kind of task it was                  
+  1  Morning                ●  ▀▄█▄   █   █  █▄▄█   if you follow every pi…    2 compares your models on cost and how often they need fixing          
+     $41.27  +32% vs avg       ▄▄█▄▀ ▄█▄ ▄█▄    █   5 switches, 213 sessio…    3 picks the cheapest one that was about as reliable as the best        
+                                                                                                                                                      
+  2  Tokens                      YOUR TASKS       use             saves       confidence        verdict                                               
+     $968.40 · last 30 days    ▸ Debugging        gpt-5-codex     $0.92       ●●●●● 84 sessions SWITCH   changed today                                
+                                                  just as reliable as opus-4-1, 40% cheaper                                                           
+  3  Skills                 ●    Refactoring      haiku-4-5       $0.41       ●●●●● 63 sessions SWITCH   changed today                                
+     9 new · 3 upd · 2 ret                        just as reliable as sonnet-4-5, 53% cheaper                                                         
+                                 Writing tests    sonnet-4-5      —           ●●●●● 71 sessions KEEP                                                  
+  4  Workflows              ●                     sonnet-4-5 is already the cheapest reliable choice                                                  
+     2 new · 3 upd · 1 ret       Migrations       opus-4-1        —           ●●○○○ 22 sessions LEARNING                                              
+                                                  only opus-4-1 has enough sessions so far · try another model on this kind of task to compare        
+▌ 5  Router                 ●    Code review      haiku-4-5       $0.19       ●●●●● 95 sessions SWITCH                                                
+     5 switches · autopilot on                    just as reliable as sonnet-4-5, 45% cheaper                                                         
+                                 Writing docs     haiku-4-5       $0.21       ●●●○○ 40 sessions SWITCH                                                
+  6  Search                                       just as reliable as sonnet-4-5, 55% cheaper                                                         
+     / 41,208 turns indexed      Infrastructure   gpt-5-codex     —           ●●●○○ 37 sessions KEEP                                                  
+                                                  gpt-5-codex is already the cheapest reliable choice                                                 
+ INSTALLED                       Explaining code  sonnet-4-5      $1.05       ●●●●○ 58 sessions SWITCH                                                
+ 9 skills  ·  5 workflows                         just as reliable as opus-4-1, 61% cheaper                                                           
+ autopilot on                                                                                                                                         
+                               WHY GPT-5-CODEX FOR DEBUGGING   cost per session        needs fixing (per 10 replies)                                  
+                                 opus-4-1      ██████████████  $2.31   ████████▉       1.4    reliable, costs more                                    
+                                 gpt-5-codex   ████████▍       $1.39   █████████▌      1.5    picked                                                  
+                                 sonnet-4-5    ██████▊         $1.12   ██████████████  2.2    less reliable                                           
+                                                                                                                                                      
+                               rules ~/.config/agentlens/router-policy.json   "needs fixing" = corrections + tool errors + repeats                    
+                                                                                                                                                      
+                                                                                                                                                      
+                                                                                                                                                      
+                                                                                                                                                      
+                                                                                                                                                      
+                                                                                                                                                      
+                                                                                                                                                      
+                                                                                                                                                      
+ nothing leaves this machine                                                                                                                          
+ ~/.local/share/agentlens                                                                                                                             
+ 0-6  jump   /  search   ↑↓  select   space  autopilot   r  rescan   b  sidebar   q  quit                                           ● local · offline 
+
+=== [6] Search  150x45 ===
+ ◆ agentlens   search   [6]                                                                                                  scanned 08:02   08:14:07 
+ LENSES                                                                                                                                               
+ local only · 1,284 sessions    /   refund                                                          10 turns in 7 sessions   ·   41,208 turns indexed 
+                               tool  [all]  claude   codex   cursor     tab cycles · searches your prompts and the replies                            
+  0  Dashboard                                                                                                                                        
+     opus 83% · today $12.40   ╭─ results ───────────────────────────────────────────────╮ ╭─ turn 5 in context ────────────────────────────────────╮ 
+                               │ ▸ 10 Oct  claude  billing-svc     turn 5                │ │ claude · billing-svc · 10 Oct                          │ 
+  1  Morning                ●  │   you  the refund backfill script timed out on prod, m… │ │ session a7d3   9 turns   $2.40                         │ 
+     $41.27  +32% vs avg       │                                                         │ │                                                        │ 
+                               │   09 Oct  cursor  agentlens      turn 19                │ │   ⋮ 4 turns                                            │ 
+  2  Tokens                    │   ai   …rns_fts. A query for "refund webhook" returns … │ │ ▌ turn 5  you                                          │ 
+     $968.40 · last 30 days    │                                                         │ │ ▌ the refund backfill script timed out on prod, make   │ 
+                               │   08 Oct  claude  billing-svc    turn 42                │ │ ▌ it batch by 500 and resume from the last id          │ 
+  3  Skills                 ●  │   you  …ckfill the duplicated refund rows from last we… │ │                                                        │ 
+     9 new · 3 upd · 2 ret     │                                                         │ │ files  scripts/backfill_refunds.py                     │ 
+                               │   08 Oct  claude  billing-svc    turn 41                │ │                                                        │ 
+  4  Workflows              ●  │   ai   Fixed: apply_refund() now runs inside the idemp… │ │                                                        │ 
+     2 new · 3 upd · 1 ret     │                                                         │ │                                                        │ 
+                               │   08 Oct  claude  billing-svc    turn 13                │ │                                                        │ 
+  5  Router                 ●  │   ai   The refund webhook handler in payments/webhooks… │ │                                                        │ 
+     5 switches · autopilot on │                                                         │ │                                                        │ 
+                               │   08 Oct  claude  billing-svc    turn 12                │ │                                                        │ 
+▌ 6  Search                    │   you  …ion job double-counts refunds when the webhook… │ │                                                        │ 
+     / 41,208 turns indexed    │                                                         │ │                                                        │ 
+                               │   03 Oct  claude  api-gateway    turn 57                │ │                                                        │ 
+ INSTALLED                     │   ai   …andlers migrated. The refund and payout routes… │ │                                                        │ 
+ 9 skills  ·  5 workflows      │                                                         │ │                                                        │ 
+ autopilot on                  │   02 Oct  codex   billing-svc     turn 7                │ │                                                        │ 
+                               │   ai   Stripe sends refund.updated and charge.refunded… │ │                                                        │ 
+                               │                                                         │ │                                                        │ 
+                               │   29 Sep  claude  ml-eval        turn 30                │ │                                                        │ 
+                               │   ai   …and 12 regress on the refund-intent slice by 4… │ │                                                        │ 
+                               │                                                         │ │                                                        │ 
+                               │   26 Sep  claude  billing-svc     turn 9                │ │                                                        │ 
+                               │   ai   …e PDF converts first. Refunds widen the gap be… │ │                                                        │ 
+                               │                                                         │ │                                                        │ 
+                               │                                                         │ │                                                        │ 
+                               │                                                         │ │                                                        │ 
+                               │                                                         │ │                                                        │ 
+                               │                                                         │ │                                                        │ 
+                               │                                                         │ │                                                        │ 
+                               │                                                         │ │                                                        │ 
+ nothing leaves this machine   │                                                         │ │                                                        │ 
+ ~/.local/share/agentlens      ╰────────────────────────────────────────────────── 1/10 ─╯ ╰────────────────────────────── enter resumes in claude ─╯ 
+ 0-6  jump   /  type   ↑↓  results   tab  tool   enter  resume   esc  done                                                          ● local · offline 
+

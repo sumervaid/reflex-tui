@@ -12,7 +12,8 @@
     "test:watch": "vitest",
     "typecheck": "turbo run typecheck",
     "lint": "eslint .",
-    "reflex": "node apps/cli/dist/reflex.js"
+    "reflex": "node apps/cli/dist/reflex.js",
+    "tui:preview": "pnpm --filter @reflex/tui preview"
   },
   "devDependencies": {
     "@eslint/js": "^9.37.0",

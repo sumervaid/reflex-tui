@@ -1,0 +1,40 @@
+ ◆ Reflex AI   morning   [1]                                                                   scanned 14:51   14:51:38
+ ◆
+    YESTERDAY   sat 10 oct
+ 0  not measured yet
+
+▌1  5 sessions    291k context    4k output tokens
+    all time —    this month —
+ 2
+    by cli tool                            by model                               by project
+ 3● not measured yet                       not measured yet                       not measured yet
+
+ 4  2 NEW                                  0 UPDATED                              0 RETIRED
+    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+ 5  skill debug-dependency        4 sess
+    skill review-pr               4 sess
+ 6
+    ROUTER  not measured yet
+    ACTIVE  0 skills  in ~/.claude/skills  ~/.codex/skills  ~/.cursor/skills
+    DATA    ~/.reflex
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+ 0-6  jump   /  search   r  rescan   b  sidebar   q  quit                                             ● local · offline

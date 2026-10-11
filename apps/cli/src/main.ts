@@ -10,6 +10,7 @@ process.stdout.on("error", (err: NodeJS.ErrnoException) => {
 });
 
 import { Command, Option } from "commander";
+import type { SourceId } from "@reflex/core";
 import { fail } from "./ui";
 import { parseDays, scan } from "./commands/scan";
 import { approve, evidence, reject, show, suggest } from "./commands/review";
@@ -17,6 +18,7 @@ import { explain, installCommand, listSkills, showSkill, validate } from "./comm
 import { doctor, reset, sessions, stats } from "./commands/misc";
 import { modelFetch, modelRemove, modelStatusCommand } from "./commands/model";
 import { impact } from "./commands/impact";
+import { tui } from "./commands/tui";
 
 function run<A extends unknown[]>(fn: (...args: A) => Promise<void>) {
   return async (...args: A) => {
@@ -45,9 +47,10 @@ program
   .option("--claude-dir <dir>", "read Claude Code transcripts from this directory")
   .option("--codex-dir <dir>", "read Codex rollouts from this directory")
   .option("--cursor-dir <dir>", "read Cursor agent transcripts from this directory (default ~/.cursor/projects)")
+  .addOption(new Option("--source <source...>", "only read these sources (repeatable)").choices(["claude-code", "codex", "cursor"]))
   .option("-y, --yes", "consent to reading the detected history without prompting")
   .action(
-    run(async (o: { days: string; claudeDir?: string; codexDir?: string; cursorDir?: string; yes?: boolean }) =>
+    run(async (o: { days: string; claudeDir?: string; codexDir?: string; cursorDir?: string; source?: SourceId[]; yes?: boolean }) =>
       scan({ ...o, days: parseDays(o.days) }),
     ),
   );
@@ -87,6 +90,11 @@ program
   .option("--run", "run a fresh, non-persistent Claude Code session on the task (asks first)")
   .option("-y, --yes", "consent without prompting")
   .action(run(validate));
+
+program
+  .command("tui")
+  .description("open the terminal UI: sessions and tokens from the last scan, skills to review, install and remove")
+  .action(run(tui));
 
 const model = program.command("model").description("optional local embedding model for matching requests by meaning");
 model.command("status", { isDefault: true }).description("show whether the model is installed").action(run(modelStatusCommand));

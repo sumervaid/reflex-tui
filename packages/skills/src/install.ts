@@ -1,8 +1,9 @@
-import { mkdir, readFile } from "node:fs/promises";
+import { constants } from "node:fs";
+import { lstat, mkdir, open, readFile, rmdir, unlink } from "node:fs/promises";
 import { homedir } from "node:os";
-import { join } from "node:path";
+import { basename, dirname, join, resolve } from "node:path";
 import { sha256 } from "@reflex/core";
-import { assertInside, assertSlug, displayPath, ensureDir, isSymlink, pathExists, replaceOwnedFile, writeNewFile } from "@reflex/safety";
+import { assertInside, assertSlug, displayPath, ensureDir, isSymlink, isValidSlug, pathExists, replaceOwnedFile, writeNewFile } from "@reflex/safety";
 
 export type TargetId = "claude-code" | "codex" | "cursor";
 
@@ -72,6 +73,47 @@ export async function install(plan: InstallPlan, content: string): Promise<{ pat
   await ensureDir(join(plan.target.skillsDir, plan.name), 0o755);
   await writeNewFile(plan.destination, content, 0o644);
   return { path: plan.destination, contentHash: sha256(content) };
+}
+
+/** What an installation record says Reflex wrote. */
+export type InstalledFile = { path: string; contentHash: string };
+
+/**
+ * `removed`: the file was deleted. `missing`: nothing is there any more. `edited`: the file is not
+ * what Reflex wrote (content changed, replaced by a symlink or folder, or outside the target's
+ * `<skillsDir>/<name>/SKILL.md`), so it was left alone.
+ */
+export type UninstallResult = "removed" | "missing" | "edited";
+
+/**
+ * Remove a skill Reflex installed, only if it is still exactly what Reflex wrote: a regular file
+ * (never a symlink) at `<skillsDir>/<name>/SKILL.md` whose sha256 matches the record. The per-skill
+ * folder is removed too when that leaves it empty. Nothing else is touched.
+ */
+export async function uninstall(target: InstallTarget, record: InstalledFile): Promise<UninstallResult> {
+  const file = resolve(record.path);
+  const dir = dirname(file);
+  if (basename(file) !== "SKILL.md" || !isValidSlug(basename(dir)) || dirname(dir) !== resolve(target.skillsDir)) return "edited";
+  if (await isSymlink(dir)) return "edited";
+  try {
+    if (!(await lstat(file)).isFile()) return "edited";
+  } catch {
+    return "missing";
+  }
+  // O_NOFOLLOW: if the file was swapped for a symlink after the check, the open fails instead of following it.
+  const handle = await open(file, constants.O_RDONLY | constants.O_NOFOLLOW).catch(() => undefined);
+  if (!handle) return "edited";
+  let content: string;
+  try {
+    content = await handle.readFile("utf8");
+  } finally {
+    await handle.close();
+  }
+  if (sha256(content) !== record.contentHash) return "edited";
+  await unlink(file);
+  // rmdir only removes an empty folder; anything the user added next to SKILL.md keeps it.
+  await rmdir(dir).catch(() => undefined);
+  return "removed";
 }
 
 /** Write a generated skill into Reflex-owned storage (~/.reflex/skills/<name>/). */

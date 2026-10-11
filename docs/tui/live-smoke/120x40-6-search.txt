@@ -1,0 +1,40 @@
+ ◆ Reflex AI   search   [6]                                                                    scanned 14:51   14:51:40
+ ◆
+     /   press / and type to search every turn                                                          not indexed yet
+ 0  tool  [all]  claude   codex   cursor     tab cycles · searches your prompts and the replies
+
+ 1  ╭─ results ──────────────────────────────────────────────╮ ╭─ preview ────────────────────────────────────────────╮
+    │ not indexed yet                                        │ │                                                      │
+ 2  │                                                        │ │                                                      │
+    │                                                        │ │                                                      │
+ 3  │                                                        │ │                                                      │
+    │                                                        │ │                                                      │
+ 4  │                                                        │ │                                                      │
+    │                                                        │ │                                                      │
+ 5  │                                                        │ │                                                      │
+    │                                                        │ │                                                      │
+▌6  │                                                        │ │                                                      │
+    │                                                        │ │                                                      │
+    │                                                        │ │                                                      │
+    │                                                        │ │                                                      │
+    │                                                        │ │                                                      │
+    │                                                        │ │                                                      │
+    │                                                        │ │                                                      │
+    │                                                        │ │                                                      │
+    │                                                        │ │                                                      │
+    │                                                        │ │                                                      │
+    │                                                        │ │                                                      │
+    │                                                        │ │                                                      │
+    │                                                        │ │                                                      │
+    │                                                        │ │                                                      │
+    │                                                        │ │                                                      │
+    │                                                        │ │                                                      │
+    │                                                        │ │                                                      │
+    │                                                        │ │                                                      │
+    │                                                        │ │                                                      │
+    │                                                        │ │                                                      │
+    │                                                        │ │                                                      │
+    │                                                        │ │                                                      │
+    │                                                        │ │                                                      │
+    ╰────────────────────────────────────────────────────────╯ ╰──────────────────────────────────────────────────────╯
+ 0-6  jump   /  type   ↑↓  results   tab  tool   enter  resume   esc  done                            ● local · offline

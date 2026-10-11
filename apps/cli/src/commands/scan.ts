@@ -11,7 +11,15 @@ import { type VectorResult, sessionVectors } from "../embeddings";
 /** Bounds parse time and the quadratic clustering step on very large histories. */
 const MAX_FILES_PER_SOURCE = 2000;
 
-export type ScanOptions = { days: number; claudeDir?: string; codexDir?: string; cursorDir?: string; yes?: boolean };
+export type ScanOptions = {
+  days: number;
+  claudeDir?: string;
+  codexDir?: string;
+  cursorDir?: string;
+  /** Only read these sources (`--source`). */
+  source?: SourceId[];
+  yes?: boolean;
+};
 
 export function parseDays(value: string): number {
   const n = Number(value);
@@ -20,14 +28,15 @@ export function parseDays(value: string): number {
 }
 
 function chooseAdapters(opts: ScanOptions): { adapters: TranscriptAdapter[]; mode: "local" | "custom" } {
+  const only = (list: TranscriptAdapter[]) => (opts.source?.length ? list.filter((a) => opts.source!.includes(a.id)) : list);
   if (opts.claudeDir || opts.codexDir || opts.cursorDir) {
     const adapters: TranscriptAdapter[] = [];
     if (opts.claudeDir) adapters.push(new ClaudeCodeAdapter(opts.claudeDir));
     if (opts.codexDir) adapters.push(new CodexAdapter(opts.codexDir));
     if (opts.cursorDir) adapters.push(new CursorAdapter(opts.cursorDir));
-    return { adapters, mode: "custom" };
+    return { adapters: only(adapters), mode: "custom" };
   }
-  return { adapters: [new ClaudeCodeAdapter(), new CodexAdapter(), new CursorAdapter()], mode: "local" };
+  return { adapters: only([new ClaudeCodeAdapter(), new CodexAdapter(), new CursorAdapter()]), mode: "local" };
 }
 
 export async function scan(opts: ScanOptions): Promise<void> {
@@ -73,6 +82,8 @@ export async function scan(opts: ScanOptions): Promise<void> {
 
   const spin = spinner();
   for (const a of permitted) {
+    // Recorded even when no file is in the window: the scan record lists every source the user let Reflex read.
+    perSource[a.id] = 0;
     const all = await a.discover({ days: opts.days, now });
     const list = all.sort((x, y) => y.modifiedAt.getTime() - x.modifiedAt.getTime()).slice(0, MAX_FILES_PER_SOURCE);
     capped += all.length - list.length;

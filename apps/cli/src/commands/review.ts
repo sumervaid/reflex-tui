@@ -1,10 +1,8 @@
-import { readFile } from "node:fs/promises";
-import { join } from "node:path";
-import { SOURCE_LABELS, sha256 } from "@reflex/core";
+import { SOURCE_LABELS } from "@reflex/core";
 import { analyze, type Suggestion } from "@reflex/analysis";
-import { displayPath, excerpt, pathExists } from "@reflex/safety";
+import { displayPath, excerpt } from "@reflex/safety";
 import { type StoredSuggestion, Store, paths } from "@reflex/storage";
-import { generateSkill, storeGenerated } from "@reflex/skills";
+import { approveSuggestion } from "@reflex/skills";
 import { sessionVectors } from "../embeddings";
 import { c, chooseKey, confirm, fileBlock, fmtTokens, interactive, ok, out, pct, plural, rows, shortDate, title } from "../ui";
 import { describeCost } from "./impact";
@@ -182,28 +180,13 @@ async function reviewLoop(store: Store, entry: StoredSuggestion): Promise<"next"
 }
 
 export async function approveEntry(store: Store, entry: StoredSuggestion, opts: { yes?: boolean; noInstall?: boolean }): Promise<void> {
-  const skill = generateSkill(entry.data);
-  const dir = join(paths.skills(), skill.name);
-  const file = join(dir, "SKILL.md");
-  const previous = store.skill(skill.name);
-  if (await pathExists(file)) {
-    const current = await readFile(file, "utf8");
-    const editedByUser = !previous || previous.contentHash !== sha256(current);
-    if (editedByUser && !(await confirm(`${displayPath(file)} was edited after Reflex generated it. Replace it with a fresh version?`, opts))) {
-      out("Kept the existing file. Nothing was changed.");
-      return;
-    }
+  const { skill, path, written } = await approveSuggestion(store, entry, paths.skills(), (file) =>
+    confirm(`${displayPath(file)} was edited after Reflex generated it. Replace it with a fresh version?`, opts),
+  );
+  if (!written) {
+    out("Kept the existing file. Nothing was changed.");
+    return;
   }
-  const path = await storeGenerated(paths.skills(), skill.name, skill.content, JSON.stringify(skill.provenance, null, 2) + "\n");
-  store.saveSkill({
-    name: skill.name,
-    suggestionSlug: entry.slug,
-    path,
-    createdAt: skill.provenance.createdAt,
-    contentHash: skill.contentHash,
-    baseline: entry.data.cost,
-  });
-  store.setStatus(entry.slug, "approved");
 
   out();
   ok(`Approved. Generated ${c.bold(displayPath(path))} ${c.dim(`(${skill.content.trimEnd().split("\n").length} lines)`)}`);
