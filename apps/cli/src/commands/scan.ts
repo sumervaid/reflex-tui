@@ -1,17 +1,15 @@
-import { rm } from "node:fs/promises";
 import type { NormalizedSession, SourceId, TranscriptAdapter } from "@reflix/core";
 import { debug } from "@reflix/core";
 import { ClaudeCodeAdapter, CodexAdapter } from "@reflix/adapters";
 import { type Suggestion, analyze, buildTrace, deduplicate } from "@reflix/analysis";
 import { displayPath } from "@reflix/safety";
 import { Store, paths } from "@reflix/storage";
-import { writeDemoHistory } from "@reflix/test-fixtures";
 import { c, confirm, out, plural, rows, spinner, title, warn } from "../ui";
 
 /** Bounds parse time and the quadratic clustering step on very large histories. */
 const MAX_FILES_PER_SOURCE = 2000;
 
-export type ScanOptions = { days: number; demo?: boolean; claudeDir?: string; codexDir?: string; yes?: boolean };
+export type ScanOptions = { days: number; claudeDir?: string; codexDir?: string; yes?: boolean };
 
 export function parseDays(value: string): number {
   const n = Number(value);
@@ -19,14 +17,7 @@ export function parseDays(value: string): number {
   return n;
 }
 
-async function chooseAdapters(opts: ScanOptions): Promise<{ adapters: TranscriptAdapter[]; mode: "local" | "demo" | "custom" }> {
-  if (opts.demo) {
-    const root = paths.demoHistory();
-    await rm(root, { recursive: true, force: true });
-    const h = await writeDemoHistory(root);
-    out(c.dim(`Demo history (sanitized fixtures, timestamps relative to now) written to ${displayPath(root)}`));
-    return { adapters: [new ClaudeCodeAdapter(h.claudeRoot), new CodexAdapter(h.codexRoot)], mode: "demo" };
-  }
+function chooseAdapters(opts: ScanOptions): { adapters: TranscriptAdapter[]; mode: "local" | "custom" } {
   if (opts.claudeDir || opts.codexDir) {
     const adapters: TranscriptAdapter[] = [];
     if (opts.claudeDir) adapters.push(new ClaudeCodeAdapter(opts.claudeDir));
@@ -37,8 +28,8 @@ async function chooseAdapters(opts: ScanOptions): Promise<{ adapters: Transcript
 }
 
 export async function scan(opts: ScanOptions): Promise<void> {
-  const { adapters, mode } = await chooseAdapters(opts);
-  title(`Reflix scan · last ${plural(opts.days, "day")}${mode === "demo" ? " · demo history" : ""}`);
+  const { adapters, mode } = chooseAdapters(opts);
+  title(`Reflix scan · last ${plural(opts.days, "day")}`);
 
   const found: TranscriptAdapter[] = [];
   const detection: Array<[string, string]> = [];
@@ -54,9 +45,7 @@ export async function scan(opts: ScanOptions): Promise<void> {
   if (!found.length) {
     out("No supported Claude Code or Codex history was found.");
     out();
-    out("You can:");
-    out(`  1. provide a transcript directory   ${c.cyan("reflix scan --claude-dir <dir>")}  or  ${c.cyan("--codex-dir <dir>")}`);
-    out(`  2. run the demo fixtures             ${c.cyan("reflix scan --demo")}`);
+    out(`If your history lives elsewhere: ${c.cyan("reflix scan --claude-dir <dir>")} or ${c.cyan("--codex-dir <dir>")}`);
     return;
   }
 

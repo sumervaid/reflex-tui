@@ -1,7 +1,7 @@
 import type { FixtureSession, FixtureVariant } from "./types";
 
 /**
- * Sanitized but realistic demo history. Prompts vary naturally, actions vary slightly, and the
+ * Synthetic test history (not real user data). Prompts vary naturally, actions vary slightly, and the
  * underlying workflows repeat. Secrets below are fake and exist to exercise redaction.
  */
 

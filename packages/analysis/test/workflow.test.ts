@@ -4,13 +4,13 @@ import { DEBUG_DEPENDENCY, EXPLAIN_CI, FIX_CI, ONE_OFFS, REVIEW_PR, type Fixture
 import { analyze, isSafeExample } from "../src/suggest";
 import { deduplicate } from "../src/dedup";
 import { buildTrace } from "../src/trace";
-import { demoTraces } from "./helpers";
+import { fixtureTraces } from "./helpers";
 
 const keyOf = (t: { excerpt: string }) => t.excerpt;
 
-describe("workflow detection on demo history", () => {
+describe("workflow detection on fixture transcripts", () => {
   it("groups differently-worded CI requests with the same behavior into one workflow", async () => {
-    const { suggestions } = analyze(await demoTraces());
+    const { suggestions } = analyze(await fixtureTraces());
     const ci = suggestions.find((s) => s.slug === "fix-ci");
     expect(ci).toBeDefined();
     expect(ci!.instances).toBe(6);
@@ -21,7 +21,7 @@ describe("workflow detection on demo history", () => {
   });
 
   it("keeps similar wording with different behavior out of the CI workflow", async () => {
-    const { suggestions } = analyze(await demoTraces());
+    const { suggestions } = analyze(await fixtureTraces());
     const ci = suggestions.find((s) => s.slug === "fix-ci")!;
     const excerpts = ci.evidence.map(keyOf).join("\n");
     for (const s of [...EXPLAIN_CI, ...DEBUG_DEPENDENCY]) expect(excerpts).not.toContain(s.prompt.slice(0, 24));
@@ -31,21 +31,21 @@ describe("workflow detection on demo history", () => {
   });
 
   it("never suggests one-off tasks or read-and-answer sessions", async () => {
-    const { suggestions } = analyze(await demoTraces());
+    const { suggestions } = analyze(await fixtureTraces());
     expect(suggestions.map((s) => s.slug).sort()).toEqual(["debug-dependency", "fix-ci", "review-pr"]);
     const all = suggestions.flatMap((s) => s.evidence.map(keyOf)).join("\n");
     for (const s of [...ONE_OFFS, ...EXPLAIN_CI]) expect(all).not.toContain(s.prompt.slice(0, 24));
   });
 
   it("requires three independent sessions", async () => {
-    const three = await demoTraces(REVIEW_PR.slice(0, 3));
+    const three = await fixtureTraces(REVIEW_PR.slice(0, 3));
     expect(analyze(three).suggestions).toHaveLength(1);
-    const one = await demoTraces(REVIEW_PR.slice(0, 1));
+    const one = await fixtureTraces(REVIEW_PR.slice(0, 1));
     expect(analyze(one).suggestions).toHaveLength(0);
   });
 
   it("returns nothing when there is no recurrence", async () => {
-    expect(analyze(await demoTraces(ONE_OFFS)).suggestions).toEqual([]);
+    expect(analyze(await fixtureTraces(ONE_OFFS)).suggestions).toEqual([]);
     expect(analyze([]).suggestions).toEqual([]);
   });
 
@@ -59,11 +59,11 @@ describe("workflow detection on demo history", () => {
       steps: [{ read: "src/a.ts" }, { edit: "src/a.ts" }, { bash: "pnpm test" }],
       summary: "done",
     }));
-    expect(analyze(await demoTraces(generic)).suggestions).toEqual([]);
+    expect(analyze(await fixtureTraces(generic)).suggestions).toEqual([]);
   });
 
   it("does not copy secrets into evidence", async () => {
-    const { suggestions } = analyze(await demoTraces());
+    const { suggestions } = analyze(await fixtureTraces());
     const text = JSON.stringify(suggestions);
     expect(text).not.toContain("npm_a1B2");
     expect(text).not.toContain("hunter2");
@@ -159,7 +159,7 @@ describe("untrusted transcript content", () => {
   }));
 
   it("never recommends dangerous commands, even when they recur", async () => {
-    const { suggestions } = analyze(await demoTraces(hostile));
+    const { suggestions } = analyze(await fixtureTraces(hostile));
     expect(suggestions).toHaveLength(1);
     const s = suggestions[0]!;
     const examples = s.steps.flatMap((step) => step.examples);

@@ -4,6 +4,7 @@ import { homedir, tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { findLeaks } from "@reflix/safety";
+import { writeFixtureHistory } from "@reflix/test-fixtures";
 import { scan } from "../src/commands/scan";
 import { approve, evidence, reject, suggest } from "../src/commands/review";
 import { explain, installCommand, listSkills } from "../src/commands/skills";
@@ -11,6 +12,7 @@ import { stats } from "../src/commands/misc";
 import { installNetworkGuard } from "../src/guard";
 
 let root: string;
+let history: { claudeDir: string; codexDir: string };
 let output = "";
 
 async function capture(fn: () => Promise<void>): Promise<string> {
@@ -24,6 +26,8 @@ beforeAll(async () => {
   process.env.REFLIX_HOME = join(root, "home");
   process.env.REFLIX_CLAUDE_SKILLS_DIR = join(root, "claude-skills");
   process.env.REFLIX_CODEX_SKILLS_DIR = join(root, "codex-skills");
+  const h = await writeFixtureHistory(join(root, "history"));
+  history = { claudeDir: h.claudeRoot, codexDir: h.codexRoot };
   vi.spyOn(process.stdout, "write").mockImplementation((chunk: string | Uint8Array) => {
     output += String(chunk);
     return true;
@@ -39,15 +43,15 @@ afterAll(async () => {
   await rm(root, { recursive: true, force: true });
 });
 
-describe("reflix end-to-end loop on demo history", () => {
+describe("reflix end-to-end loop on fixture transcripts", () => {
   it("reads nothing without consent", async () => {
-    const text = await capture(() => scan({ days: 7, demo: true }));
+    const text = await capture(() => scan({ days: 7, ...history }));
     expect(text).toContain("Permission not granted. Nothing was read");
     await expect(stat(join(root, "home", "reflix.db"))).rejects.toThrow();
   });
 
   it("scans, de-duplicates and suggests only the recurring workflows", async () => {
-    const text = await capture(() => scan({ days: 7, demo: true, yes: true }));
+    const text = await capture(() => scan({ days: 7, ...history, yes: true }));
     expect(text).toMatch(/0 bytes uploaded/);
     expect(text).toContain("3 repeated workflows found");
     expect(text).toContain(join(root, "home", "reflix.db").replace(homedir(), "~"));

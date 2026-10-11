@@ -4,7 +4,7 @@ import { ALL_SESSIONS, CORRUPTED_SESSION, VARIANTS } from "./scenarios";
 import { cwdFor, fixtureUuid, startFor, toClaudeLines, toCodexLines } from "./serialize";
 import type { FixtureSession } from "./types";
 
-export type DemoHistory = {
+export type FixtureHistory = {
   claudeRoot: string;
   codexRoot: string;
   files: number;
@@ -23,12 +23,12 @@ async function writeAt(path: string, content: string, mtime: Date): Promise<void
 }
 
 /**
- * Write demo history in the on-disk layouts Claude Code and Codex use:
+ * Write fixture history in the on-disk layouts Claude Code and Codex use:
  *   <root>/claude/projects/<encoded-cwd>/<session-id>.jsonl
  *   <root>/codex/sessions/YYYY/MM/DD/rollout-<timestamp>-<session-id>.jsonl
  * Timestamps are relative to `now` so `--days 7` always sees them.
  */
-export async function writeDemoHistory(root: string, now = new Date(), sessions: FixtureSession[] = ALL_SESSIONS): Promise<DemoHistory> {
+export async function writeFixtureHistory(root: string, now = new Date(), sessions: FixtureSession[] = ALL_SESSIONS): Promise<FixtureHistory> {
   const claudeRoot = join(root, "claude", "projects");
   const codexRoot = join(root, "codex", "sessions");
   const rendered = new Map<string, { lines: Record<string, unknown>[]; end: Date; sessionId: string }>();

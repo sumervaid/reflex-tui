@@ -18,7 +18,7 @@ export type ScanRecord = {
   id: number;
   startedAt: string;
   days: number;
-  mode: "local" | "demo" | "custom";
+  mode: "local" | "custom";
   sources: Partial<Record<SourceId, number>>;
   files: number;
   sessions: number;

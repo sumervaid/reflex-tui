@@ -1,90 +1,63 @@
-# Demo script (4 to 5 minutes)
+# Walkthrough
 
-## Before you go on stage
+This runs Reflix on your own Claude Code and Codex history. Everything stays on your machine.
+
+## 1. See what Reflix can find
 
 ```sh
-pnpm install && pnpm build
-alias reflix="node $PWD/apps/cli/dist/reflix.js"
-export REFLIX_HOME=/tmp/reflix-demo          # clean slate, nothing from rehearsals
-export REFLIX_CLAUDE_SKILLS_DIR=/tmp/reflix-demo-claude-skills   # optional: keep your real ~/.claude untouched
-reflix reset --yes 2>/dev/null; claude --version   # the last step needs a signed-in Claude Code
+npx reflix doctor
 ```
 
-Use a terminal at least 110 columns wide. The demo history is a sanitized fixture set: 28
-sessions over the last week, across 5 repositories, from both Claude Code and Codex. It includes
-copies, a resumed session, a retry, a corrupted file, one-off tasks and a prompt-injection attempt.
+It lists the history folders it found and how many transcript files they hold. Nothing is read
+yet.
 
-## Script
+## 2. Scan
 
-**0:00 · The problem (20 s)**
-"Every week I explain the same CI-fixing routine to my coding agent. The knowledge is already in
-my history, it just never becomes reusable. Reflix finds those repeats and turns them into skills,
-locally."
-
-**0:20 · Doctor (20 s)**
 ```sh
-reflix doctor
+npx reflix scan --days 30
 ```
-Point out: it found Claude Code history by location and file count only, and read nothing. Reflix
-makes no network connections; that is enforced in-process.
 
-**0:40 · Scan (40 s)**
+It asks before reading each source; prompts default to No. You'll see how many sessions were
+analyzed, how many were duplicates (copies, resumed sessions, quick retries), and how many repeated
+workflows were found.
+
+## 3. Review
+
 ```sh
-reflix scan --days 7 --demo
+npx reflix suggest
 ```
-It asks per source before reading, defaulting to No; press **y** for each. Point out: 28 sessions became 25 independent ones
-(a copy, a resumed session and a retry are counted once), one corrupted file was partially
-recovered, and **0 bytes uploaded**.
 
-**1:20 · Suggestions and evidence (70 s)**
+Each suggestion shows how many independent sessions and repositories it came from, the typical
+steps and how often each one appeared. Press **e** for the evidence: the redacted request,
+actions and outcome of every session behind it. Press **r** to reject it, **a** to approve.
+
+Nothing appears? Reflix only suggests a workflow you have done at least 3 times in separate
+sessions. Try a longer window, or come back after more sessions.
+
+## 4. Approve
+
+Approving writes `~/.reflix/skills/<name>/SKILL.md` and prints it. Read it: it contains steps,
+completion criteria and provenance, not transcript text. Nothing is installed yet.
+
+## 5. Install
+
+Reflix offers to install right away. Press space on Claude Code and/or Codex, then Enter. It shows
+the destination and asks before writing. It never overwrites an existing skill. Later:
+
 ```sh
-reflix suggest
+npx reflix install <name>
 ```
-Three workflows. One-off tasks and "explain why CI failed" (similar words, read-only behavior)
-were not suggested. Open `fix-ci` and press **E** for evidence:
-- Six sessions, three repositories, four Claude Code and two Codex, worded differently ("CI is
-  failing after pnpm install", "check why github actions is failing on PR #41").
-- `NPM_TOKEN=[REDACTED]`: secrets are removed before anything is stored or shown.
-- The typical workflow and how many sessions showed each step.
 
-**2:30 · Approve (30 s)**
-Press **A**. The skill is generated into `~/.reflix/skills/fix-ci/SKILL.md` and printed: 51 lines,
-nine steps from consensus, completion criteria, provenance metadata, and no transcript text.
-"Nothing was installed yet."
+## 6. Use it
 
-**3:00 · Install (20 s)**
-Reflix offers to install. Press space on Claude Code, then Enter. It shows the destination and
-that no file exists there, then asks; press **y**. Back in the review, press **q** to finish.
-Running it again would say "already installed and identical"; a different file with the same name
-is never overwritten.
+Open a new Claude Code or Codex session in a repository and give it a task like the ones in the
+evidence. The agent picks up installed skills at session start.
 
-**3:20 · Prove it on a new task (60 s)**
+## 7. Look back
+
 ```sh
-reflix validate fix-ci --run
+npx reflix explain <name>   # which sessions and repositories the skill came from
+npx reflix skills           # what's generated and where it's installed
+npx reflix stats            # counts only
+npx reflix reset            # delete Reflix's own data (installed skills are kept)
 ```
-It creates a fresh repository whose CI fails with a bug none of the six sessions saw (a config
-value read as a string, so `retries + 1` becomes `"31"`), installs the skill project-locally,
-and runs a non-persistent Claude Code session with restricted tools. It takes about 25 seconds.
-Point out:
-- `Skill invoked yes · Skill(fix-ci)`.
-- The agent followed the routine: repository state, reproduce, smallest fix, tests, diff, summary.
-- `Tests now pass yes`.
-
-**4:20 · Why it exists (20 s)**
-```sh
-reflix explain fix-ci
-reflix stats
-```
-Every skill traces back to local session references. Stats are counts only.
-
-**4:40 · Close**
-"Your history, your machine, your approval at every step."
-
-## If something goes wrong
-
-- **No network or Claude Code not signed in:** run `reflix validate fix-ci` without `--run`. It
-  prints the fresh repository path and the exact prompt so you can run `claude` there by hand.
-- **The terminal isn't interactive** (some screen-sharing setups): use `reflix suggest
-  --no-interactive`, then `reflix evidence fix-ci`, `reflix approve fix-ci`, and
-  `reflix install fix-ci --target claude-code`. Pass `--yes` to answer prompts.
-- **Start over:** `reflix reset --yes`.

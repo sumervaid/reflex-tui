@@ -96,11 +96,11 @@ export async function reset(opts: { yes?: boolean }): Promise<void> {
     out("Nothing to reset.");
     return;
   }
-  out(`This deletes Reflix's own data in ${displayPath(home)}: the local database, generated skills, demo history and validation sandboxes.`);
+  out(`This deletes Reflix's own data in ${displayPath(home)}: the local database, generated skills and validation sandboxes.`);
   out(c.dim("Skills you installed into Claude Code or Codex are not touched."));
   if (!(await confirm("Delete Reflix data?", opts))) return;
   // Only remove what Reflix creates, never the whole directory: REFLIX_HOME may point anywhere.
-  for (const child of ["reflix.db", "reflix.db-journal", "skills", "demo-history", "validation"]) {
+  for (const child of ["reflix.db", "reflix.db-journal", "skills", "validation"]) {
     await rm(join(home, child), { recursive: true, force: true });
   }
   ok("Reset.");

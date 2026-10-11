@@ -12,8 +12,7 @@
     "test:watch": "vitest",
     "typecheck": "turbo run typecheck",
     "lint": "eslint .",
-    "reflix": "node apps/cli/dist/reflix.js",
-    "demo:reset": "node apps/cli/dist/reflix.js reset"
+    "reflix": "node apps/cli/dist/reflix.js"
   },
   "devDependencies": {
     "@eslint/js": "^9.37.0",

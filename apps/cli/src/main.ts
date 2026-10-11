@@ -37,11 +37,10 @@ program
   .command("scan")
   .description("read recent coding-agent history (asks first) and store redacted workflow traces")
   .option("--days <n>", "history window in days", "7")
-  .option("--demo", "scan sanitized demo history instead of your own")
   .option("--claude-dir <dir>", "read Claude Code transcripts from this directory")
   .option("--codex-dir <dir>", "read Codex rollouts from this directory")
   .option("-y, --yes", "consent to reading the detected history without prompting")
-  .action(run(async (o: { days: string; demo?: boolean; claudeDir?: string; codexDir?: string; yes?: boolean }) => scan({ ...o, days: parseDays(o.days) })));
+  .action(run(async (o: { days: string; claudeDir?: string; codexDir?: string; yes?: boolean }) => scan({ ...o, days: parseDays(o.days) })));
 
 program.command("sessions").description("list sessions from the last scan (redacted)").action(run(sessions));
 

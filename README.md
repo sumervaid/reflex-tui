@@ -13,14 +13,20 @@ scan history → find repeats across ≥ 3 independent sessions → show evidenc
 Requires Node.js 22.13 or newer and pnpm.
 
 ```sh
+npx reflix doctor             # what Reflix can see, without reading anything
+npx reflix scan --days 30     # read your Claude Code / Codex history (asks first)
+npx reflix suggest            # review suggestions: [a]pprove, [e]vidence, [r]eject
+npx reflix install <name>     # copy a skill into Claude Code and/or Codex (asks per target)
+```
+
+Suggestions need the same kind of task in at least 3 independent sessions. If a week of history
+finds nothing, try a longer window (`--days 30`).
+
+From source:
+
+```sh
 pnpm install && pnpm build && pnpm test
 alias reflix="node $PWD/apps/cli/dist/reflix.js"
-
-reflix doctor                 # what Reflix can see, without reading anything
-reflix scan --days 7 --demo   # sanitized demo history; drop --demo to scan your own (asks first)
-reflix suggest                # review suggestions: [a]pprove, [e]vidence, [r]eject
-reflix install fix-ci         # copy the skill into Claude Code and/or Codex (asks per target)
-reflix validate fix-ci --run  # prove it on a fresh task in a fresh Claude Code session
 ```
 
 ## Commands
@@ -28,7 +34,7 @@ reflix validate fix-ci --run  # prove it on a fresh task in a fresh Claude Code 
 | Command | What it does |
 | --- | --- |
 | `doctor` | Node and SQLite check, detected history locations and file counts, install targets, agent CLIs |
-| `scan --days <n>` | Ask per source, then read and store redacted workflow traces. `--demo`, `--claude-dir`, `--codex-dir`, `--yes` |
+| `scan --days <n>` | Ask per source, then read and store redacted workflow traces. `--claude-dir`, `--codex-dir`, `--yes` |
 | `sessions` | Sessions from the last scan, redacted |
 | `suggest` | Detect repeated workflows and review them interactively (`--no-interactive`, `--all`) |
 | `show <n\|name>` | A suggestion in detail: steps, support, uncertainty |
@@ -39,7 +45,7 @@ reflix validate fix-ci --run  # prove it on a fresh task in a fresh Claude Code 
 | `show-skill <name>` | Print a generated skill |
 | `install <name>` | Install into Claude Code or Codex. `--target`, `--as <new-name>`, `--yes`. Never overwrites |
 | `explain <name>` | Why the skill exists: sessions, repositories, agents, steps, installs |
-| `validate <name>` | Static checks, installed-copy comparison, and a fresh-task sandbox (`--run` starts Claude Code) |
+| `validate <name>` | Static checks and installed-copy comparison. For `fix-ci`, also a fresh-task sandbox (`--run` starts Claude Code) |
 | `stats` | Counts from local data |
 | `reset` | Delete Reflix's own data (not installed skills) |
 
@@ -79,12 +85,9 @@ Threat model and mitigations: [docs/security.md](docs/security.md).
 Override locations with `REFLIX_CLAUDE_DIR`, `REFLIX_CODEX_DIR`, `REFLIX_CLAUDE_SKILLS_DIR`,
 `REFLIX_CODEX_SKILLS_DIR` and `REFLIX_HOME`. `REFLIX_DEBUG=1` prints local counters (counts only).
 
-## Demo
+## Walkthrough
 
-[docs/demo.md](docs/demo.md) is a 4 to 5 minute script. The demo history is generated from
-sanitized fixtures in `packages/test-fixtures` and goes through the same pipeline as real
-history. It covers three recurring workflows (fix CI, review a PR, debug a dependency), plus
-near-misses, one-offs, duplicates, a corrupted file and a prompt-injection attempt.
+[docs/demo.md](docs/demo.md) walks through the loop on your own history.
 
 ## Development
 
@@ -97,7 +100,8 @@ pnpm lint
 
 The monorepo uses pnpm workspaces and Turborepo with strict TypeScript, Zod for untrusted records,
 and built-in `node:sqlite` for storage, so there are no native dependencies. Packages live in
-`packages/*`; the CLI in `apps/cli`.
+`packages/*`; the CLI in `apps/cli`. `packages/test-fixtures` holds synthetic transcripts used only
+by the tests; it is not part of the published CLI.
 
 ## Limitations
 

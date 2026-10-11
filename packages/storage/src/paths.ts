@@ -9,5 +9,4 @@ export const paths = {
   home: reflixHome,
   db: () => join(reflixHome(), "reflix.db"),
   skills: () => join(reflixHome(), "skills"),
-  demoHistory: () => join(reflixHome(), "demo-history"),
 };

@@ -24,7 +24,7 @@ flowchart LR
 | `@reflix/analysis` | Command classification, traces, de-duplication, similarity, clustering, consensus steps, suggestions |
 | `@reflix/storage` | SQLite (`node:sqlite`) store in `REFLIX_HOME` (default `~/.reflix`) |
 | `@reflix/skills` | SKILL.md generation, validation, diffs, install planning, fresh-task sandbox |
-| `@reflix/test-fixtures` | Sanitized demo history written in the real on-disk layouts |
+| `@reflix/test-fixtures` | Synthetic transcripts in the real on-disk layouts, for tests only (not bundled) |
 | `apps/cli` | Commands and prompts (`commander`, `@clack/prompts`), bundled into one file with tsup |
 
 Internal packages export TypeScript source; only the CLI is built.

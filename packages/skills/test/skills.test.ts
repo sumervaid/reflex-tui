@@ -4,7 +4,7 @@ import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { ClaudeCodeAdapter, CodexAdapter } from "@reflix/adapters";
 import { analyze, buildTrace, type Suggestion } from "@reflix/analysis";
-import { writeDemoHistory } from "@reflix/test-fixtures";
+import { writeFixtureHistory } from "@reflix/test-fixtures";
 import { findLeaks } from "@reflix/safety";
 import { MAX_SKILL_LINES, generateSkill, renameSkill } from "../src/generate";
 import { checkSkill, parseFrontmatter } from "../src/validate";
@@ -18,7 +18,7 @@ let suggestions: Suggestion[];
 
 beforeEach(async () => {
   tmp = await mkdtemp(join(tmpdir(), "reflix-skills-"));
-  const h = await writeDemoHistory(join(tmp, "history"), NOW);
+  const h = await writeFixtureHistory(join(tmp, "history"), NOW);
   const traces = [];
   for (const a of [new ClaudeCodeAdapter(h.claudeRoot), new CodexAdapter(h.codexRoot)])
     for (const f of await a.discover({ days: 7, now: NOW })) traces.push(...(await a.parse(f, { days: 7, now: NOW })).sessions.map(buildTrace));
