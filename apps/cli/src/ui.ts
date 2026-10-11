@@ -73,7 +73,9 @@ export async function choose<T extends string>(message: string, options: Array<{
 export async function chooseKey<T extends string>(message: string, options: Array<{ value: T; label: string; hint?: string }>): Promise<T | undefined> {
   if (!interactive()) return undefined;
   const answer = await p.selectKey({ message, options: options as never });
-  return p.isCancel(answer) ? undefined : (answer as T);
+  if (p.isCancel(answer)) return undefined;
+  // selectKey submits undefined on Enter while rendering the first option as chosen.
+  return (answer as T | undefined) ?? options[0]?.value;
 }
 
 export async function chooseMany<T extends string>(message: string, options: Array<{ value: T; label: string; hint?: string }>): Promise<T[]> {
