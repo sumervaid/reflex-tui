@@ -171,6 +171,8 @@ export type WorkflowTrace = {
   outcome: OutcomeSignal;
   /** Redacted, truncated first request used for evidence display. */
   excerpt: string;
+  /** Hash of the session's context document (see analysis `sessionContext`); keys its cached embedding. */
+  contextHash?: string;
   /** Content fingerprint used to detect copies of the same session. */
   fingerprint: string;
   /** Hashes of individual user/action events, used to detect resumed sessions. */

@@ -406,6 +406,75 @@ export const SPEED_UP: FixtureSession[] = [
   },
 ];
 
+/** Shared opening longer than the 180-character excerpt; the actual task only comes after it. */
+const PREAMBLE =
+  "Before you change anything, read through the README and the docs folder so you understand how this monorepo is organized, which packages depend on each other, and how we usually test a change. ";
+
+/**
+ * Two different tasks (speed up a screen, rename a function), three sessions each, all opening
+ * with the same long preamble. The first 180 characters are identical, so telling them apart by
+ * meaning requires reading past the excerpt. Not in ALL_SESSIONS.
+ */
+export const LONG_PREAMBLE: FixtureSession[] = [
+  {
+    key: "pre-perf-1",
+    source: "claude-code",
+    project: "acme-web",
+    daysAgo: 5,
+    prompt: `${PREAMBLE}Then make the checkout page load faster, it takes about four seconds on a cold start.`,
+    steps: [{ read: "src/pages/checkout.tsx" }, { grep: "useEffect" }, { edit: "src/pages/checkout.tsx" }, { bash: "pnpm build" }, { bash: "pnpm test" }, { bash: "git diff" }],
+    summary: "Two requests ran in sequence on mount; they now run in parallel.",
+  },
+  {
+    key: "pre-perf-2",
+    source: "codex",
+    project: "billing-api",
+    daysAgo: 4,
+    prompt: `${PREAMBLE}After that, figure out why the reports screen is so slow to open and speed it up.`,
+    steps: [{ read: "src/reports/screen.ts" }, { grep: "findMany" }, { edit: "src/reports/screen.ts" }, { bash: "npm run build" }, { bash: "npm test" }, { bash: "git diff" }],
+    summary: "The report query loaded every row; it now pages results.",
+  },
+  {
+    key: "pre-perf-3",
+    source: "claude-code",
+    project: "mobile-app",
+    daysAgo: 3,
+    prompt: `${PREAMBLE}Once you get it, the settings view takes forever to render, please improve its performance.`,
+    steps: [{ read: "src/screens/Settings.tsx" }, { grep: "useMemo" }, { edit: "src/screens/Settings.tsx" }, { bash: "pnpm build" }, { bash: "pnpm test" }, { bash: "git diff" }],
+    summary: "Memoized the expensive list rendering.",
+  },
+  {
+    key: "pre-rename-1",
+    source: "claude-code",
+    project: "acme-web",
+    daysAgo: 5,
+    hoursAgo: 6,
+    prompt: `${PREAMBLE}Then rename getUserById to findUser everywhere and update every caller.`,
+    steps: [{ grep: "getUserById" }, { read: "src/users/repo.ts" }, { edit: "src/users/repo.ts" }, { edit: "src/api/users.ts" }, { bash: "pnpm build" }, { bash: "pnpm test" }, { bash: "git diff" }],
+    summary: "Renamed the function and its 7 call sites.",
+  },
+  {
+    key: "pre-rename-2",
+    source: "codex",
+    project: "billing-api",
+    daysAgo: 4,
+    hoursAgo: 6,
+    prompt: `${PREAMBLE}After that, change the name of the fetchInvoices helper to listInvoices across the codebase.`,
+    steps: [{ grep: "fetchInvoices" }, { read: "src/invoices/helpers.ts" }, { edit: "src/invoices/helpers.ts" }, { edit: "src/invoices/routes.ts" }, { bash: "npm run build" }, { bash: "npm test" }, { bash: "git diff" }],
+    summary: "Renamed the helper and updated 4 imports.",
+  },
+  {
+    key: "pre-rename-3",
+    source: "claude-code",
+    project: "mobile-app",
+    daysAgo: 3,
+    hoursAgo: 6,
+    prompt: `${PREAMBLE}Once you get it, call the useSession hook useAuthSession instead and fix all its usages.`,
+    steps: [{ grep: "useSession" }, { read: "src/hooks/useSession.ts" }, { edit: "src/hooks/useSession.ts" }, { edit: "src/screens/Home.tsx" }, { bash: "pnpm build" }, { bash: "pnpm test" }, { bash: "git diff" }],
+    summary: "Renamed the hook and its 5 usages.",
+  },
+];
+
 export const ONE_OFFS: FixtureSession[] = [
   {
     key: "misc-dark-mode",

@@ -1,12 +1,13 @@
 import { describe, expect, it } from "vitest";
 import type { WorkflowTrace } from "@reflex/core";
-import { ALL_SESSIONS, SPEED_UP } from "@reflex/test-fixtures";
+import { ALL_SESSIONS, LONG_PREAMBLE, SPEED_UP } from "@reflex/test-fixtures";
 import { loadEmbedder } from "@reflex/embeddings";
 import { intentSimilarities } from "../src/cluster";
-import { contextDocument } from "../src/context";
+import { CONTEXT_CHARS, contextDocument, contextHash, dotProduct, sessionContext } from "../src/context";
 import { intentTerms } from "../src/intents";
 import { analyze } from "../src/suggest";
-import { fixtureTraces } from "./helpers";
+import { buildTrace } from "../src/trace";
+import { fixtureSessions, fixtureTraces } from "./helpers";
 
 const DIM = 64;
 const oneHot = (k: number) => Float32Array.from({ length: DIM }, (_, i) => (i === k ? 1 : 0));
@@ -18,6 +19,27 @@ describe("context document", () => {
   it("holds the request and file kinds, not the action steps", () => {
     const doc = contextDocument({ excerpt: "CI is failing on main", fileCategories: ["ci-config", "dependency-manifest"], actionSequence: ["inspect-ci", "run-tests"] } as WorkflowTrace);
     expect(doc).toBe("CI is failing on main\nFiles: ci config, dependency manifest.");
+  });
+
+  it("reads the request well past the 180-character display excerpt", () => {
+    const request = `${"context ".repeat(40)}then make the checkout page load faster`;
+    const t = { excerpt: request.slice(0, 180), fileCategories: [] };
+    expect(contextDocument(t, request)).toContain("checkout page load faster");
+    expect(contextDocument(t)).not.toContain("checkout");
+  });
+
+  it("stops at the model's input budget", () => {
+    const doc = contextDocument({ excerpt: "", fileCategories: [] }, "word ".repeat(1000));
+    expect(doc.length).toBeLessThanOrEqual(CONTEXT_CHARS);
+  });
+
+  it("keys sessions that share an opening but differ later by different hashes, without storing the text", async () => {
+    const sessions = await fixtureSessions(LONG_PREAMBLE);
+    const traces = sessions.map(buildTrace);
+    expect(new Set(traces.map((t) => t.excerpt.slice(0, 170))).size).toBe(1);
+    expect(new Set(traces.map((t) => t.contextHash)).size).toBe(traces.length);
+    traces.forEach((t, i) => expect(t.contextHash).toBe(contextHash(sessionContext(sessions[i]!, t))));
+    for (const t of traces) expect(JSON.stringify(t)).not.toContain("getUserById to findUser");
   });
 });
 
@@ -67,7 +89,7 @@ describe.skipIf(!modelDir)("meaning-based detection (real model)", () => {
   it("adds the reworded workflow and keeps the existing ones", async () => {
     const embedder = await loadEmbedder(modelDir!);
     const all = await fixtureTraces([...ALL_SESSIONS, ...SPEED_UP]);
-    const v = await embedder.embed(all.map(contextDocument));
+    const v = await embedder.embed(all.map((t) => contextDocument(t)));
     const vectors = new Map(all.map((t, i) => [t.sessionId, v[i]!]));
     const lexical = summary(all);
     const withMeaning = summary(all, vectors);
@@ -75,5 +97,26 @@ describe.skipIf(!modelDir)("meaning-based detection (real model)", () => {
     const speed = analyze(all, { vectors }).suggestions.filter((s) => s.evidence.some((e) => SPEED_UP.some((f) => e.excerpt.startsWith(f.prompt.slice(0, 20)))));
     expect(speed).toHaveLength(1);
     expect(speed[0]!.instances).toBe(4);
+  });
+});
+
+describe.skipIf(!modelDir)("long requests (real model)", () => {
+  it("tells tasks apart that only differ after a shared opening", async () => {
+    const embedder = await loadEmbedder(modelDir!);
+    const sessions = await fixtureSessions(LONG_PREAMBLE);
+    const traces = sessions.map(buildTrace);
+    const task = (i: number) => (/^pre-rename/.test(LONG_PREAMBLE.find((f) => sessions[i]!.requests[0]!.text.endsWith(f.prompt.slice(-20)))!.key) ? "rename" : "perf");
+    const mean = (docs: string[]) =>
+      embedder.embed(docs).then((v) => {
+        const same: number[] = [];
+        const diff: number[] = [];
+        for (let i = 0; i < v.length; i++) for (let j = i + 1; j < v.length; j++) (task(i) === task(j) ? same : diff).push(dotProduct(v[i]!, v[j]!));
+        const avg = (x: number[]) => x.reduce((a, b) => a + b, 0) / x.length;
+        return { same: avg(same), diff: avg(diff) };
+      });
+    const excerptOnly = await mean(traces.map((t) => contextDocument(t)));
+    expect(excerptOnly.same - excerptOnly.diff).toBeLessThan(0.01);
+    const longer = await mean(sessions.map((s, i) => sessionContext(s, traces[i]!)));
+    expect(longer.same - longer.diff).toBeGreaterThan(0.08);
   });
 });
