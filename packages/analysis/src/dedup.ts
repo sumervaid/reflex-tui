@@ -1,5 +1,5 @@
 import type { WorkflowTrace } from "@reflex/core";
-import { buildTfIdf, cosine } from "./intents";
+import { termSimilarities } from "./intents";
 import { actionSimilarity } from "./similarity";
 
 /** One independent occurrence of a workflow, possibly backed by several duplicate records. */
@@ -65,7 +65,7 @@ export function deduplicate(traces: WorkflowTrace[]): { instances: WorkflowInsta
 
   // 3. Retries: the same request in the same repository within a few hours is one occurrence, not two.
   unique = instances.map((i) => i.primary);
-  const tfidf = buildTfIdf(unique.map((t) => t.intents));
+  const termSim = termSimilarities(unique.map((t) => t.intents));
   const absorbed = new Set<number>();
   const order = unique.map((_, i) => i).sort((a, b) => (time(unique[a]!) || 0) - (time(unique[b]!) || 0));
   for (let x = 0; x < order.length; x++) {
@@ -79,7 +79,7 @@ export function deduplicate(traces: WorkflowTrace[]): { instances: WorkflowInsta
       const dt = time(b) - time(a);
       if (!(dt >= 0) || dt > RETRY_WINDOW_MS) break;
       if (!a.projectHash || a.projectHash !== b.projectHash) continue;
-      if (cosine(tfidf.vectors[i]!, tfidf.vectors[j]!) < RETRY_INTENT) continue;
+      if (termSim(i, j) < RETRY_INTENT) continue;
       if (actionSimilarity(a.actionSequence, b.actionSequence) < RETRY_ACTIONS) continue;
       absorbed.add(j);
       instances[i]!.merged.push(b, ...instances[j]!.merged);

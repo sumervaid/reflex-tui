@@ -79,6 +79,56 @@ export function intentTerms(text: string): string[] {
   return out;
 }
 
+const VOWEL = /[aeiouy]/;
+
+/**
+ * Light inflectional stemmer, so "loads", "loaded" and "loading" match. Used only for matching:
+ * stored and displayed terms keep their surface form, so stems need not be real words.
+ */
+export function stem(word: string): string {
+  let w = word;
+  if (w.length < 4 || !/^[a-z]+$/.test(w)) return w;
+  if (w.endsWith("ies") && w.length > 4) w = `${w.slice(0, -3)}y`;
+  else if (w.endsWith("sses")) w = w.slice(0, -2);
+  else if (w.endsWith("s") && !/(ss|us|is)$/.test(w)) w = w.slice(0, -1);
+  for (const suffix of ["ing", "ed"]) {
+    if (!w.endsWith(suffix)) continue;
+    const base = w.slice(0, -suffix.length);
+    // "string", "need", "speed": too short, no vowel, or a doubled e means it is not an inflection.
+    if (base.length < 3 || !VOWEL.test(base) || (suffix === "ed" && base.endsWith("e"))) break;
+    // "running" -> "run", but "added" stays "add" and "installed" keeps its "ll".
+    w = base.length >= 4 && /([^aeiouylsz])\1$/.test(base) ? base.slice(0, -1) : base;
+    break;
+  }
+  // Drop a final silent e so "change", "changes" and "changing" share "chang".
+  if (w.length >= 4 && w.endsWith("e") && !w.endsWith("ee")) w = w.slice(0, -1);
+  return w;
+}
+
+export function bigrams(stems: string[]): string[] {
+  const out: string[] = [];
+  for (let i = 1; i < stems.length; i++) out.push(`${stems[i - 1]} ${stems[i]}`);
+  return out;
+}
+
+/** How much a shared phrase can lift term similarity. */
+const BIGRAM_BLEND = 0.3;
+
+/**
+ * TF-IDF similarity over stemmed terms. Adjacent-pair bigrams ("login pag") can raise a score when
+ * requests share a phrase, but never lower it: requests that share words in a different order
+ * score exactly as they would on words alone.
+ */
+export function termSimilarities(termLists: string[][]): (i: number, j: number) => number {
+  const stems = termLists.map((terms) => terms.map(stem));
+  const words = buildTfIdf(stems).vectors;
+  const pairs = buildTfIdf(stems.map(bigrams)).vectors;
+  return (i, j) => {
+    const w = cosine(words[i]!, words[j]!);
+    return w + BIGRAM_BLEND * cosine(pairs[i]!, pairs[j]!) * (1 - w);
+  };
+}
+
 /** Small developer-workflow lexicon: different words for the same purpose map to one concept. */
 const CONCEPT_WORDS: Record<string, string[]> = {
   ci: ["ci", "workflow", "workflows", "job", "jobs", "runner", "action", "actions", "pipeline"],
@@ -104,7 +154,9 @@ for (const [concept, words] of Object.entries(CONCEPT_WORDS)) for (const w of wo
 export function concepts(terms: string[]): Map<string, number> {
   const v = new Map<string, number>();
   for (const t of terms) {
-    const c = t.startsWith("@") ? "dependency" : CONCEPT_OF.get(t);
+    // Fall back to the stem only against exact lexicon words ("comments" -> "comment"); stemming
+    // the lexicon itself would let "works" (explain) capture "working".
+    const c = t.startsWith("@") ? "dependency" : (CONCEPT_OF.get(t) ?? CONCEPT_OF.get(stem(t)));
     if (c) v.set(c, (v.get(c) ?? 0) + 1);
   }
   let norm = 0;
