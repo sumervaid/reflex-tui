@@ -14,6 +14,18 @@ const MIN_STEP_SUPPORT = 0.5;
 const MAX_EXAMPLES_PER_STEP = 3;
 /** Generic file viewers say nothing reusable as a command example. */
 const FILE_VIEWER = /^(cat|sed|head|tail|less|more|bat|nl|ls|tree)\b/;
+/**
+ * Commands come from untrusted transcripts and end up in a file an agent will read. Never
+ * recommend anything destructive, privileged, remote-executing or able to smuggle a subshell,
+ * however often it recurred.
+ */
+const UNSAFE_EXAMPLE =
+  /[`$<>;&|\\]|\b(curl|wget|sudo|su|eval|exec|ssh|scp|nc|chmod|chown|dd|mkfs|rm|mv|kill|pkill|npx|bunx|dlx|publish|deploy)\b|--force\b|\s-f\b|--hard\b|--no-verify\b|\bpush\b|\breset\b|\bclean\b/;
+
+export function isSafeExample(cmd: string): boolean {
+  const withoutPlaceholders = cmd.replace(/<(n|file|ref|sha|arg|str|url)>/g, "x");
+  return cmd.length <= 80 && !UNSAFE_EXAMPLE.test(withoutPlaceholders) && !/\[REDACTED/.test(cmd);
+}
 
 export type ConsensusStep = {
   kind: StepKind;
@@ -141,7 +153,7 @@ function consensusSteps(instances: WorkflowInstance[]): ConsensusStep[] {
     if (support < MIN_STEP_SUPPORT) continue;
     const hits: Map<string, Set<string>> = kind === "reproduce-failure" ? new Map() : (commandHits.get(kind) ?? new Map());
     const examples = [...hits]
-      .filter(([cmd, s]) => s.size >= 2 && !FILE_VIEWER.test(cmd))
+      .filter(([cmd, s]) => s.size >= 2 && !FILE_VIEWER.test(cmd) && isSafeExample(cmd))
       .sort((a, b) => b[1].size - a[1].size || a[0].localeCompare(b[0]))
       .slice(0, MAX_EXAMPLES_PER_STEP)
       .map(([cmd]) => cmd);
