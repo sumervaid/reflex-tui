@@ -105,5 +105,11 @@ export function fileBlock(path: string, content: string): void {
 export function spinner() {
   if (!interactive()) return { start: (m: string) => out(c.dim(m)), message: (m: string) => out(c.dim(m)), stop: (m: string) => out(c.dim(m)) };
   const s = p.spinner();
-  return { start: (m: string) => s.start(m), message: (m: string) => s.message(m), stop: (m: string) => s.stop(m) };
+  // A second clack start() leaves the first timer running, which keeps the process alive.
+  let running = false;
+  return {
+    start: (m: string) => (running ? s.message(m) : ((running = true), s.start(m))),
+    message: (m: string) => s.message(m),
+    stop: (m: string) => ((running = false), s.stop(m)),
+  };
 }
