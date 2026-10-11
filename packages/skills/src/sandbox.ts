@@ -1,7 +1,8 @@
 import { spawn, spawnSync } from "node:child_process";
 import { mkdir, writeFile } from "node:fs/promises";
-import { join } from "node:path";
-import { assertSlug, ensureDir, redact, writeNewFile } from "@reflix/safety";
+import { realpathSync } from "node:fs";
+import { join, sep } from "node:path";
+import { assertSlug, displayPath, ensureDir, redact, writeNewFile } from "@reflix/safety";
 
 /**
  * A brand-new repository with a realistic CI failure that none of the historical sessions saw:
@@ -158,6 +159,12 @@ export function runClaudeInSandbox(sandbox: Sandbox, skillName: string, timeoutM
       child.kill("SIGTERM");
     }, timeoutMs);
 
+    // Agents report resolved paths (macOS /tmp is /private/tmp).
+    const bases = [...new Set([sandbox.dir, realpathSync(sandbox.dir)])].map((b) => b + sep);
+    const sandboxRelative = (p: string) => {
+      const base = bases.find((b) => p.startsWith(b));
+      return base ? p.slice(base.length) : displayPath(p);
+    };
     const handle = (line: string) => {
       let msg: { type?: string; message?: { content?: unknown }; result?: string };
       try {
@@ -172,7 +179,7 @@ export function runClaudeInSandbox(sandbox: Sandbox, skillName: string, timeoutM
         if (block.name === "Skill" && String(block.input?.skill ?? "").replace(/^.*:/, "") === skillName) run.skillUsed = true;
         if (block.name === "Bash" && typeof block.input?.command === "string") run.commands.push(redact(block.input.command.slice(0, 200)));
         if ((block.name === "Edit" || block.name === "Write") && typeof block.input?.file_path === "string")
-          run.editedFiles.push(block.input.file_path.replace(sandbox.dir + "/", ""));
+          run.editedFiles.push(sandboxRelative(block.input.file_path));
       }
     };
 
