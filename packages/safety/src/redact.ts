@@ -125,6 +125,18 @@ export function redact(input: string): string {
   return redactWithReport(input).text;
 }
 
+const PATH_RULES = new Set(["macos-home", "linux-home", "windows-home", "encoded-home", "email"]);
+
+/** Redaction for file paths we generated ourselves: strip home directories and user names only. */
+export function redactPath(input: string): string {
+  let text = input;
+  for (const rule of RULES) {
+    if (!PATH_RULES.has(rule.name) || typeof rule.replace !== "string") continue;
+    text = text.replace(rule.pattern, rule.replace);
+  }
+  return userPattern ? text.replace(userPattern, "<user>") : text;
+}
+
 /** Redact, collapse whitespace and truncate for display. */
 export function excerpt(input: string, maxLength = 160): string {
   const flat = redact(input).replace(/\s+/g, " ").trim();

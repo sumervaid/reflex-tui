@@ -1,13 +1,13 @@
 import { homedir } from "node:os";
 import { isAbsolute, relative, resolve } from "node:path";
-import { redact } from "./redact";
+import { redactPath } from "./redact";
 
 /** Collapse the home directory and strip user names so a path is safe to print. */
 export function displayPath(path: string): string {
   const home = homedir();
   let p = path;
   if (home && (p === home || p.startsWith(home + "/"))) p = "~" + p.slice(home.length);
-  return redact(p);
+  return redactPath(p);
 }
 
 export function isInside(base: string, target: string): boolean {
