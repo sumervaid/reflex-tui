@@ -103,7 +103,7 @@ export function fileBlock(path: string, content: string): void {
 }
 
 export function spinner() {
-  if (!interactive()) return { start: (m: string) => out(c.dim(m)), stop: (m: string) => out(c.dim(m)) };
+  if (!interactive()) return { start: (m: string) => out(c.dim(m)), message: (m: string) => out(c.dim(m)), stop: (m: string) => out(c.dim(m)) };
   const s = p.spinner();
-  return { start: (m: string) => s.start(m), stop: (m: string) => s.stop(m) };
+  return { start: (m: string) => s.start(m), message: (m: string) => s.message(m), stop: (m: string) => s.stop(m) };
 }

@@ -1,6 +1,9 @@
 import { installNetworkGuard, quietSqliteWarning } from "./guard";
 quietSqliteWarning();
-installNetworkGuard();
+// `reflex model fetch` downloads the optional embedding model and is the only command allowed to
+// use the network; it never reads transcripts. Every other command runs with sockets blocked.
+const fetchingModel = process.argv[2] === "model" && process.argv[3] === "fetch";
+if (!fetchingModel) installNetworkGuard();
 process.stdout.on("error", (err: NodeJS.ErrnoException) => {
   if (err.code === "EPIPE") process.exit(0);
   throw err;
@@ -12,6 +15,7 @@ import { parseDays, scan } from "./commands/scan";
 import { approve, evidence, reject, show, suggest } from "./commands/review";
 import { explain, installCommand, listSkills, showSkill, validate } from "./commands/skills";
 import { doctor, reset, sessions, stats } from "./commands/misc";
+import { modelFetch, modelRemove, modelStatusCommand } from "./commands/model";
 import { impact } from "./commands/impact";
 
 function run<A extends unknown[]>(fn: (...args: A) => Promise<void>) {
@@ -83,6 +87,15 @@ program
   .option("--run", "run a fresh, non-persistent Claude Code session on the task (asks first)")
   .option("-y, --yes", "consent without prompting")
   .action(run(validate));
+
+const model = program.command("model").description("optional local embedding model for matching requests by meaning");
+model.command("status", { isDefault: true }).description("show whether the model is installed").action(run(modelStatusCommand));
+model
+  .command("fetch")
+  .description("download the pinned model (about 23 MB; the only command that uses the network)")
+  .option("-y, --yes", "download without prompting")
+  .action(run(modelFetch));
+model.command("remove").description("delete the downloaded model").option("-y, --yes", "remove without prompting").action(run(modelRemove));
 
 program.command("impact [skill]").description("compare a workflow's tokens and tool calls before and after its skill").action(run(impact));
 program.command("stats").description("defensible counts from local data").action(run(stats));

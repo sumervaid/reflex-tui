@@ -5,6 +5,7 @@ import { analyze, type Suggestion } from "@reflex/analysis";
 import { displayPath, excerpt, pathExists } from "@reflex/safety";
 import { type StoredSuggestion, Store, paths } from "@reflex/storage";
 import { generateSkill, storeGenerated } from "@reflex/skills";
+import { sessionVectors } from "../embeddings";
 import { c, chooseKey, confirm, fileBlock, fmtTokens, interactive, ok, out, pct, plural, rows, shortDate, title } from "../ui";
 import { describeCost } from "./impact";
 import { installFlow } from "./skills";
@@ -121,7 +122,8 @@ export async function suggest(opts: { all?: boolean; interactive?: boolean }): P
   try {
     requireScan(store);
     const traces = store.traces();
-    const analysis = analyze(traces);
+    const meaning = await sessionVectors(traces, store, { cacheOnly: true });
+    const analysis = analyze(traces, meaning.status === "ok" ? { vectors: meaning.vectors } : {});
     store.saveSuggestions(store.latestScan()!.id, analysis.suggestions);
     const list = store.suggestions();
     const visible = list.filter((s) => opts.all || s.status !== "rejected");

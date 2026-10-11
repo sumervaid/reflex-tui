@@ -3,6 +3,7 @@ import { SOURCE_IDS, debug, totalTokens } from "@reflex/core";
 import { toSlug } from "@reflex/safety";
 import { FAMILIES } from "./catalog";
 import { CLUSTER_THRESHOLD, clusterTraces } from "./cluster";
+import type { SessionVectors } from "./context";
 import { type DedupStats, type WorkflowInstance, deduplicate } from "./dedup";
 import { MODIFY_TARGET_LABEL, STEP_TEXT, type StepKind } from "./steps";
 import { type Constraint, recurringCorrections } from "./corrections";
@@ -256,10 +257,15 @@ function evidenceFor(inst: WorkflowInstance, slug: string): Evidence {
   };
 }
 
-export function analyze(traces: WorkflowTrace[]): Analysis {
+export type AnalyzeOptions = {
+  /** Sentence vectors of session context documents (see `contextDocument`). Optional. */
+  vectors?: SessionVectors;
+};
+
+export function analyze(traces: WorkflowTrace[], opts: AnalyzeOptions = {}): Analysis {
   const { instances, stats: dedup } = deduplicate(traces);
   const candidates = instances.filter((i) => !isGenericTrace(i.primary));
-  const clusters = clusterTraces(candidates.map((i) => i.primary), CLUSTER_THRESHOLD);
+  const clusters = clusterTraces(candidates.map((i) => i.primary), CLUSTER_THRESHOLD, opts.vectors);
   debug("clusters formed", { candidates: candidates.length, clusters: clusters.length });
 
   const suggestions: Suggestion[] = [];
