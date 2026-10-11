@@ -1,9 +1,23 @@
 {
-  "name": "@reflix/cli",
+  "name": "reflix",
   "version": "0.1.0",
-  "private": true,
   "type": "module",
   "description": "Turn repeated Claude Code and Codex workflows into reusable skills, locally.",
+  "keywords": [
+    "claude-code",
+    "codex",
+    "skills",
+    "cli",
+    "ai-agents"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/sumervaid/reflex-tui.git",
+    "directory": "apps/cli"
+  },
+  "engines": {
+    "node": ">=22.13"
+  },
   "bin": {
     "reflix": "./dist/reflix.js"
   },
@@ -12,14 +26,11 @@
   ],
   "scripts": {
     "build": "tsup",
-    "typecheck": "tsc -p tsconfig.json"
-  },
-  "dependencies": {
-    "@clack/prompts": "^0.11.0",
-    "commander": "^14.0.1",
-    "picocolors": "^1.1.1"
+    "typecheck": "tsc -p tsconfig.json",
+    "prepack": "cp ../../README.md ./README.md && pnpm build"
   },
   "devDependencies": {
+    "@clack/prompts": "^0.11.0",
     "@reflix/adapters": "workspace:*",
     "@reflix/analysis": "workspace:*",
     "@reflix/core": "workspace:*",
@@ -27,6 +38,8 @@
     "@reflix/skills": "workspace:*",
     "@reflix/storage": "workspace:*",
     "@reflix/test-fixtures": "workspace:*",
+    "commander": "^14.0.1",
+    "picocolors": "^1.1.1",
     "tsup": "^8.5.0"
   }
 }
