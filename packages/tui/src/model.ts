@@ -42,6 +42,8 @@ export type TuiData = {
   router?: Router;
   /** Dashboard NEEDS A LOOK, most important first. */
   attention: Attention[];
+  /** What new agent sessions are told (`reflex memory`). Absent in the design fixture. */
+  memory?: AgentMemory;
   /** Absent until Reflex indexes turns. */
   search?: SearchIndex;
 };
@@ -243,4 +245,13 @@ export type SearchIndex = {
   /** Matching turns, newest date first, then highest turn. Called on render, so it must be fast. */
   query(q: string, tool: ToolFilter): Turn[];
   session(id: string): SessionContext;
+};
+
+export type AgentMemory = {
+  /** Reflex keeps its block in the agents' instruction files. */
+  enabled: boolean;
+  /** Active entries, most-supported first. */
+  entries: Array<{ text: string; sessions: number; origin: "mined" | "added" }>;
+  /** Display paths of the files the block goes into. */
+  files: string[];
 };

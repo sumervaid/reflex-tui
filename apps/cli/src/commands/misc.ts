@@ -6,7 +6,7 @@ import { createAdapters } from "@reflex/adapters";
 import { analyze, deduplicate, isGenericTrace } from "@reflex/analysis";
 import { displayPath, excerpt, pathExists } from "@reflex/safety";
 import { Store, paths } from "@reflex/storage";
-import { detectTargets } from "@reflex/skills";
+import { detectTargets, removeMemory } from "@reflex/skills";
 import { MODEL, modelStatus } from "@reflex/embeddings";
 import { sessionVectors } from "../embeddings";
 import { c, confirm, ok, out, plural, rows, shortDate, title } from "../ui";
@@ -101,8 +101,10 @@ export async function reset(opts: { yes?: boolean }): Promise<void> {
     return;
   }
   out(`This deletes Reflex's own data in ${displayPath(home)}: the local database, generated skills and validation sandboxes.`);
-  out(c.dim("Skills you installed into Claude Code, Codex or Cursor are not touched. The embedding model is kept (`reflex model remove`)."));
+  out(c.dim("Skills you installed into Claude Code, Codex or Cursor are not touched; Reflex's agent-memory block is removed. The embedding model is kept (`reflex model remove`)."));
   if (!(await confirm("Delete Reflex data?", opts))) return;
+  // Agent memory lives in the agents' own files: take Reflex's block out before its database goes.
+  for (const w of await removeMemory()) if (w.changed) ok(`Removed Reflex's memory block from ${displayPath(w.path)}`);
   // Only remove what Reflex creates, never the whole directory: REFLEX_HOME may point anywhere.
   for (const child of ["reflex.db", "reflex.db-journal", "skills", "validation"]) {
     await rm(join(home, child), { recursive: true, force: true });

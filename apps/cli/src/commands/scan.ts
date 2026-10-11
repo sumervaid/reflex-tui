@@ -3,6 +3,7 @@ import { debug } from "@reflex/core";
 import { ClaudeCodeAdapter, CodexAdapter, CursorAdapter } from "@reflex/adapters";
 import { type Suggestion, analyze, buildTrace, deduplicate, sessionContext } from "@reflex/analysis";
 import { displayPath } from "@reflex/safety";
+import { type MemorySync, syncMemory } from "@reflex/skills";
 import { Store, paths } from "@reflex/storage";
 import { c, confirm, out, plural, rows, spinner, title, warn } from "../ui";
 import { modelBytes } from "@reflex/embeddings";
@@ -107,6 +108,7 @@ export async function scan(opts: ScanOptions): Promise<void> {
   const traces = sessions.map(buildTrace);
   const store = new Store();
   let suggestions: Suggestion[] = [];
+  let memoryResult: MemorySync | undefined;
   let meaning: VectorResult = { status: "no-model" };
   try {
     store.saveScan(
@@ -125,6 +127,7 @@ export async function scan(opts: ScanOptions): Promise<void> {
     if (embedding) embedSpin.stop(meaning.status === "ok" ? "Compared by meaning" : "Meaning comparison unavailable");
     suggestions = analyze(traces, meaning.status === "ok" ? { vectors: meaning.vectors } : {}).suggestions;
     store.saveSuggestions(store.latestScan()!.id, suggestions);
+    memoryResult = await syncMemory(store);
   } finally {
     store.close();
   }
@@ -146,6 +149,13 @@ export async function scan(opts: ScanOptions): Promise<void> {
   if (meaning.status === "ok") out(c.dim(`  requests compared by words and by meaning (local model; ${plural(meaning.embedded, "session")} newly embedded)`));
   else if (meaning.status === "failed") warn(`Meaning comparison skipped (${meaning.error}); requests were compared by words only.`);
   out(`  ${c.green("0 bytes uploaded")} · transcripts were read locally; only redacted summaries were stored in ${displayPath(paths.db())}`);
+  if (memoryResult?.writes.length) {
+    const changed = memoryResult.writes.filter((w) => w.changed).length;
+    out(`  agent memory: ${plural(memoryResult.rules, "entry", "entries")}${changed ? ` · updated ${memoryResult.writes.filter((w) => w.changed).map((w) => displayPath(w.path)).join(", ")}` : " · unchanged"}`);
+    for (const w of memoryResult.writes) if (w.skipped) warn(w.skipped);
+  } else if (memoryResult?.rules) {
+    out(c.dim(`  ${plural(memoryResult.rules, "correction")} your agents could remember across sessions: reflex memory`));
+  }
   out();
   if (!traces.length) {
     out(`No sessions in the last ${plural(opts.days, "day")}. Try a longer history window: ${c.cyan("reflex scan --days 30")}`);

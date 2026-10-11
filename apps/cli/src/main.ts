@@ -16,6 +16,7 @@ import { parseDays, scan } from "./commands/scan";
 import { approve, evidence, reject, show, suggest } from "./commands/review";
 import { explain, installCommand, listSkills, showSkill, validate } from "./commands/skills";
 import { doctor, reset, sessions, stats } from "./commands/misc";
+import { memoryAdd, memoryForget, memoryOff, memoryOn, memoryRemember, memoryStatus } from "./commands/memory";
 import { modelFetch, modelRemove, modelStatusCommand } from "./commands/model";
 import { impact } from "./commands/impact";
 import { tui } from "./commands/tui";
@@ -114,6 +115,18 @@ model
 model.command("remove").description("delete the downloaded model").option("-y, --yes", "remove without prompting").action(run(modelRemove));
 
 program.command("impact [skill]").description("compare a workflow's tokens and tool calls before and after its skill").action(run(impact));
+const memory = program.command("memory").description("what new agent sessions remember: corrections you gave in more than one session");
+memory.command("status", { isDefault: true }).description("list memory entries and where they are written").action(run(memoryStatus));
+memory
+  .command("on")
+  .description("write memory into ~/.claude/CLAUDE.md and ~/.codex/AGENTS.md (a marked block only), refreshed after every scan")
+  .option("-y, --yes", "consent without prompting")
+  .action(run(memoryOn));
+memory.command("off").description("remove Reflex's block from those files").action(run(memoryOff));
+memory.command("forget <entry>").description("stop telling agents an entry (number or text)").action(run(memoryForget));
+memory.command("remember <entry>").description("bring a forgotten entry back").action(run(memoryRemember));
+memory.command("add <text...>").description("add your own entry").action(run(memoryAdd));
+
 program.command("stats").description("defensible counts from local data").action(run(stats));
 program
   .command("reset")

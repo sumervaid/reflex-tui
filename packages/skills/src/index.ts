@@ -4,3 +4,4 @@ export * from "./diff";
 export * from "./install";
 export * from "./sandbox";
 export * from "./approve";
+export * from "./memory";

@@ -153,6 +153,12 @@ export function runTui(opts: RunOptions): Promise<void> {
             await reload();
             toast(r);
           });
+        case "memory":
+          return act(async () => {
+            const r = source.setMemory ? await source.setMemory(e.on) : { ok: false, message: "memory is not available yet", tone: "dim" as const };
+            await reload();
+            toast(r);
+          });
         case "resume":
           return act(async () => {
             const r = source.resume(e.sessionId, e.turn);
