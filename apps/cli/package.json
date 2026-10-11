@@ -1,0 +1,32 @@
+{
+  "name": "@reflix/cli",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Turn repeated Claude Code and Codex workflows into reusable skills, locally.",
+  "bin": {
+    "reflix": "./dist/reflix.js"
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsup",
+    "typecheck": "tsc -p tsconfig.json"
+  },
+  "dependencies": {
+    "@clack/prompts": "^0.11.0",
+    "commander": "^14.0.1",
+    "picocolors": "^1.1.1"
+  },
+  "devDependencies": {
+    "@reflix/adapters": "workspace:*",
+    "@reflix/analysis": "workspace:*",
+    "@reflix/core": "workspace:*",
+    "@reflix/safety": "workspace:*",
+    "@reflix/skills": "workspace:*",
+    "@reflix/storage": "workspace:*",
+    "@reflix/test-fixtures": "workspace:*",
+    "tsup": "^8.5.0"
+  }
+}

@@ -1,0 +1,89 @@
+import { installNetworkGuard, quietSqliteWarning } from "./guard";
+quietSqliteWarning();
+installNetworkGuard();
+process.stdout.on("error", (err: NodeJS.ErrnoException) => {
+  if (err.code === "EPIPE") process.exit(0);
+  throw err;
+});
+
+import { Command, Option } from "commander";
+import { fail } from "./ui";
+import { parseDays, scan } from "./commands/scan";
+import { approve, evidence, reject, show, suggest } from "./commands/review";
+import { explain, installCommand, listSkills, showSkill, validate } from "./commands/skills";
+import { doctor, reset, sessions, stats } from "./commands/misc";
+
+function run<A extends unknown[]>(fn: (...args: A) => Promise<void>) {
+  return async (...args: A) => {
+    try {
+      await fn(...args);
+    } catch (err) {
+      fail(err instanceof Error ? err.message : String(err));
+      if (process.env.REFLIX_DEBUG === "1" && err instanceof Error) process.stderr.write(`${err.stack}\n`);
+      process.exitCode = 1;
+    }
+  };
+}
+
+const program = new Command();
+program
+  .name("reflix")
+  .description("Find workflows you keep re-teaching Claude Code and Codex, and turn proven repeats into reusable skills. Everything runs locally.")
+  .version("0.1.0");
+
+program.command("doctor").description("check the environment and detected history locations").action(run(doctor));
+
+program
+  .command("scan")
+  .description("read recent coding-agent history (asks first) and store redacted workflow traces")
+  .option("--days <n>", "history window in days", "7")
+  .option("--demo", "scan sanitized demo history instead of your own")
+  .option("--claude-dir <dir>", "read Claude Code transcripts from this directory")
+  .option("--codex-dir <dir>", "read Codex rollouts from this directory")
+  .option("-y, --yes", "consent to reading the detected history without prompting")
+  .action(run(async (o: { days: string; demo?: boolean; claudeDir?: string; codexDir?: string; yes?: boolean }) => scan({ ...o, days: parseDays(o.days) })));
+
+program.command("sessions").description("list sessions from the last scan (redacted)").action(run(sessions));
+
+program
+  .command("suggest")
+  .description("detect repeated workflows and review them")
+  .option("--all", "include rejected suggestions")
+  .option("--no-interactive", "print suggestions without the review prompt")
+  .action(run(suggest));
+
+program.command("show <suggestion>").description("show a suggestion in detail (number or name)").action(run(show));
+program.command("evidence <suggestion>").description("show the sessions behind a suggestion").action(run(evidence));
+program
+  .command("approve <suggestion>")
+  .description("generate a skill from a suggestion into ~/.reflix/skills")
+  .option("-y, --yes", "approve without prompting")
+  .option("--no-install", "do not offer installation afterwards")
+  .action(run(approve));
+program.command("reject <suggestion>").description("stop suggesting a workflow").action(run(reject));
+
+program.command("skills").description("list generated skills and where they are installed").action(run(listSkills));
+program.command("show-skill <skill>").description("print a generated SKILL.md").action(run(showSkill));
+program
+  .command("install <skill>")
+  .description("install a generated skill into Claude Code and/or Codex (asks per target)")
+  .addOption(new Option("--target <target...>", "install target").choices(["claude-code", "codex"]))
+  .option("--as <name>", "install under a different name")
+  .option("-y, --yes", "consent to writing the skill file without prompting")
+  .action(run(installCommand));
+program.command("explain <skill>").description("show why a skill exists and where it came from").action(run(explain));
+program
+  .command("validate <skill>")
+  .description("check a skill and prepare a fresh task to prove it works")
+  .option("--run", "run a fresh, non-persistent Claude Code session on the task (asks first)")
+  .option("-y, --yes", "consent without prompting")
+  .action(run(validate));
+
+program.command("stats").description("defensible counts from local data").action(run(stats));
+program
+  .command("reset")
+  .description("delete Reflix's own local data (not installed skills)")
+  .option("-y, --yes", "consent without prompting")
+  .action(run(reset));
+
+await program.parseAsync(process.argv);
