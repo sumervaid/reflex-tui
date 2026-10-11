@@ -17,6 +17,7 @@
   },
   "devDependencies": {
     "@reflex/adapters": "workspace:*",
-    "@reflex/test-fixtures": "workspace:*"
+    "@reflex/test-fixtures": "workspace:*",
+    "@reflex/embeddings": "workspace:*"
   }
 }

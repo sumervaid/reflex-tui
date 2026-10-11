@@ -45,7 +45,7 @@ export type InstallationRecord = {
   contentHash: string;
 };
 
-const SCHEMA_VERSION = 2;
+const SCHEMA_VERSION = 3;
 
 const SCHEMA = `
 CREATE TABLE IF NOT EXISTS scans (
@@ -84,6 +84,11 @@ CREATE TABLE IF NOT EXISTS skills (
   created_at TEXT NOT NULL,
   content_hash TEXT NOT NULL,
   baseline_json TEXT
+);
+CREATE TABLE IF NOT EXISTS embeddings (
+  key TEXT PRIMARY KEY,
+  model TEXT NOT NULL,
+  vector BLOB NOT NULL
 );
 CREATE TABLE IF NOT EXISTS installations (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -278,5 +283,33 @@ export class Store {
       installedAt: String(r.installed_at),
       contentHash: String(r.content_hash),
     }));
+  }
+
+  /** Cached sentence vectors by content key (model + context document hash). */
+  embeddings(keys: string[]): Map<string, Float32Array> {
+    const out = new Map<string, Float32Array>();
+    const get = this.db.prepare("SELECT vector FROM embeddings WHERE key = ?");
+    for (const key of keys) {
+      const row = get.get(key) as { vector: Uint8Array } | undefined;
+      if (row && row.vector.byteLength % 4 === 0) out.set(key, new Float32Array(new Uint8Array(row.vector).buffer));
+    }
+    return out;
+  }
+
+  saveEmbeddings(model: string, entries: Iterable<[string, Float32Array]>): void {
+    const put = this.db.prepare("INSERT OR REPLACE INTO embeddings (key, model, vector) VALUES (?,?,?)");
+    this.db.exec("BEGIN");
+    try {
+      for (const [key, v] of entries) put.run(key, model, new Uint8Array(v.buffer, v.byteOffset, v.byteLength));
+      this.db.exec("COMMIT");
+    } catch (err) {
+      this.db.exec("ROLLBACK");
+      throw err;
+    }
+  }
+
+  /** Drop cached vectors for sessions that are no longer in the working set. */
+  pruneEmbeddings(keep: string[]): void {
+    this.db.prepare("DELETE FROM embeddings WHERE key NOT IN (SELECT value FROM json_each(?))").run(JSON.stringify(keep));
   }
 }

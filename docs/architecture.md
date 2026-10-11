@@ -23,10 +23,11 @@ flowchart LR
 | `@reflex/adapters` | Claude Code, Codex and Cursor parsers: detection, permission prompt, bounded discovery, streaming parse |
 | `@reflex/analysis` | Command classification, traces, de-duplication, similarity, clustering, consensus steps, suggestions |
 | `@reflex/storage` | SQLite (`node:sqlite`) store in `REFLEX_HOME` (default `~/.reflex`) |
+| `@reflex/embeddings` | Optional sentence embeddings: pinned model download and verification, WordPiece tokenizer, onnxruntime-web (WebAssembly) inference |
 | `@reflex/skills` | SKILL.md generation, validation, diffs, install planning, fresh-task sandbox |
 | `@reflex/test-fixtures` | Synthetic transcripts in the real on-disk layouts, for tests only (not bundled) |
 | `@reflex/tui` | Full-screen terminal UI: the `TuiData` contract, layout ported from the design prototype, terminal I/O, and the live data source over the store |
-| `apps/cli` | Commands and prompts (`commander`, `@clack/prompts`), bundled into one file with tsup |
+| `apps/cli` | Commands and prompts (`commander`, `@clack/prompts`), bundled with tsup; the build copies the onnxruntime-web WebAssembly runtime (14 MB) next to the bundle |
 
 Internal packages export TypeScript source; only the CLI is built.
 
@@ -72,8 +73,13 @@ Token usage, where recorded, is attached to the session as `{input, output, cach
 2. **De-duplicate.** Byte-identical copies (same fingerprint), resumed sessions (≥ 80% event overlap)
    and quick retries (same repo within 4 hours, similar intent and actions) count once.
 3. **Similarity.** Weighted: intent 0.40, action sequence 0.30, commands and tools 0.15, file
-   categories 0.10, repository 0.05. Intent blends TF-IDF with a small concept lexicon so
-   "GitHub Actions is red" and "CI is failing" match. Action similarity mixes exact sequence
+   categories 0.10, repository 0.05. Intent blends TF-IDF over stemmed terms (plus a bonus for
+   shared word pairs) with a small concept lexicon so "GitHub Actions is red" and "CI is failing"
+   match. With the optional model, each session's context document (redacted first request plus
+   file kinds; actions are left out because they have their own weight) is embedded, and intent is
+   the larger of the lexical score and the rescaled embedding cosine (`(cos - 0.2) / 0.8`).
+   Meaning can connect requests that share no words but never lowers a lexical match. On the
+   fixtures this raises same-vs-different pair separation (AUC) from 0.84 to 0.92. Action similarity mixes exact sequence
    (LCS, Jaccard) with coarse classes (inspect, change, verify).
 4. **Cluster.** Average-linkage agglomerative clustering, threshold 0.45.
 5. **Gates.** A cluster becomes a suggestion only with ≥ 3 independent sessions, intent cohesion
@@ -85,6 +91,20 @@ Token usage, where recorded, is attached to the session as `{input, output, cach
    sessions and pass a safety filter.
 7. **Rank.** Confidence is a heuristic over cohesion, instance count, repository spread, step
    consensus and verification rate. It is shown as a ranking signal, not a probability.
+
+8. **Constraints.** Follow-up requests (not the first) are split into clauses. A clause counts as a
+   correction only if it opens with "don't / do not / never / stop / avoid / no need to" (avoid),
+   or with "always / make sure / prefer", "X instead of Y", "X instead" or follows a bare "no"
+   (prefer). A prefer clause must also open with a verb from a short allowlist (`use`, `run`, `keep`,
+   `pin`, …). The trace keeps at most 8 plain words without filler, and at most 8 corrections per
+   session. A clause with any non-word token (shell syntax, flags, URLs, paths, hosts, IP addresses,
+   redaction markers) is dropped. Within a cluster, two corrections with the same polarity from
+   different sessions match at stemmed-word Jaccard ≥ 0.5; the words after "not" only match each
+   other, so "pnpm not npm" never matches "npm not pnpm". Each matching pair yields a rule made of
+   the words both used, and its session count is the number of sessions that produced that same
+   rule. Rules must be at most 80 characters and pass a steering-word filter (prompts, secrets,
+   permissions, confirmation); prefer rules must also pass the command safety filter. At most 5 per
+   skill.
 
 A small family catalog (`fix-ci`, `review-pr`, `debug-dependency`, …) names clusters. It never
 creates or admits one.
@@ -146,7 +166,12 @@ no tokens, so a day or window with only Cursor sessions has no token value. More
 
 `~/.reflex/reflex.db` (mode 0600, directory 0700): scans, redacted traces, suggestions and their
 status, generated skills (with their cost baseline) and installations. `PRAGMA user_version` gates
-schema changes; version 2 adds `skills.baseline_json` in place.
+schema changes; version 2 adds `skills.baseline_json` in place; version 3 adds `embeddings`
+(vectors keyed by a hash of model id and context document, pruned to the latest scan).
+
+The optional model lives in `~/.reflex/models/all-minilm-l6-v2-q8/` (23 MB, int8 ONNX). It is read
+only after its SHA-256 matches the pinned value, and is embedded one text at a time: the int8
+model quantizes per batch, so batching would make a session's vector depend on its neighbors.
 
 ## Configuration
 

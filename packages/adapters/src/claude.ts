@@ -28,6 +28,7 @@ const ClaudeRecord = z
     cwd: z.string().optional(),
     isSidechain: z.boolean().optional(),
     isMeta: z.boolean().optional(),
+    isCompactSummary: z.boolean().optional(),
     message: z
       .object({
         role: z.string().optional(),
@@ -139,7 +140,8 @@ export class ClaudeCodeAdapter implements TranscriptAdapter {
         const content = rec.message?.content;
 
         if (rec.type === "user") {
-          if (rec.isMeta) continue;
+          // A compaction summary is written by the model, not typed by the developer.
+          if (rec.isMeta || rec.isCompactSummary) continue;
           if (typeof content === "string") {
             b.addRequest(content, at);
             continue;

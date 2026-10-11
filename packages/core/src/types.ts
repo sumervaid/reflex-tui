@@ -146,6 +146,12 @@ export type OutcomeSignal = {
   summarized: boolean;
 };
 
+/** A developer's follow-up pushback: up to 8 lowercase content words in order, filler removed. */
+export type Correction = {
+  polarity: "avoid" | "prefer";
+  words: string[];
+};
+
 export type WorkflowTrace = {
   sessionId: string;
   source: SourceId;
@@ -175,4 +181,6 @@ export type WorkflowTrace = {
   toolCalls?: number;
   /** Skill names the agent loaded (Skill tool call or reading a `skills/<name>/SKILL.md`). */
   skillsUsed?: string[];
+  /** Corrections from follow-up requests. Optional in traces stored before it existed. */
+  corrections?: Correction[];
 };

@@ -52,6 +52,14 @@ describe("skill generation", () => {
     for (const unsupported of [/deploy/i, /slack/i, /restart/i, /production/i]) expect(workflow).not.toMatch(unsupported);
   });
 
+  it("writes recurring corrections as constraints, and only when there are some", () => {
+    const ci = suggestions.find((s) => s.slug === "fix-ci")!;
+    const section = generateSkill(ci, NOW).content.split("## Constraints")[1]!.split("\n## ")[0]!;
+    expect(section.split("\n").filter((l) => l.startsWith("- "))).toEqual(["- Don't change ci workflow. (2 sessions)"]);
+    const none = suggestions.find((s) => !s.constraints?.length)!;
+    expect(generateSkill(none, NOW).content).not.toContain("## Constraints");
+  });
+
   it("has no secrets, raw paths or transcript excerpts", () => {
     for (const s of suggestions) {
       const { content } = generateSkill(s, NOW);

@@ -27,6 +27,7 @@ export function isHarnessText(text: string): boolean {
     t.startsWith("<user_instructions>") ||
     t.startsWith("<environment_context>") ||
     t.startsWith("Caveat:") ||
+    t.startsWith("This session is being continued from a previous conversation") ||
     t.startsWith("[Request interrupted")
   );
 }

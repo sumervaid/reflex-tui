@@ -34,6 +34,7 @@
     "@reflex/adapters": "workspace:*",
     "@reflex/analysis": "workspace:*",
     "@reflex/core": "workspace:*",
+    "@reflex/embeddings": "workspace:*",
     "@reflex/safety": "workspace:*",
     "@reflex/skills": "workspace:*",
     "@reflex/storage": "workspace:*",

@@ -3,6 +3,7 @@ import { analyze, type Suggestion } from "@reflex/analysis";
 import { displayPath, excerpt } from "@reflex/safety";
 import { type StoredSuggestion, Store, paths } from "@reflex/storage";
 import { approveSuggestion } from "@reflex/skills";
+import { sessionVectors } from "../embeddings";
 import { c, chooseKey, confirm, fileBlock, fmtTokens, interactive, ok, out, pct, plural, rows, shortDate, title } from "../ui";
 import { describeCost } from "./impact";
 import { installFlow } from "./skills";
@@ -44,6 +45,11 @@ export function renderSuggestion(entry: StoredSuggestion): void {
     const variants = st.variants ? c.dim(`  ${st.variants.join(" · ")}`) : "";
     out(`    ${String(i + 1).padStart(2)}. ${st.label.padEnd(width)}  ${c.dim(`${seen}/${s.instances}`)}${variants}`);
   });
+  if (s.constraints?.length) {
+    out();
+    out("  Recurring corrections");
+    for (const k of s.constraints) out(`    - ${k.text} ${c.dim(`${k.sessions} sessions`)}`);
+  }
   if (s.notes.length) {
     out();
     out("  Uncertainty");
@@ -114,7 +120,8 @@ export async function suggest(opts: { all?: boolean; interactive?: boolean }): P
   try {
     requireScan(store);
     const traces = store.traces();
-    const analysis = analyze(traces);
+    const meaning = await sessionVectors(traces, store, { cacheOnly: true });
+    const analysis = analyze(traces, meaning.status === "ok" ? { vectors: meaning.vectors } : {});
     store.saveSuggestions(store.latestScan()!.id, analysis.suggestions);
     const list = store.suggestions();
     const visible = list.filter((s) => opts.all || s.status !== "rejected");

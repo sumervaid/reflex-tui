@@ -50,7 +50,8 @@ alias reflex="node $PWD/apps/cli/dist/reflex.js"
 | `impact [name]` | Tokens and tool calls per run before the skill vs. runs that loaded it, plus the skill's own size |
 | `tui` | Full-screen terminal UI over the last scan: sessions, tokens, skills to review. `space` installs or removes a skill. Needs an interactive terminal |
 | `stats` | Counts from local data |
-| `reset` | Delete Reflex's own data (not installed skills) |
+| `reset` | Delete Reflex's own data (not installed skills or the model) |
+| `model [status\|fetch\|remove]` | Optional local embedding model for matching requests by meaning (`fetch` downloads 23 MB) |
 
 Prompts default to No. Without a terminal, nothing is read or written unless you pass `--yes`.
 
@@ -77,12 +78,16 @@ Each session becomes a trace: what was asked (intent terms), what was done (orde
 as inspect CI, install dependencies, patch, run tests, inspect the diff), normalized commands,
 file categories and outcome. Copies, resumed sessions and quick retries count once. Traces are
 compared on intent (0.40), action sequence (0.30), commands and tools (0.15), file categories
-(0.10) and repository (0.05), then clustered. A cluster becomes a suggestion only if it has at
+(0.10) and repository (0.05), then clustered. Intent compares the requests' words (stemmed terms,
+phrases and a small concept lexicon); with the optional model (`reflex model fetch`) it also compares
+their meaning, so "make the login page load faster" and "the sign-in screen is really slow" match. A cluster becomes a suggestion only if it has at
 least 3 independent sessions with consistent behavior; one-offs, read-and-answer sessions and
 generic "read, edit, test" patterns are not suggested.
 
 The skill contains only steps seen in at least half the sessions, in the order they usually
-happened, with example commands that recurred and passed a safety filter. No transcript text.
+happened, with example commands that recurred and passed a safety filter. Corrections you gave in
+follow-up messages ("don't change the CI workflow") become constraints when the same correction
+appears in at least 2 sessions; only the words those sessions share are kept. No transcript excerpts.
 Details: [docs/architecture.md](docs/architecture.md).
 
 ## Measuring a skill
@@ -101,7 +106,9 @@ both sides have at least 3 runs, and never predicts savings in advance.
 ## Privacy and security
 
 - Transcripts are read locally and treated as data, never as instructions.
-- Reflex makes no network connections; outgoing sockets are blocked in-process.
+- Reflex makes no network connections; outgoing sockets are blocked in-process. The one exception is
+  `reflex model fetch`, which you run explicitly to download the optional embedding model (pinned
+  files, verified by SHA-256). It reads no transcripts and uploads nothing; scans stay offline.
 - Secrets, emails, home paths and your user name are redacted before anything is stored or shown.
 - It reads only known agent history folders (or ones you pass), after asking.
 - Nothing is written outside `~/.reflex` until you install: per target with `reflex install`, or into every
@@ -134,15 +141,19 @@ pnpm lint
 ```
 
 The monorepo uses pnpm workspaces and Turborepo with strict TypeScript, Zod for untrusted records,
-and built-in `node:sqlite` for storage, so there are no native dependencies. Packages live in
+and built-in `node:sqlite` for storage, so there are no native dependencies. The optional embedding
+model runs on onnxruntime-web's WebAssembly backend for the same reason. Packages live in
 `packages/*`; the CLI in `apps/cli`. `packages/test-fixtures` holds synthetic transcripts used only
 by the tests; it is not part of the published CLI.
 
 ## Limitations
 
 - Confidence is a ranking heuristic, not a probability.
-- Intent matching uses a small built-in lexicon plus TF-IDF, with no embeddings or LLM calls. Unusual
-  vocabulary may need more sessions to cluster.
+- Without the model, intent matching uses stemmed TF-IDF plus a small built-in lexicon. Requests worded
+  with no words in common need `reflex model fetch` to match.
+- The embedding model (all-MiniLM-L6-v2) is English-only and does not know developer jargon as well as
+  the lexicon ("GitHub Actions is red" vs. "CI is failing"), so it is combined with word matching,
+  never used alone. Clusters found only by meaning may get a generic name.
 - Each source reads at most its 2,000 most recent files per scan.
 - Sponsor integrations (Alike, Darwin) are not included: no public API documentation was available
   to build against, and the product works without them.

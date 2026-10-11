@@ -3,8 +3,10 @@ import { SOURCE_IDS, debug, totalTokens } from "@reflex/core";
 import { toSlug } from "@reflex/safety";
 import { FAMILIES } from "./catalog";
 import { CLUSTER_THRESHOLD, clusterTraces } from "./cluster";
+import type { SessionVectors } from "./context";
 import { type DedupStats, type WorkflowInstance, deduplicate } from "./dedup";
 import { MODIFY_TARGET_LABEL, STEP_TEXT, type StepKind } from "./steps";
+import { type Constraint, recurringCorrections } from "./corrections";
 import { type WorkflowCost, median, workflowCost } from "./impact";
 import { isGenericTrace, usedSkill } from "./trace";
 
@@ -26,6 +28,20 @@ const UNSAFE_EXAMPLE =
 export function isSafeExample(cmd: string): boolean {
   const withoutPlaceholders = cmd.replace(/<(n|file|ref|sha|arg|str|url)>/g, "x");
   return cmd.length <= 80 && !UNSAFE_EXAMPLE.test(withoutPlaceholders) && !/\[REDACTED/.test(cmd);
+}
+
+/**
+ * Words that steer the agent reading the skill, or touch secrets and permissions. Unsafe in either
+ * direction: "don't ask for confirmation" is as bad as "ignore previous instructions".
+ */
+const STEERING =
+  /\b(ignore|disregard|override|bypass|instructions?|prompts?|system|previous|jailbreak|hesitate|forget|pretend|secrets?|tokens?|passwords?|passwd|credentials?|keys?|env|dotenv|ssh|permissions?|approv\w*|confirm\w*|ask|tell|root|admin|no-verify|dangerously[\w-]*)\b/i;
+const MAX_CONSTRAINTS = 5;
+
+/** Prohibiting a risky command is worth keeping; telling the agent to run one is not. */
+export function isSafeConstraint(c: Pick<Constraint, "polarity" | "text">): boolean {
+  if (c.text.length > 80 || STEERING.test(c.text)) return false;
+  return c.polarity === "avoid" || !UNSAFE_EXAMPLE.test(c.text.toLowerCase());
 }
 
 export type ConsensusStep = {
@@ -82,6 +98,8 @@ export type Suggestion = {
   sourceSessions: string[];
   /** Cost of the runs that did not load a skill with this name: the baseline for `reflex impact`. */
   cost?: WorkflowCost;
+  /** Corrections built from the words at least two independent sessions shared. */
+  constraints?: Constraint[];
 };
 
 export type AnalysisStats = {
@@ -245,10 +263,15 @@ function evidenceFor(inst: WorkflowInstance, slug: string): Evidence {
   };
 }
 
-export function analyze(traces: WorkflowTrace[]): Analysis {
+export type AnalyzeOptions = {
+  /** Sentence vectors of session context documents (see `contextDocument`). Optional. */
+  vectors?: SessionVectors;
+};
+
+export function analyze(traces: WorkflowTrace[], opts: AnalyzeOptions = {}): Analysis {
   const { instances, stats: dedup } = deduplicate(traces);
   const candidates = instances.filter((i) => !isGenericTrace(i.primary));
-  const clusters = clusterTraces(candidates.map((i) => i.primary), CLUSTER_THRESHOLD);
+  const clusters = clusterTraces(candidates.map((i) => i.primary), CLUSTER_THRESHOLD, opts.vectors);
   debug("clusters formed", { candidates: candidates.length, clusters: clusters.length });
 
   const suggestions: Suggestion[] = [];
@@ -324,6 +347,9 @@ export function analyze(traces: WorkflowTrace[]): Analysis {
       medianMinutes: median(durations),
       sourceSessions: group.flatMap((g) => [g.primary.sessionId, ...g.merged.map((m) => m.sessionId)]),
       cost: workflowCost(group.map((g) => g.primary).filter((t) => !usedSkill(t, slug))),
+      constraints: recurringCorrections(group.map((g) => g.primary.corrections ?? []))
+        .filter(isSafeConstraint)
+        .slice(0, MAX_CONSTRAINTS),
     });
   }
 
