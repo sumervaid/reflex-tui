@@ -77,8 +77,8 @@ describe("reflex end-to-end loop on fixture transcripts", () => {
     const skillPath = join(root, "home", "skills", "fix-ci", "SKILL.md");
     const skill = await readFile(skillPath, "utf8");
     expect(skill.split("\n").length).toBeLessThanOrEqual(150);
-    expect(skill).toContain("- Don't change ci workflow. (2 sessions)");
-    expect(skill).not.toContain("fix the code");
+    const constraints = skill.split("## Constraints")[1]!.split("\n## ")[0]!;
+    expect(constraints.split("\n").filter((l) => l.startsWith("- "))).toEqual(["- Don't change ci workflow. (2 sessions)"]);
     expect(findLeaks(skill)).toEqual([]);
     await expect(stat(join(root, "claude-skills", "fix-ci"))).rejects.toThrow();
 

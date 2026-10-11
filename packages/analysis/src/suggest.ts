@@ -30,12 +30,18 @@ export function isSafeExample(cmd: string): boolean {
   return cmd.length <= 80 && !UNSAFE_EXAMPLE.test(withoutPlaceholders) && !/\[REDACTED/.test(cmd);
 }
 
-/** Words that try to steer the agent reading the skill rather than describe the task. */
-const STEERING = /\b(ignore|disregard|override|bypass|instructions?|prompts?|system|previous|jailbreak|hesitate|forget|pretend|secrets?|tokens?|passwords?|credentials?|keys?|env)\b/;
+/**
+ * Words that steer the agent reading the skill, or touch secrets and permissions. Unsafe in either
+ * direction: "don't ask for confirmation" is as bad as "ignore previous instructions".
+ */
+const STEERING =
+  /\b(ignore|disregard|override|bypass|instructions?|prompts?|system|previous|jailbreak|hesitate|forget|pretend|secrets?|tokens?|passwords?|passwd|credentials?|keys?|env|dotenv|ssh|permissions?|approv\w*|confirm\w*|ask|tell|root|admin|no-verify|dangerously[\w-]*)\b/i;
 const MAX_CONSTRAINTS = 5;
 
-export function isSafeConstraint(text: string): boolean {
-  return text.length <= 80 && !UNSAFE_EXAMPLE.test(text) && !STEERING.test(text.toLowerCase()) && !/\[REDACTED/i.test(text);
+/** Prohibiting a risky command is worth keeping; telling the agent to run one is not. */
+export function isSafeConstraint(c: Pick<Constraint, "polarity" | "text">): boolean {
+  if (c.text.length > 80 || STEERING.test(c.text)) return false;
+  return c.polarity === "avoid" || !UNSAFE_EXAMPLE.test(c.text.toLowerCase());
 }
 
 export type ConsensusStep = {
@@ -92,7 +98,7 @@ export type Suggestion = {
   sourceSessions: string[];
   /** Cost of the runs that did not load a skill with this name: the baseline for `reflex impact`. */
   cost?: WorkflowCost;
-  /** Corrections the developer gave in at least two independent sessions. */
+  /** Corrections built from the words at least two independent sessions shared. */
   constraints?: Constraint[];
 };
 
@@ -342,7 +348,7 @@ export function analyze(traces: WorkflowTrace[], opts: AnalyzeOptions = {}): Ana
       sourceSessions: group.flatMap((g) => [g.primary.sessionId, ...g.merged.map((m) => m.sessionId)]),
       cost: workflowCost(group.map((g) => g.primary).filter((t) => !usedSkill(t, slug))),
       constraints: recurringCorrections(group.map((g) => g.primary.corrections ?? []))
-        .filter((c) => isSafeConstraint(c.text))
+        .filter(isSafeConstraint)
         .slice(0, MAX_CONSTRAINTS),
     });
   }
