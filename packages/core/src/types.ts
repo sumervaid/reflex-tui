@@ -87,6 +87,12 @@ export type TranscriptFile = {
   displayPath: string;
   modifiedAt: Date;
   sizeBytes: number;
+  /**
+   * File identity for the scan cache. ctime changes on any write and cannot be set by tools that
+   * preserve mtime (cp -p, rsync -t, backup restores), so size + mtime + ctime + inode together
+   * detect a changed file without reading it.
+   */
+  identity?: { mtimeMs: number; ctimeMs: number; ino: string };
 };
 
 export type ParseResult = {
@@ -100,6 +106,8 @@ export type ParseResult = {
 export interface TranscriptAdapter {
   id: SourceId;
   label: string;
+  /** Folder this adapter reads; cached files under it that disappear are treated as deleted. */
+  readonly root?: string;
   detect(): Promise<DetectionResult>;
   /** Asks the user (through the injected prompt) before any transcript content is read. */
   requestPermission(ask: (message: string) => Promise<boolean>, days: number): Promise<boolean>;

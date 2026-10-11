@@ -35,7 +35,7 @@ alias reflex="node $PWD/apps/cli/dist/reflex.js"
 | Command | What it does |
 | --- | --- |
 | `doctor` | Node and SQLite check, detected history locations and file counts, install targets, agent CLIs |
-| `scan --days <n>` | Ask per source, then read and store redacted workflow traces. `--source <claude-code\|codex\|cursor>` (repeatable), `--claude-dir`, `--codex-dir`, `--cursor-dir`, `--yes` |
+| `scan --days <n>` | Ask per source, then read and store redacted workflow traces. `--source <claude-code\|codex\|cursor>` (repeatable), `--claude-dir`, `--codex-dir`, `--cursor-dir`, `--yes`, `--full` (re-read every file instead of reusing unchanged ones) |
 | `sessions` | Sessions from the last scan, redacted |
 | `suggest` | Detect repeated workflows and review them interactively (`--no-interactive`, `--all`) |
 | `show <n\|name>` | A suggestion in detail: steps, support, uncertainty |
@@ -115,6 +115,9 @@ both sides have at least 3 runs, and never predicts savings in advance.
   `reflex model fetch`, which you run explicitly to download the optional embedding model (pinned
   files, verified by SHA-256). It reads no transcripts and uploads nothing; scans stay offline.
 - Secrets, emails, home paths and your user name are redacted before anything is stored or shown.
+- Scans are incremental: a transcript that has not changed since the last scan is not opened again.
+  Redacted traces are kept after their transcript is deleted (by you, or by the agent's own cleanup),
+  so history can reach further back than the agent keeps it. `reflex reset` deletes them.
 - It reads only known agent history folders (or ones you pass), after asking.
 - Nothing is written outside `~/.reflex` until you install: per target with `reflex install`, or into every
   detected agent with `space` in `reflex tui`. Installs never overwrite; removals delete only unchanged copies Reflex wrote.

@@ -18,42 +18,64 @@ function bundledWasmDir(): string | undefined {
   return WASM_FILES.every((f) => existsSync(join(here, f))) ? here : undefined;
 }
 
+/** Cache key of a session's vector: model plus context document hash. */
+export function embeddingKey(contextHashValue: string): string {
+  return sha256(`${MODEL.id}\n${contextHashValue}`);
+}
+
+const keyOf = (t: WorkflowTrace) => embeddingKey(t.contextHash ?? contextHash(contextDocument(t)));
+
+/**
+ * When the model is installed: which sessions have no vector yet. `scan` re-reads the files of
+ * those sessions (and only those) to get their text, since the text itself is never stored.
+ */
+export async function vectorNeeds(store: Store): Promise<((t: WorkflowTrace) => boolean) | undefined> {
+  if (!(await modelStatus(paths.models())).installed) return undefined;
+  const have = store.embeddingKeys();
+  return (t) => !have.has(keyOf(t));
+}
+
 /**
  * Sentence vectors for each session's context document, when the optional model is installed.
  * Vectors are cached by model and document hash, so only new or changed sessions are embedded.
- * `documents` (aligned with `traces`) holds the text to embed; only `scan` has it, because the
- * full request is never stored. With `cacheOnly`, returns only vectors a scan already stored.
+ * `documents` (by session id) holds the text to embed; only `scan` has it, for the files it read,
+ * because the full request is never stored. With `cacheOnly`, returns only vectors already stored.
+ * Vectors are kept for every cached trace, so changing --days never re-embeds anything.
  * Any failure falls back to lexical matching rather than failing the scan.
  */
 export async function sessionVectors(
   traces: WorkflowTrace[],
   store: Store,
-  opts: { documents?: string[]; cacheOnly?: boolean; onProgress?: (n: number) => void } = {},
+  opts: { documents?: ReadonlyMap<string, string>; cacheOnly?: boolean; onProgress?: (n: number) => void } = {},
 ): Promise<VectorResult> {
   const status = await modelStatus(paths.models());
   if (!status.installed) return { status: "no-model" };
   try {
-    const docs = traces.map((t, i) => opts.documents?.[i] ?? contextDocument(t));
-    const keys = traces.map((t, i) => sha256(`${MODEL.id}\n${opts.documents ? contextHash(docs[i]!) : (t.contextHash ?? contextHash(docs[i]!))}`));
+    const keys = traces.map(keyOf);
     const cached = store.embeddings(keys);
-    const missing = [...new Set(keys.filter((k) => !cached.has(k)))];
+    const pick = () => new Map(traces.flatMap((t, i) => (cached.has(keys[i]!) ? [[t.sessionId, cached.get(keys[i]!)!] as const] : [])));
     // Commands that re-analyze stored sessions use what the scan embedded and never load the model.
     if (opts.cacheOnly) {
-      const vectors = new Map(traces.flatMap((t, i) => (cached.has(keys[i]!) ? [[t.sessionId, cached.get(keys[i]!)!] as const] : [])));
+      const vectors = pick();
       return { status: "ok", vectors, embedded: 0, cached: vectors.size };
     }
+    const docOf = new Map<string, string>();
+    traces.forEach((t, i) => {
+      const doc = opts.documents?.get(t.sessionId);
+      if (doc !== undefined && !cached.has(keys[i]!)) docOf.set(keys[i]!, doc);
+    });
+    const missing = [...docOf.keys()];
     if (missing.length) {
       opts.onProgress?.(missing.length);
       const embedder = await loadEmbedder(status.dir, { wasmDir: bundledWasmDir() });
-      const docOf = new Map(keys.map((k, i) => [k, docs[i]!]));
       const vectors = await embedder.embed(missing.map((k) => docOf.get(k)!));
       const fresh = missing.map((k, i) => [k, vectors[i]!] as [string, Float32Array]);
       store.saveEmbeddings(MODEL.id, fresh);
       for (const [k, v] of fresh) cached.set(k, v);
     }
-    store.pruneEmbeddings(keys);
-    const vectors = new Map(traces.map((t, i) => [t.sessionId, cached.get(keys[i]!)!]));
-    return { status: "ok", vectors, embedded: missing.length, cached: keys.length - missing.length };
+    store.pruneEmbeddings(store.contextHashes().map(embeddingKey));
+    const vectors = pick();
+    return { status: "ok", vectors, embedded: missing.length, cached: vectors.size - missing.length };
   } catch (err) {
     return { status: "failed", error: err instanceof Error ? err.message : String(err) };
   }
