@@ -259,6 +259,12 @@ export class Store {
       .run(inst.skill, inst.target, inst.path, inst.installedAt, inst.contentHash);
   }
 
+  /** Forget installations of `skill` into `target`; with `path`, only the one at that path. */
+  removeInstallation(skill: string, target: string, path?: string): void {
+    if (path === undefined) this.db.prepare("DELETE FROM installations WHERE skill = ? AND target = ?").run(skill, target);
+    else this.db.prepare("DELETE FROM installations WHERE skill = ? AND target = ? AND path = ?").run(skill, target, path);
+  }
+
   installations(skill?: string): InstallationRecord[] {
     const rows = (
       skill

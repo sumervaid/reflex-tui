@@ -25,6 +25,7 @@ flowchart LR
 | `@reflex/storage` | SQLite (`node:sqlite`) store in `REFLEX_HOME` (default `~/.reflex`) |
 | `@reflex/skills` | SKILL.md generation, validation, diffs, install planning, fresh-task sandbox |
 | `@reflex/test-fixtures` | Synthetic transcripts in the real on-disk layouts, for tests only (not bundled) |
+| `@reflex/tui` | Full-screen terminal UI: the `TuiData` contract, layout ported from the design prototype, terminal I/O, and the live data source over the store |
 | `apps/cli` | Commands and prompts (`commander`, `@clack/prompts`), bundled into one file with tsup |
 
 Internal packages export TypeScript source; only the CLI is built.
@@ -107,10 +108,39 @@ completion criteria and notes. No transcript excerpts. The file is redacted agai
 leaks and kept at 150 lines or fewer.
 
 `install` copies it into `~/.claude/skills/<name>/`, `~/.codex/skills/<name>/` or `~/.cursor/skills/<name>/` only after a
-per-target confirmation, never overwriting. `validate --run` creates a fresh git repository with a
+per-target confirmation, never overwriting. In `reflex tui`, `space` on a pending suggestion runs the
+same approval (`approveSuggestion` in `@reflex/skills`, shared with `approve`, except that the TUI
+never replaces a Reflex copy you edited) and installs into every detected target. `space` on an
+installed skill calls `uninstall`, which deletes a copy only if it is still byte for byte what
+Reflex wrote, then drops its installation record. `validate --run` creates a fresh git repository with a
 bug none of the historical sessions saw, installs the skill project-locally, and runs a
 non-persistent Claude Code session with restricted tools to show the skill being invoked and the
 tests passing.
+
+## Terminal UI
+
+`reflex tui` runs `@reflex/tui` on a live data source. The views never read the store: they draw
+one plain value, `TuiData` (`packages/tui/src/model.ts`), and act through a `DataSource`
+(`load`, `toggleItem`, `setAutopilot`, `rescan`, `resume`; `packages/tui/src/types.ts`). Optional
+fields are measurements Reflex may not have; a view draws `not measured yet` for a missing block
+and `—` for a missing value, and never invents a number.
+
+The live source (`packages/tui/src/live/`) opens the store, builds `TuiData` and closes it again on
+every load (at start, after a rescan and after each toggle).
+
+| Field | Live value |
+| --- | --- |
+| `scannedAt`, `sessions` | Local time and session count of the latest scan |
+| `reads`, `activeDirs`, `dataDir` | History folders the latest scan read, detected install folders, `REFLEX_HOME` |
+| `tools` | Sessions per source in the latest scan |
+| `window`, `days`, `yesterday` | Token sums from the stored traces' `usage`, per local day of the scan window; yesterday only when the scan covers all of it |
+| `skills` | Generated skills and pending suggestions; `new` = pending, `retired` = the latest scan no longer found it, `on` = an installation record whose file is still there |
+| `attention` | New suggestions to review, retired skills still installed |
+| `money`, `limits`, `plansFile`, `topPrompts`, `topSessions`, `workflows`, `router`, `search` | Not recorded yet, so absent |
+
+Sessions found twice (the same session id in two places) count once in token sums. Cursor records
+no tokens, so a day or window with only Cursor sessions has no token value. More in
+[tui.md](tui.md).
 
 ## Storage
 

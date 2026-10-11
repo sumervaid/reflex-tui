@@ -1,0 +1,40 @@
+ ◆ Reflex AI   dashboard   [0]                                                                 scanned 14:51   14:51:38
+ ◆
+    USAGE LIMITS   how much of each plan you have used · estimated from local usage
+▌0
+    not measured yet
+ 1
+    TODAY              YESTERDAY          30 DAYS            ALL TIME           CACHE SAVED        ROUTER
+ 2  —                  —                  —                  —                  —                  —
+    not measured yet   not measured yet   28 sessions        not measured yet   not measured yet   not measured yet
+ 3●
+    NEEDS A LOOK                                                  LAST 14 DAYS BY TOOL
+ 4  ● 2 new skills to review                               [3]    not measured yet
+
+ 5
+
+ 6
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+ 0-6  jump   /  search   r  rescan   b  sidebar   q  quit                                             ● local · offline

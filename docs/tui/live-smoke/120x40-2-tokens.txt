@@ -1,0 +1,40 @@
+ ◆ Reflex AI   tokens   [2]                                                                    scanned 14:51   14:51:39
+ ◆
+    LAST 30 DAYS   11 sep – 11 oct   28 sessions   all time —
+ 0  not measured yet
+
+ 1  context 2.1M tok = fresh input 85k + cache writes 83k + cache reads 1.9M, plus output 22k
+    cache hit rate 92.0% of context served from cache    output share 1.0% of tokens
+▌2
+    CLI TOOLS             cost share, last 30 days                            30 days share      all time
+ 3● claude      22 sess                                                             —     —             —
+    codex        6 sess                                                             —     —             —
+ 4
+    DAILY COST                                                        by model
+ 5  not measured yet                                                  not measured yet
+    tok/d ▁ ▁ ▁ ▁ ▁ ▁ ▁ ▁ ▁ ▁ ▁ ▁ ▁ ▁ ▁ ▁ ▁ ▁ ▁ ▁ ▁ ▅ ▆ ▆ █ ▅ ▅ ▂
+ 6                                                                    by project
+                                                                      not measured yet
+
+    MOST EXPENSIVE PROMPTS
+    not measured yet
+
+    MOST EXPENSIVE SESSIONS
+    not measured yet
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+ 0-6  jump   /  search   r  rescan   b  sidebar   q  quit                                             ● local · offline

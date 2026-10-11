@@ -1,0 +1,45 @@
+ ◆ Reflex AI   dashboard   [0]                                                                                               scanned 14:51   14:51:30
+ LENSES
+ local only · 28 sessions      USAGE LIMITS   how much of each plan you have used · estimated from local usage
+
+▌ 0  Dashboard                 not measured yet
+     not measured yet
+                               TODAY              YESTERDAY          30 DAYS            ALL TIME           CACHE SAVED        ROUTER
+  1  Morning                   —                  —                  —                  —                  —                  —
+     not measured yet          not measured yet   not measured yet   28 sessions        not measured yet   not measured yet   not measured yet
+
+  2  Tokens                    NEEDS A LOOK                                                   LAST 14 DAYS BY TOOL
+     2.1M tok · last 30 days   ● 3 new skills to review                                [3]    not measured yet
+
+  3  Skills                 ●
+     3 new · 0 upd · 0 ret
+
+  4  Workflows
+     not measured yet
+
+  5  Router
+     not measured yet
+
+  6  Search
+     / not indexed yet
+
+ INSTALLED
+ 0 skills  ·  — workflows
+ autopilot —
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+ nothing leaves this machine
+ ~/.reflex
+ 0-6  jump   /  search   r  rescan   b  sidebar   q  quit                                                                           ● local · offline

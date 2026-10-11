@@ -38,6 +38,7 @@
     "@reflex/skills": "workspace:*",
     "@reflex/storage": "workspace:*",
     "@reflex/test-fixtures": "workspace:*",
+    "@reflex/tui": "workspace:*",
     "commander": "^14.0.1",
     "picocolors": "^1.1.1",
     "tsup": "^8.5.0"

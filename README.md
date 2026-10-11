@@ -35,7 +35,7 @@ alias reflex="node $PWD/apps/cli/dist/reflex.js"
 | Command | What it does |
 | --- | --- |
 | `doctor` | Node and SQLite check, detected history locations and file counts, install targets, agent CLIs |
-| `scan --days <n>` | Ask per source, then read and store redacted workflow traces. `--claude-dir`, `--codex-dir`, `--cursor-dir`, `--yes` |
+| `scan --days <n>` | Ask per source, then read and store redacted workflow traces. `--source <claude-code\|codex\|cursor>` (repeatable), `--claude-dir`, `--codex-dir`, `--cursor-dir`, `--yes` |
 | `sessions` | Sessions from the last scan, redacted |
 | `suggest` | Detect repeated workflows and review them interactively (`--no-interactive`, `--all`) |
 | `show <n\|name>` | A suggestion in detail: steps, support, uncertainty |
@@ -48,10 +48,28 @@ alias reflex="node $PWD/apps/cli/dist/reflex.js"
 | `explain <name>` | Why the skill exists: sessions, repositories, agents, steps, installs |
 | `validate <name>` | Static checks and installed-copy comparison. For `fix-ci`, also a fresh-task sandbox (`--run` starts Claude Code) |
 | `impact [name]` | Tokens and tool calls per run before the skill vs. runs that loaded it, plus the skill's own size |
+| `tui` | Full-screen terminal UI over the last scan: sessions, tokens, skills to review. `space` installs or removes a skill. Needs an interactive terminal |
 | `stats` | Counts from local data |
 | `reset` | Delete Reflex's own data (not installed skills) |
 
 Prompts default to No. Without a terminal, nothing is read or written unless you pass `--yes`.
+
+## Terminal UI
+
+```sh
+reflex scan --days 7   # the UI shows what the last scan read, so scan first
+reflex tui
+```
+
+`reflex tui` opens a full-screen view of Reflex's local data in seven views: Dashboard, Morning,
+Tokens, Skills, Workflows, Router and Search (keys `0`-`6`). It shows what Reflex records today:
+sessions per tool, token counts from the last scan, and generated skills plus suggestions waiting
+for review. Money, usage limits, workflows, the router and search are not recorded yet, so those
+blocks say `not measured yet` (Search: `not indexed yet`) instead of showing numbers.
+
+In Skills, `space` on a new suggestion approves it and installs it into every detected agent;
+`space` on an installed skill removes the copies Reflex wrote, unless you edited them. `r`
+repeats the last scan with the same window and sources. `q` quits. Details: [docs/tui.md](docs/tui.md).
 
 ## How detection works
 
@@ -86,7 +104,8 @@ both sides have at least 3 runs, and never predicts savings in advance.
 - Reflex makes no network connections; outgoing sockets are blocked in-process.
 - Secrets, emails, home paths and your user name are redacted before anything is stored or shown.
 - It reads only known agent history folders (or ones you pass), after asking.
-- Nothing is written outside `~/.reflex` until you install, per target, without overwriting.
+- Nothing is written outside `~/.reflex` until you install: per target with `reflex install`, or into every
+  detected agent with `space` in `reflex tui`. Installs never overwrite; removals delete only unchanged copies Reflex wrote.
 
 Threat model and mitigations: [docs/security.md](docs/security.md).
 

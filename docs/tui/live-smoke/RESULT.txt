@@ -1,0 +1,21 @@
+ok   fresh 150x45: q returns to a sane shell (stty: icanon isig echo SANE)
+ok   wrote 28 fixture transcripts
+ok   scan finished
+ok   150x45 dashboard: no undefined/NaN/Infinity
+ok   150x45 morning: no undefined/NaN/Infinity
+ok   150x45 tokens: no undefined/NaN/Infinity
+ok   150x45 skills: no undefined/NaN/Infinity
+ok   150x45 workflows: no undefined/NaN/Infinity
+ok   150x45 router: no undefined/NaN/Infinity
+ok   150x45 search: no undefined/NaN/Infinity
+ok   space installs: 0 -> 3 SKILL.md files in temp targets (~/.claude/skills/fix-ci/SKILL.md, ~/.codex/skills/fix-ci/SKILL.md, ~/.cursor/skills/fix-ci/SKILL.md)
+ok   space again removes: 3 -> 0 SKILL.md files
+ok   150x45: q returns to a sane shell (stty: icanon isig echo SANE)
+ok   120x40 dashboard: no undefined/NaN/Infinity
+ok   120x40 morning: no undefined/NaN/Infinity
+ok   120x40 tokens: no undefined/NaN/Infinity
+ok   120x40 skills: no undefined/NaN/Infinity
+ok   120x40 workflows: no undefined/NaN/Infinity
+ok   120x40 router: no undefined/NaN/Infinity
+ok   120x40 search: no undefined/NaN/Infinity
+ok   120x40: q returns to a sane shell (stty: icanon isig echo SANE)

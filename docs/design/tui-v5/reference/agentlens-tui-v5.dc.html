@@ -1,0 +1,519 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc><helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
+<style>body{margin:0;background:#0e0e0e} a{color:#87afd7} a:hover{color:#eeeeee}</style>
+</helmet>
+<div style="min-height:100vh;box-sizing:border-box;background:#0e0e0e;display:flex;flex-direction:column;align-items:center;gap:12px;padding:28px 20px;font-family:'JetBrains Mono',ui-monospace,Menlo,monospace;font-size:12px;color:#808080">
+  <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;justify-content:center">
+    <sc-for list="{{ sizeBtns }}" as="b" hint-placeholder-count="2"><button onClick="{{ b.on }}" style="{{ b.st }}">{{ b.label }}</button></sc-for>
+    <span style="padding-left:12px">0-6 jump · / search · ↑↓ select · space toggle · r rescan · b sidebar · click anything</span>
+  </div>
+  <div style="max-width:100%;overflow-x:auto">
+    <div onClick="{{ termClick }}" style="{{ termStyle }}">
+      <sc-for list="{{ rows }}" as="row" hint-placeholder-count="45">
+        <div style="height:15px;line-height:15px;overflow:hidden;white-space:pre"><sc-for list="{{ row.segs }}" as="g"><span style="{{ g.st }}">{{ g.t }}</span></sc-for></div>
+      </sc-for>
+    </div>
+  </div>
+</div></x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;size&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;150x45&quot;,&quot;120x40&quot;],&quot;default&quot;:&quot;150x45&quot;,&quot;tsType&quot;:&quot;string&quot;}}">
+const C={fg:'#d0d0d0',dim:'#808080',faint:'#585858',gb:'#8a8a8a',line:'#444444',ok:'#87d787',warn:'#d7af5f',bad:'#d75f5f',hi:'#eeeeee',bar:'#303030',sel:'#3a3a3a',ul:'#3a3a3a',key:'#4e4e4e'};
+const B={bold:true};
+const S=(t,c,o)=>Object.assign({t:String(t),c:c||'fg'},o||{});
+const llen=l=>l.reduce((a,s)=>a+s.t.length,0);
+const tr=(s,n)=>{s=String(s);if(n<=0)return'';return s.length<=n?s.padEnd(n):s.slice(0,n-1)+'…';};
+const rp=(s,n)=>{s=String(s);return s.length<=n?s.padStart(n):tr(s,n);};
+const usd=v=>'$'+v.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});
+const fmt=n=>n.toLocaleString('en-US');
+const lab=(t,n)=>S(t.padEnd(n||11),'dim');
+const TABN=['Morning','Tokens','Skills','Workflows','Router','Search','Dashboard'];
+const MIN_SUP=8,MARGIN=0.05,BUDGET=40;
+
+function fit(l,w,bg){
+  const full=l.map(s=>s.t).join('');
+  const over=full.length>w&&full.slice(w).trim()!=='';
+  const lim=over?w-1:w;let out=[],n=0;
+  for(const s of l){if(n>=lim)break;let t=s.t;if(n+t.length>lim)t=t.slice(0,lim-n);if(t)out.push(Object.assign({},s,{t}));n+=t.length;}
+  if(over){const last=out[out.length-1]||S('');out.push(Object.assign({},last,{t:'…'}));n++;}
+  if(n<w)out.push(S(' '.repeat(w-n)));
+  if(bg)out=out.map(s=>s.b?s:Object.assign({},s,{b:bg}));
+  return out;
+}
+function box(w,h,title,inner,o){
+  o=o||{};const iw=w-4,ih=h-2,L=[];
+  if(title){const tt=tr(title,w-6).trimEnd();L.push([S('╭─ ','line'),S(tt,'dim'),S(' '+'─'.repeat(Math.max(0,w-5-tt.length))+'╮','line')]);}
+  else L.push([S('╭'+'─'.repeat(w-2)+'╮','line')]);
+  const over=inner.length>ih,th=over?Math.max(1,Math.round(ih*ih/inner.length)):0,tp=0;
+  for(let i=0;i<ih;i++){const thumb=over&&i>=tp&&i<tp+th;L.push([S('│ ','line'),...fit(inner[i]||[],iw),S(' '),S(thumb?'┃':'│',thumb?'dim':'line')]);}
+  const sub=o.sub||'';
+  L.push(sub?[S('╰'+'─'.repeat(Math.max(0,w-5-sub.length))+' ','line'),S(sub,'dim'),S(' ─╯','line')]:[S('╰'+'─'.repeat(w-2)+'╯','line')]);
+  return L;
+}
+function hcat(blocks,gap){
+  const h=Math.max(...blocks.map(b=>b.lines.length)),out=[];
+  for(let i=0;i<h;i++){let l=[];blocks.forEach((b,j)=>{l=l.concat(b.lines[i]?fit(b.lines[i],b.w):[S(' '.repeat(b.w))]);if(j<blocks.length-1)l.push(S(' '.repeat(gap)));});out.push(l);}
+  return out;
+}
+function table(cols,rows,w,o){
+  o=o||{};
+  const nat=cols.reduce((a,c)=>a+(c.flex?(c.min||8):c.w),0);
+  const gap=nat+2*(cols.length-1)<=w?2:1;
+  const fixed=cols.reduce((a,c)=>a+(c.flex?0:c.w),0)+gap*(cols.length-1);
+  const ws=cols.map(c=>c.flex?Math.max(1,w-fixed):c.w);
+  const cell=(x,i)=>{const wd=ws[i];if(Array.isArray(x))return fit(x,wd);const sg=typeof x==='object'?x:S(x);return[Object.assign({},sg,{t:cols[i].r?rp(sg.t,wd):tr(sg.t,wd)})];};
+  const mk=(cells,bg)=>{let l=[];cells.forEach((x,i)=>{l=l.concat(cell(x,i));if(i<cells.length-1)l.push(S(' '.repeat(gap)));});return fit(l,w,bg);};
+  const out=[mk(cols.map(c=>S(c.h,'dim')))];
+  rows.forEach((r,i)=>out.push(mk(r,o.sel===i?C.sel:null)));
+  return out;
+}
+function joinFit(head,items,w){
+  const sep='    ',l=[head];let n=llen(l);
+  for(let i=0;i<items.length;i++){const add=(i?sep:'')+items[i],rest=items.length-i-1,res=rest?(sep+'+'+rest+' more').length:0;
+    if(n+add.length+res>w){l.push(S((i?sep:'')+'+'+(items.length-i)+' more','faint'));break;}
+    l.push(S(add,'dim'));n+=add.length;}
+  return l;
+}
+const RAMP='▁▂▃▄▅▆▇█';
+const spark=(v,over)=>{const mx=Math.max(...v);return v.map(x=>S(RAMP[Math.min(7,Math.floor(x/mx*7.999))],over&&over(x)?'warn':'fg'));};
+const hash=s=>[...s].reduce((a,c)=>a+c.charCodeAt(0),0);
+
+const COST=[22.4,31.2,28.0,35.1,40.0,12.3,9.1,33.4,38.2,41.6,36.0,44.2,15.3,11.0,29.4,37.1,42.3,39.0,58.0,18.2,13.1,34.0,36.2,31.0,39.5,35.1,30.2,41.27];
+const TOK=[9.8,13.6,12.1,15.0,17.2,5.1,3.8,14.4,16.6,17.9,15.2,19.1,6.4,4.6,12.3,16.0,18.4,17.1,24.8,7.6,5.5,14.6,15.9,13.2,17.4,15.1,12.7,18.4];
+const MON=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+const DAYS=COST.map((u,i)=>{const d=new Date(2026,8,13+i);return{usd:u,tok:TOK[i],d:String(d.getDate()).padStart(2,'0')+' '+MON[d.getMonth()]};});
+const Y_MODEL=[['opus-4-1',19.40],['sonnet-4-5',12.05],['gpt-5-codex',6.92],['haiku-4-5',1.48],['gpt-5',1.42]];
+const Y_PROJ=[['billing-svc',14.90],['api-gateway',11.32],['web-dash',7.15],['infra-tf',4.60],['ml-eval',2.10],['agentlens',1.20]];
+const MODELS=[['opus-4-1','4,812','6.1M','14.2M','121.8M','2.4M',512.30],['sonnet-4-5','7,930','8.4M','15.6M','148.2M','3.1M',268.90],['gpt-5-codex','3,410','11.7M','—','61.3M','1.6M',132.70],['gpt-5','640','0.5M','—','2.2M','0.2M',30.40],['haiku-4-5','2,205','1.6M','2.1M','18.9M','0.6M',24.10]];
+const PROJECTS=[['api-gateway','both',168,'121.4M','2.3M','9,412',296.10],['billing-svc','claude',121,'88.2M','1.7M','6,880',214.60],['web-dash','both',133,'79.6M','1.6M','7,240',171.80],['ml-eval','claude',66,'41.3M','0.8M','2,610',112.40],['infra-tf','codex',74,'52.9M','0.9M','3,105',98.20],['agentlens','claude',50,'29.2M','0.6M','1,930',75.30]];
+const PROMPTS=[[14.82,'billing-svc','the reconciliation job double-counts refunds when the webhook retries, find where and fix it without changing the ledger schema'],[11.06,'api-gateway','migrate every handler under internal/routes from the old middleware chain to the new context-based auth, keep behaviour identical'],[9.71,'ml-eval','rerun the eval harness against all 14 checkpoints and tell me which regressions are real and which are noise'],[8.40,'web-dash','why is the dashboard bundle 4.1MB now, it was 1.8MB last month, bisect the dependency changes'],[7.95,'infra-tf','plan shows 212 changes after the provider bump, figure out which ones are cosmetic and which would actually replace resources'],[6.88,'api-gateway','add rate limiting per API key to the public routes, tests first'],[6.12,'billing-svc','explain why invoice totals differ between the PDF and the CSV export for multi-currency accounts']];
+const SESS=[[31.40,'08 Oct','claude','billing-svc','debug',142,318,'9.8M','the reconciliation job double-counts refunds when the webhook retries'],[24.15,'03 Oct','claude','api-gateway','refactor',96,260,'7.1M','migrate every handler under internal/routes to context-based auth'],[19.88,'01 Oct','codex','infra-tf','infra',88,191,'6.4M','plan shows 212 changes after the provider bump'],[17.02,'29 Sep','claude','ml-eval','explain',61,77,'5.2M','rerun the eval harness against all 14 checkpoints'],[15.67,'06 Oct','codex','web-dash','debug',70,154,'4.9M','why is the dashboard bundle 4.1MB now'],[14.20,'05 Oct','claude','web-dash','refactor',77,162,'4.6M','convert the remaining class components in src/legacy to hooks'],[13.75,'30 Sep','codex','api-gateway','test-write',58,140,'4.3M','write table-driven tests for the token bucket limiter']];
+
+const mk=a=>a.map(([name,on,sup,upd,state,desc,steps])=>({name,on,sup,upd,state,desc,steps}));
+const SKILLS=mk([
+['pytest-fixture-triage',1,14,'10 Oct','new','Untangle failing pytest fixtures: scope, ordering and conftest shadowing.',['Run the single test, then the module, then the package to find the smallest failing scope','List fixtures with pytest --fixtures-per-test and note session or module scope','Check every conftest.py on the path for a fixture with the same name','Make the leaking fixture function-scoped or yield a fresh copy','Re-run the original failing command, not just the single test','Report the root cause in one sentence']],
+['alembic-migration-review',1,9,'10 Oct','new','Review an Alembic migration before it reaches a shared database.',['Read the migration and the model diff side by side','Flag non-nullable columns added without a server default','Check downgrade() actually reverses upgrade()','Run upgrade head then downgrade -1 against a scratch database','Estimate lock time for tables over 1M rows']],
+['terraform-plan-diff',0,11,'10 Oct','new','Separate real infrastructure changes from cosmetic plan noise.',['Run terraform plan -out and terraform show -json','Group changes by resource type and action','Separate cosmetic diffs (tags, ordering, defaults) from real ones','List anything that destroys or replaces']],
+['flaky-test-bisect',1,22,'10 Oct','updated','Isolate a flaky test by bisecting order, seed and parallelism before touching code.',['Reproduce with the CI seed and worker count','Run the test alone 20 times to measure the base flake rate','Bisect test order with pytest-randomly and a fixed seed','Toggle parallelism: -n 0 against -n auto','Look for shared state: time, network, temp dirs, module globals','Fix the dependency, not the assertion','Re-run 50 times and report the new flake rate']],
+['openapi-client-regen',1,17,'08 Oct','','Regenerate the typed API client and fix the fallout.',['Regenerate from the spec at the pinned generator version','Diff the generated client and list breaking signature changes','Update call sites the type checker flags','Run the contract tests','Commit generated code separately from hand edits']],
+['k8s-crashloop-debug',1,31,'10 Oct','updated','Find why a pod is in CrashLoopBackOff and propose the smallest fix.',['kubectl get pod -o wide, note restarts and node','kubectl describe pod for events, OOMKilled, probe failures','kubectl logs --previous for the crashed container','Compare resources against the last good ReplicaSet','Check config and secret mounts exist and are current','Reproduce the entrypoint locally with the same env','Propose the smallest manifest change','Watch one full rollout before calling it fixed']],
+['sql-explain-tuning',0,8,'10 Oct','new','Speed up a slow Postgres query with evidence from EXPLAIN.',['Capture the exact query with bound parameters','Run EXPLAIN (ANALYZE, BUFFERS)','Find the node with the largest actual vs estimated row gap','Try one index or rewrite at a time','Re-run EXPLAIN and compare time and buffers','Write the migration for the winning index']],
+['pr-description-writer',1,46,'05 Oct','','Write a PR description reviewers can act on.',['Read the full diff and the linked issue','Write what changed, why, and how it was tested, in that order','List follow-ups and what reviewers should look at first']],
+['react-hook-refactor',0,12,'10 Oct','new','Convert a class component to hooks without changing behaviour.',['Identify state, effects and refs in the class component','Map lifecycle methods to useEffect with explicit dependencies','Add useMemo only where profiling shows a cost','Keep the public props interface unchanged','Run the component tests and the story snapshots']],
+['dependency-bump-triage',1,19,'07 Oct','','Decide whether a dependency bump is safe and what it breaks.',['Read the changelog between current and target versions','Search the codebase for every removed or renamed API','Bump, run the full test suite, then the type checker','Split into one PR per major bump']],
+['log-grep-incident',1,27,'10 Oct','updated','Build an incident timeline from logs across replicas.',['Pin the incident window in UTC','Pull logs for that window only, across all replicas','Group errors by message template, not exact text','Find the first occurrence and what deployed just before it','Correlate with metrics for the same window','Write a timeline with timestamps and sources']],
+['dockerfile-slimming',0,6,'10 Oct','new','Shrink a container image without breaking startup.',['Measure image and layer sizes with docker history','Move to a multi-stage build with a slim runtime base','Order layers so dependencies cache before source','Verify the app starts and health checks pass']],
+['grpc-proto-compat',1,10,'03 Oct','','Change a .proto without breaking existing clients.',['Run buf breaking against the main branch','Never reuse or renumber field tags','Mark removed fields reserved','Regenerate stubs for every consuming service','Deploy servers before clients']],
+['celery-retry-audit',0,5,'10 Oct','retired','Audit Celery tasks for unsafe retries.',['Find tasks with autoretry_for but no max_retries','Check retried tasks are idempotent','Add exponential backoff with jitter']],
+['jest-snapshot-cleanup',0,4,'10 Oct','retired','Remove obsolete Jest snapshots.',['Run jest --ci to list obsolete snapshots','Remove them in a separate commit']],
+['benchmark-regression',0,9,'10 Oct','new','Confirm and locate a performance regression between two commits.',['Run the benchmark on main and on the branch, same machine, 5 runs each','Compare medians, not means','Profile the slower side with py-spy or perf','Locate the hot function that changed','Fix or justify the regression','Attach before/after numbers to the PR']],
+['rate-limit-tuning',0,8,'10 Oct','new','Set API rate limits from observed traffic.',['Find current limits in config and gateway middleware','Pull p50/p99 request rates per key for the last 7 days','Set limits at p99 x 1.5 with a burst allowance','Return Retry-After on 429','Add a test for the boundary']],
+['schema-drift-check',0,8,'10 Oct','new','Detect drift between the live schema and the ORM models.',['Dump the live schema with pg_dump --schema-only','Generate the schema the models expect','Diff and classify: missing, extra, type mismatch','Write a migration for each real mismatch','Add the check to CI']],
+]);
+const WFS=mk([
+['ship-small-fix',1,38,'06 Oct','','Take a small bug from report to merged PR.',['Reproduce: write a failing test first','Patch: the smallest change that makes it pass','Verify: full test suite and type checker','Describe: PR description (skill: pr-description-writer)','Stop: hand back the PR link']],
+['incident-first-hour',1,12,'10 Oct','updated','First hour of a production incident: timeline, blast radius, mitigation.',['Window: pin start time and affected services','Logs: skill log-grep-incident','Pods: skill k8s-crashloop-debug if any service is restarting','Blast radius: which customers and endpoints','Mitigate: roll back or flag off before root-causing','Write: timeline and next steps for the channel']],
+['migration-with-backfill',0,9,'10 Oct','new','Schema change plus data backfill without downtime.',['Plan: expand, backfill, contract','Migration: skill alembic-migration-review','Backfill: batched job with progress and resume','Switch reads, then writes','Contract: drop the old column in a later release']],
+['dep-upgrade-sweep',1,15,'10 Oct','updated','Monthly dependency upgrade across a repository.',['List outdated packages','Triage: skill dependency-bump-triage','Upgrade minors in one PR','Upgrade each major in its own PR','Benchmark runtime dependencies: skill benchmark-regression']],
+['api-endpoint-scaffold',1,21,'01 Oct','','New REST endpoint with schema, handler, tests and client.',['Spec: add the path to openapi.yaml','Handler and validation','Tests: happy path, auth, bad input','Client: skill openapi-client-regen','Docs: example request and response']],
+['perf-regression-hunt',0,7,'10 Oct','new','Find and fix a reported slowdown.',['Reproduce with a benchmark: skill benchmark-regression','Bisect commits between good and bad','Profile the culprit','Fix and attach before/after numbers']],
+['release-notes-draft',0,5,'10 Oct','retired','Draft release notes from merged PRs.',['Collect merged PRs since the last tag','Group by area','Write user-facing notes']],
+['feature-flag-rollout',0,8,'30 Sep','','Ship behind a flag and ramp safely.',['Add the flag, default off','Ship both code paths behind it','Ramp 1%, 10%, 50%, 100% with checks between','Remove the flag and the dead path']],
+['test-gap-fill',1,18,'10 Oct','updated','Raise coverage where bugs actually happened.',['Map recent bug-fix commits to files','Read coverage for those files','Write tests for uncovered branches','Run skill flaky-test-bisect on anything intermittent']],
+]);
+const ROUTER=[
+{k:'debug',prev:'opus-4-1',ev:[['opus-4-1',51,2.31,.14],['gpt-5-codex',24,1.39,.15],['sonnet-4-5',9,1.12,.22]]},
+{k:'refactor',prev:'sonnet-4-5',ev:[['sonnet-4-5',44,.78,.09],['haiku-4-5',12,.37,.11],['opus-4-1',7,2.05,.08]]},
+{k:'test-write',ev:[['sonnet-4-5',52,.64,.07],['haiku-4-5',11,.29,.16],['gpt-5-codex',8,.71,.08]]},
+{k:'migrate',ev:[['opus-4-1',18,3.10,.11],['sonnet-4-5',4,1.20,.25]]},
+{k:'review',ev:[['sonnet-4-5',60,.42,.05],['haiku-4-5',35,.23,.08]]},
+{k:'docs',ev:[['sonnet-4-5',28,.38,.03],['haiku-4-5',12,.17,.04]]},
+{k:'infra',ev:[['gpt-5-codex',25,1.02,.12],['opus-4-1',12,2.60,.10]]},
+{k:'explain',ev:[['opus-4-1',30,1.71,.04],['sonnet-4-5',28,.66,.06]]},
+].map(r=>{const sup=r.ev.filter(e=>e[1]>=MIN_SUP),best=Math.min(...sup.map(e=>e[3])),ok=sup.filter(e=>e[3]<=best+MARGIN+1e-9),rec=ok.reduce((a,e)=>e[2]<a[2]?e:a),most=r.ev.reduce((a,e)=>e[1]>a[1]?e:a);
+  return Object.assign({},r,{n:r.ev.reduce((a,e)=>a+e[1],0),most:most[0],mostN:most[1],rec:rec[0],save:Math.round((most[2]-rec[2])*100)/100,best});});
+const MOVED=ROUTER.filter(r=>r.save>0).reduce((a,r)=>a+r.mostN,0);
+const TOTAL_SAVE=ROUTER.reduce((a,r)=>a+r.save*r.mostN,0);
+
+function itemMd(x,isS){
+  const h=hash(x.name),cc=Math.round(x.sup*(0.5+(h%40)/100)),cx=x.sup-cc;
+  const L=['---',`name: ${isS?x.name:'wf-'+x.name}`,`description: ${x.desc}`];
+  if(!isS)L.push('argument-hint: <task>');
+  L.push(`support: ${x.sup} sessions (${cc} claude, ${cx} codex)`);
+  if(x.state==='retired')L.push('status: retired, no matching sessions in 30 days');
+  L.push(`generated: agentlens 0.4.2, ${x.upd} 2026`,'---','');
+  if(isS)L.push(`# ${x.name}`,'',x.desc,'','## Steps');
+  else L.push(`# /wf-${x.name} <task>`,'',`${x.desc} Apply to: $ARGUMENTS`,'Run the phases in order. Stop and report if a phase check fails.','','## Phases');
+  x.steps.forEach((s,i)=>L.push(`${i+1}. ${s}`));
+  L.push('','## Evidence');
+  const P=['api-gateway','billing-svc','web-dash','ml-eval','infra-tf','agentlens'],D=['10 Oct','08 Oct','06 Oct','03 Oct','01 Oct','29 Sep','26 Sep','22 Sep'];
+  for(let i=0;i<Math.min(5,x.sup);i++)L.push(`- ${D[(h+i*3)%D.length]}  ${P[(h+i*5)%P.length].padEnd(12)} ${(i+h)%3?'claude':'codex '}  ${12+((h*(i+1))%60)} turns`);
+  if(x.sup>5)L.push(`- ${x.sup-5} more sessions`);
+  return L;
+}
+function wrap(s,n){
+  if(s.length<=n)return[s];
+  const ind=(s.match(/^(\d+\. |- )/)||[''])[0].length,out=[];let cur='';
+  s.split(' ').forEach(w=>{const nx=cur+(cur.trim()?' ':'')+w;if(nx.length>n&&cur.trim()){out.push(cur);cur=' '.repeat(ind)+w;}else cur=nx;});
+  if(cur)out.push(cur);return out;
+}
+function mdLines(src,w){
+  const out=[];let fm=0;
+  src.forEach(line=>{let c='fg',b=null;if(line==='---'){fm++;c='dim';}else if(fm===1)c='dim';else if(line.startsWith('#')){c='hi';b=B;}
+    wrap(line,w).forEach(t=>out.push([S(t,c,b)]));});
+  return out;
+}
+const SCOL={new:'ok',updated:'warn',retired:'bad'};
+function stateBlock(kind,list,cw){
+  const by={new:[],updated:[],retired:[]};list.forEach(x=>x.state&&by[x.state].push(x));
+  const L=[[S(kind,'hi',B),S('   '),S(by.new.length+' new','ok'),S('  '),S(by.updated.length+' updated','warn'),S('  '),S(by.retired.length+' retired','bad')],[S('─'.repeat(cw),'line')]];
+  ['new','updated','retired'].forEach(k=>{by[k].slice(0,8).forEach(x=>L.push([S('  '),S(k.padEnd(10),SCOL[k]),S(tr(x.name,cw-26)),S(rp(x.sup+' sessions',14),'dim')]));
+    if(by[k].length>8)L.push([S(' '.repeat(12)+(by[k].length-8)+' more','dim')]);});
+  return L.map(l=>fit(l,cw));
+}
+
+const GL={'0':['.##.','#..#','#..#','#..#','#..#','.##.'],'1':['.#.','##.','.#.','.#.','.#.','###'],'2':['.##.','#..#','...#','..#.','.#..','####'],'3':['###.','...#','.##.','...#','...#','###.'],'4':['#..#','#..#','#..#','####','...#','...#'],'5':['####','#...','###.','...#','...#','###.'],'6':['.##.','#...','###.','#..#','#..#','.##.'],'7':['####','...#','..#.','.#..','.#..','.#..'],'8':['.##.','#..#','.##.','#..#','#..#','.##.'],'9':['.##.','#..#','#..#','.###','...#','.##.'],'$':['..#..','.####','#.#..','.###.','..#.#','####.'],'.':['.','.','.','.','.','#'],',':['.','.','.','.','#','#'],'%':['#..#','...#','..#.','.#..','#...','#..#'],'+':['...','.#.','###','.#.','...','...'],'-':['...','...','###','...','...','...']};
+function big(s){const r=['','',''];[...s].forEach((ch,k)=>{const g=GL[ch];if(!g)return;for(let l=0;l<3;l++){let t='';for(let x=0;x<g[0].length;x++){const p=g[2*l][x]==='#',q=g[2*l+1][x]==='#';t+=p&&q?'█':p?'▀':q?'▄':' ';}r[l]+=(k?' ':'')+t;}});return r;}
+const hb=(v,mx,w)=>{const u=Math.max(0,v/mx*w),fl=Math.floor(u),rr=Math.round((u-fl)*8);return('█'.repeat(fl)+(rr?'▏▎▍▌▋▊▉█'[rr-1]:'')).slice(0,w);};
+function vchart(vals,rows,cw,col,o){o=o||{};const mx=o.max||Math.max(...vals),E=' ▁▂▃▄▅▆▇█',out=[];
+  const lr=o.line!=null?rows-1-Math.min(rows-1,Math.floor(o.line/mx*rows)):-1;
+  for(let r=0;r<rows;r++){const l=o.axis?[S(o.axis(r),'dim')]:[];vals.forEach((v,i)=>{const lvl=Math.round(v/mx*rows*8)-(rows-1-r)*8,ch=lvl>=8?'█':lvl<=0?' ':E[lvl];
+    if(ch===' '&&r===lr)l.push(S('╌'.repeat(cw),'faint'));else l.push(S(ch.repeat(cw-1),col(v,i)),S(r===lr?'╌':' ','faint'));});out.push(l);}return out;}
+function hbars(title,items,w,o){o=o||{};const nw=o.nw||12,vw=9,bw=Math.max(4,w-nw-vw-2),mx=Math.max(...items.map(x=>x[1]));
+  return[[S(title,'hi',B)],...items.map(([n,v])=>[S(tr(n,nw),'fg'),S(' '),S(hb(v,mx,bw).padEnd(bw),o.col||'gb'),S(rp(usd(v),vw+1),'fg')])];}
+
+function morning(w,h,st){
+  const last8=DAYS.slice(-8),y=last8[7],avg=last8.slice(0,7).reduce((a,d)=>a+d.usd,0)/7,dp=(y.usd/avg-1)*100,up=dp>0,dc=up?'warn':'ok';
+  const cw=w>=140?5:4,chartW=8*cw+6,lw=w-chartW-6;
+  const bu=big(usd(y.usd).replace(/\.\d+$/,m=>m)),bp=big((up?'+':'-')+Math.abs(Math.round(dp))+'%');
+  const left=[[S('YESTERDAY','dim',B),S('   sat 10 oct','dim')],[],...bu.map((t,i)=>[S(t,'hi'),S('    '),S(bp[i],dc)]),[],
+    [S(up?'above':'below','fg'),S(' your 7-day average of ','dim'),S(usd(avg),'fg'),S(' by ','dim'),S(usd(Math.abs(y.usd-avg)),dc,B)],
+    [S('23','hi'),S(' sessions    ','dim'),S('18.4M','hi'),S(' context    ','dim'),S('312k','hi'),S(' output tokens','dim')],
+    [S('all time ','dim'),S('$4,735.80','hi',B),S(' since 14 Mar    this month ','dim'),S('$246.40','fg')]];
+  const mx=Math.max(...last8.map(d=>d.usd)),base=Math.floor(Math.min(...last8.map(d=>d.usd))*0.8/5)*5,cr=h>=40?8:6;
+  const ch=vchart(last8.map(d=>d.usd-base),cr,cw,(v,i)=>i===7?dc:'faint',{line:avg-base,max:mx-base,axis:r=>r===0?rp('$'+Math.round(mx),5)+' ':r===cr-1-Math.min(cr-1,Math.floor((avg-base)/(mx-base)*cr))?rp('$'+Math.round(avg),5)+' ':r===cr-1?rp('$'+base,5)+' ':'      '});
+  const right=[[S('      last 8 days','dim'),S('   ╌ 7-day avg','faint')],...ch,[S('      '),...last8.map((d,i)=>S(tr(i===7?'yday':d.d.slice(0,2),cw),i===7?'hi':'dim'))]];
+  const L=hcat([{lines:left,w:lw},{lines:right,w:chartW}],6);
+  L.push([]);
+  const half=Math.floor((w-4)/2);
+  const t3=Math.floor((w-8)/3);
+  L.push(...hcat([{lines:hbars('by cli tool',[['claude',30.12],['codex',8.35],['cursor',2.80]],t3,{nw:8}),w:t3},{lines:hbars('by model',Y_MODEL,t3,{nw:11}),w:t3},{lines:hbars('by project',Y_PROJ.slice(0,5),w-2*t3-8,{nw:11}),w:w-2*t3-8}],4));
+  L.push([]);
+  const all=[...SKILLS.map(x=>Object.assign({k:'skill'},x)),...WFS.map(x=>Object.assign({k:'wf'},x))];
+  const tail=4,cap=Math.max(2,Math.min(8,h-L.length-tail-3)),cw3=Math.floor((w-6)/3);
+  const col=k=>{const xs=all.filter(x=>x.state===k),c=SCOL[k];const o=[[S(String(xs.length),c,B),S(' '+k.toUpperCase(),c,B)],[S('━'.repeat(cw3),c)]];
+    xs.slice(0,cap).forEach(x=>o.push([S(x.k.padEnd(6),'dim'),S(tr((x.k==='wf'?'/wf-':'')+x.name,cw3-16),'fg'),S(rp(x.sup+' sess',10),'dim')]));
+    if(xs.length>cap)o.push([S('      +'+(xs.length-cap)+' more','dim')]);return o;};
+  L.push(...hcat([{lines:col('new'),w:cw3},{lines:col('updated'),w:cw3},{lines:col('retired'),w:w-2*cw3-6}],3));
+  L.push([]);
+  const chg=ROUTER.filter(r=>r.prev&&r.prev!==r.rec),rl=[S('ROUTER  ','dim',B)];
+  chg.forEach((r,i)=>{if(i)rl.push(S('     '));rl.push(S(r.k+'  ','hi'),S(r.prev,'dim'),S(' -> ','dim'),S(r.rec,'ok'));});
+  L.push(rl);
+  const ns=SKILLS.filter(x=>st.sOn[x.name]).length,nw=WFS.filter(x=>st.wOn[x.name]).length;
+  L.push([S('ACTIVE  ','dim',B),S(ns+' skills','hi'),S(' + ','dim'),S(nw+' workflows','hi'),S('  in ~/.claude/skills  ~/.claude/commands  ~/.codex/prompts','dim')]);
+  L.push([S('DATA    ','dim',B),S('~/.local/share/agentlens','fg'),S('  reads ~/.claude/projects  ~/.codex/sessions','dim')]);
+  L.length=Math.min(L.length,h);
+  return L;
+}
+function tokens(w,h){
+  const narrow=w<140,L=[],bw=Math.max(16,w-65);
+  const bb=big('$968.40');
+  const cmpL=[[S('paid             ','dim'),S(hb(968.4,3214.9,bw).padEnd(bw),'fg'),S('  $968.40','hi',B)],
+    [S('without caching  ','dim'),S(hb(3214.9,3214.9,bw),'faint'),S('  $3,214.90','dim')],
+    [S('caching saved    ','dim'),S('$2,246.50','ok',B),S('  70% off the uncached price','dim')]];
+  L.push([S('LAST 30 DAYS','dim',B),S('   11 sep – 10 oct   612 sessions','dim'),S('   all time ','dim'),S('$4,735.80','fg')]);
+  bb.forEach((t,i)=>L.push([S(t,'hi'),S(' '.repeat(Math.max(3,36-t.length))),...cmpL[i]]));
+  L.push([]);
+  const parts=narrow?[['█','output','',370.20],['▓','cache reads','',308.60],['▒','cache writes','',171.40],['░','fresh input','',118.20]]:[['█','writing answers','output',370.20],['▓','re-reading cache','cache reads',308.60],['▒','saving to cache','cache writes',171.40],['░','reading new input','fresh input',118.20]];
+  let acc=0,bar=[];parts.forEach(([c,,,u],i)=>{const n=i===parts.length-1?w-acc:Math.round(u/968.4*w);acc+=n;bar.push(S(c.repeat(n),'gb'));});
+  L.push(bar,bar);
+  const leg=[];parts.forEach(([c,n,t,u],i)=>{if(i)leg.push(S('    '));leg.push(S(c+' ','gb'),S(n+' ','fg'),S(usd(u),'hi'),S(' '+Math.round(u/968.4*100)+'%','dim'));});
+  L.push(leg);
+  L.push([S('context ','dim'),S('412.6M','fg'),S(' tok = fresh input 28.3M + cache writes 31.9M + cache reads 352.4M, plus output ','dim'),S('7.9M','fg')]);
+  L.push([S('cache hit rate ','dim'),S('85.4%','fg'),S(' of context served from cache    output share ','dim'),S('1.9%','fg'),S(' of tokens, ','dim'),S('38%','fg'),S(' of cost','dim')]);
+  L.push([]);
+  const TL=[['claude',420,701.20,3412.60],['codex',148,214.60,1108.30],['cursor',44,52.60,214.90]],tbw=Math.max(10,w-66);
+  L.push([S(tr('CLI TOOLS',22),'hi',B),S(tr('cost share, last 30 days',tbw),'dim'),S(rp('30 days',10),'dim'),S(rp('share',6),'dim'),S(rp('all time',14),'dim')]);
+  TL.forEach(([t,s,u,a])=>L.push([S(tr(t,9),'fg'),S(rp(s,5)+' sess   ','dim'),S(hb(u,968.4,tbw).padEnd(tbw),'gb'),S(rp(usd(u),10),'hi'),S(rp(Math.round(u/968.4*100)+'%',6),'dim'),S(rp(usd(a),14),'fg')]));
+  L.push([]);
+  const cw=narrow?2:3,rows=10,chartW=28*cw+6,pw=w-chartW-4,cmax=Math.max(...COST);
+  const ch=vchart(COST,rows,cw,v=>v>BUDGET?'warn':'gb',{line:BUDGET,max:cmax,axis:r=>r===0?rp('$'+Math.round(cmax),5)+' ':r===rows-1-Math.floor(BUDGET/cmax*rows)?rp('$40',5)+' ':r===rows-1?rp('$0',5)+' ':'      '});
+  let xl=' '.repeat(28*cw);[0,7,14,21,27].forEach(i=>{const t=DAYS[i].d,p=i===27?28*cw-t.length:i*cw;xl=xl.slice(0,p)+t+xl.slice(p+t.length);});
+  const tmax=Math.max(...TOK),E='▁▂▃▄▅▆▇█';
+  const over=COST.filter(v=>v>BUDGET).length;
+  const left=[[S('DAILY COST','hi',B),S('   max '+usd(cmax)+(narrow?'   ':'   avg '+usd(COST.reduce((a,b)=>a+b,0)/28)+'   '),'dim'),S(over+' days over $40','warn')],...ch,[S('      '),S(xl.slice(0,28*cw),'dim')],
+    [S('tok/d ','dim'),...TOK.map(v=>S(E[Math.min(7,Math.floor(v/tmax*7.999))].repeat(cw-1)+' ','faint'))]];
+  const right=[...hbars('by model',MODELS.map(m=>[m[0],m[6]]),pw,{nw:11}),[],...hbars('by project',PROJECTS.slice(0,5).map(p=>[p[0],p[6]]),pw,{nw:11})];
+  L.push(...hcat([{lines:left,w:chartW},{lines:right,w:pw}],4));
+  L.push([]);
+  const rem=h-L.length,n=Math.max(2,Math.min(6,Math.floor((rem-3)/2)));
+  const pm=PROMPTS[0][0];
+  L.push([S('MOST EXPENSIVE PROMPTS','hi',B),S('   the message that started the spend','dim')]);
+  PROMPTS.slice(0,n).forEach(p=>L.push([S(rp(usd(p[0]),7),'hi'),S(' '),S(hb(p[0],pm,10).padEnd(10),'gb'),S('  '),S(tr(p[1],12),'dim'),S('  '),S(p[2],'fg')]));
+  L.push([]);
+  const sm=SESS[0][0];
+  L.push([S('MOST EXPENSIVE SESSIONS','hi',B),S('   date · source · project · class · turns · tools · context','dim')]);
+  SESS.slice(0,n).forEach(s=>L.push([S(rp(usd(s[0]),7),'hi'),S(' '),S(hb(s[0],sm,10).padEnd(10),'gb'),S('  '),S(s[1]+'  ','dim'),S(tr(s[2],7),'dim'),S(tr(s[3],12),'fg'),S(tr(s[4],11),'fg'),S(rp(s[5],4)+'t ','dim'),S(rp(s[6],4)+'x ','dim'),S(rp(s[7],5)+'  ','dim'),S(s[8],'fg')]));
+  return L;
+}
+function itemsTab(kind){return(w,h,st)=>{
+  const isS=kind==='skills',list=isS?SKILLS:WFS,on=isS?st.sOn:st.wOn,sel=isS?st.sSel:st.wSel,wide=w>=140;
+  const hint=isS?(wide?[S('space','hi',B),S(' toggles the selected skill: installs or removes ','dim'),S('~/.claude/skills/<name>/SKILL.md'),S(' and ','dim'),S('~/.codex/prompts/<name>.md')]:[S('space','hi',B),S(' installs/removes ','dim'),S('~/.claude/skills/<name>/SKILL.md'),S(' + ','dim'),S('~/.codex/prompts/<name>.md')])
+    :wide?[S('space','hi',B),S(' toggles the workflow: installs or removes ','dim'),S('~/.claude/commands/wf-<name>.md'),S(' (run as ','dim'),S('/wf-<name> <task>'),S(') and ','dim'),S('~/.codex/prompts/wf-<name>.md')]
+    :[S('space','hi',B),S(' installs ','dim'),S('~/.claude/commands/wf-<name>.md'),S(' (','dim'),S('/wf-<name> <task>'),S(') + ','dim'),S('~/.codex/prompts/wf-<name>.md')];
+  const lw=Math.round(w*0.4),rw=w-lw-1,bh=h-2;
+  const cols=wide?[{h:'on',w:2},{h:'name',flex:1,min:14},{h:'support',w:7,r:1},{h:'updated',w:7},{h:'steps',w:5,r:1}]
+    :[{h:'on',w:2},{h:'name',flex:1,min:14},{h:'sup',w:3,r:1},{h:'upd',w:6},{h:'st',w:2,r:1}];
+  const rows=list.map(x=>[S(on[x.name]?'●':'○',on[x.name]?'ok':'dim'),S(x.name,SCOL[x.state]||'fg'),S(x.sup),S(x.upd,x.state?'fg':'dim'),S(x.steps.length)]);
+  const nOn=list.filter(x=>on[x.name]).length,x=list[sel];
+  const left=box(lw,bh,`${kind}  ${list.length} · ${nOn} on`,table(cols,rows,lw-4,{sel}),{sub:`${sel+1}/${list.length}`});
+  const path=isS?`~/.claude/skills/${x.name}/SKILL.md`:`~/.claude/commands/wf-${x.name}.md`;
+  const right=box(rw,bh,path,mdLines(itemMd(x,isS),rw-4),{sub:on[x.name]?'installed':'not installed'});
+  return[hint,[]].concat(hcat([{lines:left,w:lw},{lines:right,w:rw}],1));
+};}
+const PLAIN={debug:'Debugging',refactor:'Refactoring','test-write':'Writing tests',migrate:'Migrations',review:'Code review',docs:'Writing docs',infra:'Infrastructure',explain:'Explaining code'};
+function router(w,h,st){
+  const narrow=w<140,on=st.hook,L=[];
+  L.push([S(' AUTOPILOT ','hi',{bold:true,b:on?'#005f00':'#3a3a3a'}),S('  '),S(on?'ON':'OFF',on?'ok':'dim',B),S(on?'   Claude Code picks the model for each prompt you send':'   suggestions only, you pick the model yourself','fg'),S('   space turns '+(on?'off':'on'),'dim')]);
+  L.push([S('built automatically from ','dim'),S(fmt(st.total)+' sessions','fg'),S(' in your history · ','dim'),S(ROUTER.length+' kinds of task','fg'),S(' found · rebuilt '+(st.scanning?'now…':st.scanTime)+(narrow?'':', and again on every rescan'),'dim')]);
+  L.push([]);
+  const sw=ROUTER.filter(r=>r.rec!==r.most).length,bs=big('$'+Math.round(TOTAL_SAVE));
+  const how=[[S('how it decides','dim',B)],[S('1 ','dim'),S('sorts every past session by the kind of task it was')],[S('2 ','dim'),S(narrow?'compares your models on cost and how often they need fixing':'compares the models you used on cost and how often they needed fixing')],[S('3 ','dim'),S('picks the cheapest one that was about as reliable as the best')]];
+  const hero=[[S('a month of savings','dim',B)],...bs.map((t,i)=>[S(t,'ok'),S(i===1?'   if you follow every pick':i===2?'   '+sw+' switches, '+MOVED+' sessions':'','dim')])];
+  L.push(...hcat([{lines:hero,w:44},{lines:how,w:w-48}],4));
+  L.push([]);
+  const nw=narrow?15:16,mw=12;
+  L.push([S('  '),S(tr('YOUR TASKS',nw),'hi',B),S('  '),S(tr('use',mw+4),'dim'),S(tr(narrow?'':'instead of',narrow?0:mw+3),'dim'),S(tr(narrow?'saves':'saves each time',narrow?12:17),'dim'),S(tr('confidence',narrow?18:22),'dim'),S('verdict','dim')]);
+  ROUTER.forEach((r,i)=>{const sel=i===st.rSel,ch=r.rec!==r.most,learn=r.ev.filter(e=>e[1]>=MIN_SUP).length<2,changed=r.prev&&r.prev!==r.rec;
+    const bg=sel?C.sel:null,dots=Math.min(5,Math.ceil(r.n/15));
+    const rec=r.ev.find(e=>e[0]===r.rec),most=r.ev.find(e=>e[0]===r.most),pct=Math.round((1-rec[2]/most[2])*100);
+    const verdict=learn?S('LEARNING','dim',B):ch?S('SWITCH','ok',B):S('KEEP','fg',B);
+    L.push(fit([S(sel?'▸ ':'  ','hi'),S(tr(PLAIN[r.k],nw),sel?'hi':'fg',sel?B:null),S('  '),S(tr(r.rec,mw),ch?'ok':'fg',ch?B:null),S('    '),S(narrow?'':tr(ch?r.most:'',mw+3),'dim'),
+      S(tr(r.save>0?usd(r.save):'—',narrow?12:17),r.save>0?'hi':'dim'),S('●'.repeat(dots),'fg'),S('○'.repeat(5-dots),'faint'),S(tr(' '+r.n+' sessions',narrow?13:17),'dim'),verdict,
+      S(changed?'   changed today':'','warn')],w,bg));
+    const why=learn?'only '+r.most+' has enough sessions so far · try another model on this kind of task to compare':ch?'just as reliable as '+r.most+', '+pct+'% cheaper':r.most+' is already the cheapest reliable choice';
+    L.push(fit([S('  '),S(' '.repeat(nw+2)),S(why,'dim')],w,bg));});
+  L.push([]);
+  const R=ROUTER[st.rSel],cmx=Math.max(...R.ev.map(e=>e[2])),fmx=Math.max(...R.ev.map(e=>e[3])),bw=narrow?14:20;
+  L.push([S('WHY '+R.rec.toUpperCase()+' FOR '+PLAIN[R.k].toUpperCase(),'hi',B),S('   cost per session','dim'),S(' '.repeat(bw-6)),S('needs fixing (per 10 replies)','dim')]);
+  R.ev.forEach(([m,n,c,fr])=>{const ex=n<MIN_SUP,worse=fr>R.best+MARGIN+1e-9,pick=m===R.rec;
+    const tag=pick?S('picked','ok',B):ex?S('too few sessions ('+n+')','dim'):worse?S('less reliable','warn'):S('reliable, costs more','dim');
+    L.push([S('  '),S(tr(m,14),pick?'ok':'fg'),S(hb(c,cmx,bw).padEnd(bw),pick?'ok':'gb'),S(rp(usd(c),7)+'   ','fg'),S(hb(fr,fmx,bw).padEnd(bw),worse?'warn':'faint'),S(rp((fr*10).toFixed(1),5)+'    ','fg'),tag]);});
+  L.push([]);
+  L.push([S('rules ','dim'),S('~/.config/agentlens/router-policy.json'),S(narrow?'   "needs fixing" = corrections + tool errors + repeats':'    "needs fixing" counts your corrections, tool errors and repeated commands','dim')]);
+  return L.slice(0,h);
+}
+const TURNS=[
+['08 Oct','claude','billing-svc','a41f',12,'you','the reconciliation job double-counts refunds when the webhook retries, find where and fix it without changing the ledger schema'],
+['08 Oct','claude','billing-svc','a41f',13,'ai','The refund webhook handler in payments/webhooks.py calls apply_refund() before it checks the idempotency key, so a retried webhook inserts a second ledger row.'],
+['08 Oct','claude','billing-svc','a41f',41,'ai','Fixed: apply_refund() now runs inside the idempotency guard. Added test_refund_webhook_retry_is_idempotent; all 214 billing tests pass.'],
+['08 Oct','claude','billing-svc','a41f',42,'you','good, also backfill the duplicated refund rows from last week'],
+['02 Oct','codex','billing-svc','c9e2',7,'ai','Stripe sends refund.updated and charge.refunded for the same refund; the webhook router treats them as two separate events.'],
+['21 Sep','claude','api-gateway','77b0',18,'you','why does the webhook signature check fail only in staging'],
+['21 Sep','claude','api-gateway','77b0',19,'ai','Staging terminates TLS at the load balancer and re-encodes the body, so the webhook signature is computed over different bytes.'],
+['06 Oct','codex','web-dash','e310',3,'you','why is the dashboard bundle 4.1MB now, it was 1.8MB last month, bisect the dependency changes'],
+['06 Oct','codex','web-dash','e310',22,'ai','The jump comes from chart-kit 5.0 pulling in every locale. Importing chart-kit/core brings the bundle back to 1.9MB.'],
+['03 Oct','claude','api-gateway','5d18',2,'you','migrate every handler under internal/routes from the old middleware chain to the new context-based auth, keep behaviour identical'],
+['03 Oct','claude','api-gateway','5d18',57,'ai','All 38 handlers migrated. The refund and payout routes needed an extra scope check that the old chain applied implicitly.'],
+['01 Oct','codex','infra-tf','0b7c',9,'ai','Of the 212 planned changes, 198 are tag reordering from the provider bump. 14 are real, and 2 would replace the RDS parameter group.'],
+['29 Sep','claude','ml-eval','91aa',30,'ai','Checkpoints 9 and 12 regress on the refund-intent slice by 4.1 points; the rest are within seed noise.'],
+['05 Oct','claude','web-dash','3c44',14,'you','convert the remaining class components in src/legacy to hooks'],
+['09 Oct','cursor','agentlens','f02d',6,'you','add a full-text search over every turn, sqlite fts5 is fine'],
+['09 Oct','cursor','agentlens','f02d',19,'ai','Indexed 41,208 turns into turns_fts. A query for "refund webhook" returns in 8ms.'],
+['30 Sep','codex','api-gateway','b812',11,'you','write table-driven tests for the token bucket limiter'],
+['26 Sep','claude','billing-svc','6e90',4,'you','explain why invoice totals differ between the PDF and the CSV export for multi-currency accounts'],
+['26 Sep','claude','billing-svc','6e90',9,'ai','The CSV export rounds each line before converting currency; the PDF converts first. Refunds widen the gap because they are negative lines.'],
+['10 Oct','claude','billing-svc','a7d3',5,'you','the refund backfill script timed out on prod, make it batch by 500 and resume from the last id'],
+];
+const SMETA={a41f:{usd:31.40,turns:142,files:'payments/webhooks.py  ledger/refunds.py'},c9e2:{usd:6.10,turns:22},'77b0':{usd:4.80,turns:31},e310:{usd:15.67,turns:70},'5d18':{usd:24.15,turns:96},'0b7c':{usd:19.88,turns:88},'91aa':{usd:17.02,turns:61},'3c44':{usd:14.20,turns:77},f02d:{usd:3.90,turns:24},b812:{usd:13.75,turns:58},'6e90':{usd:6.12,turns:18},a7d3:{usd:2.40,turns:9,files:'scripts/backfill_refunds.py'}};
+const MI={Sep:9,Oct:10},dk=d=>MI[d.slice(3)]*100+(+d.slice(0,2)),QTOOLS=['all','claude','codex','cursor'];
+function hl(t,q,c){if(!q)return[S(t,c)];const o=[],lt=t.toLowerCase(),lq=q.toLowerCase();let i=0,j;while((j=lt.indexOf(lq,i))>=0){if(j>i)o.push(S(t.slice(i,j),c));o.push(S(t.slice(j,j+q.length),'hi',{bold:true,b:'#5f5f00'}));i=j+q.length;}if(i<t.length)o.push(S(t.slice(i),c));return o;}
+function searchHits(st){const q=(st.q||'').trim().toLowerCase(),tf=QTOOLS[st.qTool||0];return TURNS.filter(t=>(tf==='all'||t[1]===tf)&&(!q||t[6].toLowerCase().includes(q))).sort((a,b)=>dk(b[0])-dk(a[0])||b[4]-a[4]);}
+function searchTop(sel,n,bh){const vis=bh-2;return Math.max(0,Math.min(sel*3-Math.floor(vis/2),n*3-vis));}
+function search(w,h,st){
+  const hits=searchHits(st),q=(st.q||'').trim(),sel=Math.min(st.qSel||0,Math.max(0,hits.length-1)),L=[];
+  const ns=new Set(hits.map(t=>t[3])).size;
+  const ql=[S(' / ','hi',{bold:true,b:C.key}),S('  '),S(st.q||'',st.q?'hi':'dim'),S(st.typing?'▏':'','hi')];
+  if(!st.q&&!st.typing)ql.push(S('press / and type to search every turn','dim'));
+  const qr=[S(hits.length+' turns','fg'),S(' in ','dim'),S(ns+' sessions','fg'),S('   ·   41,208 turns indexed','dim')];
+  L.push([...ql,S(' '.repeat(Math.max(2,w-llen(ql)-llen(qr)))),...qr]);
+  const tl=[S('tool  ','dim')];QTOOLS.forEach((t,i)=>{const on=i===(st.qTool||0);tl.push(S(on?'['+t+']':' '+t+' ',on?'hi':'dim',on?B:null),S(' '));});
+  tl.push(S('   tab cycles · searches your prompts and the replies',w<140?'faint':'dim'));
+  L.push(tl);L.push([]);
+  const lw=Math.round(w*0.5),rw=w-lw-1,bh=h-3,iw=lw-4,rl=[];
+  hits.forEach((t,i)=>{const s=i===sel,bg=s?C.sel:null;
+    rl.push(fit([S(s?'▸ ':'  ','hi'),S(t[0]+'  ',s?'hi':'fg'),S(tr(t[1],8),'fg'),S(tr(t[2],13),'dim'),S(rp('turn '+t[4],9),'dim')],iw,bg));
+    const j=q?t[6].toLowerCase().indexOf(q.toLowerCase()):0,s0=Math.max(0,j-22),sn=(s0?'…':'')+t[6].slice(s0);
+    rl.push(fit([S('  '),S(t[5]==='you'?'you  ':'ai   ',t[5]==='you'?'gb':'faint'),...hl(sn,q,s?'fg':'dim')],iw,bg));
+    rl.push([]);});
+  if(!hits.length)rl.push([S('no turns match "'+q+'"','dim')]);
+  const top=searchTop(sel,hits.length,bh);
+  const left=box(lw,bh,'results',rl.slice(top),{sub:hits.length?(sel+1)+'/'+hits.length:'0'});
+  const T=hits[sel];let pr=[],selAt=0;
+  if(T){const sid=T[3],all=TURNS.filter(x=>x[3]===sid).sort((a,b)=>a[4]-b[4]),m=SMETA[sid]||{};
+    pr.push([S(T[1]+' · '+T[2]+' · '+T[0],'hi',B)]);
+    pr.push([S('session '+sid+'   '+(m.turns||'—')+' turns   '+(m.usd?usd(m.usd):'—'),'dim')]);
+    pr.push([]);let prev=0;
+    all.forEach(x=>{if(x[4]-prev>1)pr.push([S('  ⋮ '+(x[4]-prev-1)+' turns','faint')]);prev=x[4];const cur=x===T;if(cur)selAt=pr.length;
+      const bar=S(cur?'▌ ':'  ',cur?'hi':'dim');
+      pr.push([bar,S('turn '+x[4]+'  ','dim'),S(x[5]==='you'?'you':x[1],x[5]==='you'?'gb':'dim',B)]);
+      wrap(x[6],rw-8).forEach(ln=>pr.push([bar,...hl(ln,q,cur?'fg':'dim')]));
+      pr.push([]);});
+    if(m.files)pr.push([S('files  ','dim'),S(m.files,'fg')]);
+    if(pr.length>bh-2&&selAt>4)pr=pr.slice(0,2).concat([[S('  ⋮','faint')]],pr.slice(Math.min(selAt-1,pr.length-(bh-5))));}
+  const right=box(rw,bh,T?'turn '+T[4]+' in context':'preview',pr,{sub:T?'enter resumes in '+T[1]:''});
+  return L.concat(hcat([{lines:left,w:lw},{lines:right,w:rw}],1));
+}
+const ORDER=[6,0,1,2,3,4,5],KEY=i=>i===6?'0':String(i+1);
+const LIMITS=[
+ {tool:'claude',plan:'Max 5x',bars:[['5-hour',64,'in 3h26m'],['weekly',38,'Thu 9:00'],['wk opus',83,'Thu 9:00']],pace:'hits opus limit Wed 16:00',pc:'warn'},
+ {tool:'codex',plan:'Pro',bars:[['5-hour',22,'in 1h05m'],['weekly',47,'Mon 7:30']],pace:'on pace to end the week near 71%',pc:'dim'},
+ {tool:'cursor',plan:'Pro',bars:[['monthly',71,'1 Nov'],['fast req',44,'1 Nov']],pace:'on pace for about 96% by 1 Nov',pc:'warn'}];
+const lc=p=>p>=90?'bad':p>=70?'warn':'fg';
+function dashboard(w,h,st){
+  const L=[],narrow=w<140;
+  L.push([S('USAGE LIMITS','hi',B),S('   how much of each plan you have used · estimated from local usage','dim')]);
+  L.push([]);
+  const gap=1,cw=Math.floor((w-2*gap)/3),cards=LIMITS.map((x,ci)=>{const iw=(ci===2?w-2*cw-2*gap:cw)-4,top=x.bars.reduce((a,b)=>b[1]>a[1]?b:a),bd=big(top[1]+'%');
+    const inner=bd.map((t,i)=>[S(t,lc(top[1])),S('   '),i===0?S(top[0]+' used','fg'):i===1?S('resets '+top[2],'dim'):S('highest of '+x.bars.length,'faint')]);
+    inner.push([]);
+    const bw=Math.max(6,iw-9-5-10);
+    x.bars.forEach(([n,p,r])=>{const fl=Math.round(p/100*bw);inner.push([S(tr(n,8)+' ','dim'),S('█'.repeat(fl),lc(p)==='fg'?'gb':lc(p)),S('░'.repeat(bw-fl),'faint'),S(rp(p+'%',5),lc(p),B),S(rp(r,10),'dim')]);});
+    while(inner.length<7)inner.push([]);
+    inner.push([S(x.pace,x.pc)]);
+    return{lines:box(ci===2?w-2*cw-2*gap:cw,10,x.tool+' · '+x.plan,inner),w:ci===2?w-2*cw-2*gap:cw};});
+  L.push(...hcat(cards,gap));
+  L.push([S('plans in ~/.config/agentlens/plans.toml · red at 90%, yellow at 70%','faint')]);
+  L.push([]);
+  const y=DAYS[27],avg=DAYS.slice(-8,-1).reduce((a,d)=>a+d.usd,0)/7,dp=Math.round((y.usd/avg-1)*100);
+  const K=[['TODAY','$12.40','fg','6 sessions so far'],['YESTERDAY',usd(y.usd),'hi','+'+dp+'% vs usual'],['30 DAYS','$968.40','hi','612 sessions'],['ALL TIME','$4,735.80','hi','since 14 Mar'],['CACHE SAVED','$2,246.50','ok','last 30 days'],['ROUTER','$'+Math.round(TOTAL_SAVE)+'/mo','ok','if you follow picks']];
+  const kw=Math.floor(w/K.length);
+  L.push(...hcat(K.map(([l,v,c,s],i)=>({lines:[[S(l,'dim',B)],[S(v,c,B)],[S(s,i===1?'warn':'dim')]],w:i===K.length-1?w-kw*(K.length-1):kw-2})),2));
+  L.push([]);
+  const lw=Math.round(w*0.5),rw=w-lw-4;
+  const att=[['warn','weekly opus limit 83%, on pace to run out Wed','0'],['ok','11 new skills and workflows to review','3'],['warn','debug and refactor now route to cheaper models','5'],['warn','5 days over the $40 daily budget this month','2'],['bad','3 retired recipes are still installed','3']];
+  const left=[[S('NEEDS A LOOK','hi',B)],...att.map(([c,t,k])=>[S('● ',c),S(tr(t,lw-8),'fg'),S(rp('['+k+']',6),'dim')])];
+  const days=DAYS.slice(-14),rows=Math.max(6,Math.min(12,h-22)),mx=Math.max(...days.map(d=>d.usd)),dcw=narrow?3:3;
+  const split=days.map((d,i)=>{const h1=hash(d.d),cl=0.62+(h1%14)/100,cx=0.22+(h1%9)/100;return[d.usd*cl,d.usd*cx,d.usd*(1-cl-cx)];});
+  const right=[[S('LAST 14 DAYS BY TOOL','hi',B),S('   █ claude  ▓ codex  ░ cursor','dim')]];
+  for(let r=rows;r>=1;r--){const l=[];split.forEach(([a,b,c2],i)=>{const t=(a+b+c2)/mx*rows,ha=a/mx*rows,hb2=(a+b)/mx*rows;const ch=r<=Math.round(ha)?'█':r<=Math.round(hb2)?'▓':r<=Math.round(t)?'░':' ';l.push(S(ch.repeat(dcw-1)+' ',i===13?'fg':'gb'));});right.push(l);}
+  right.push([S(days[0].d,'faint'),S(' '.repeat(Math.max(1,14*dcw-12))),S('yday','faint')]);
+  L.push(...hcat([{lines:left,w:lw},{lines:right,w:rw}],4));
+  return L.slice(0,h);
+}
+const RENDER=[morning,tokens,itemsTab('skills'),itemsTab('workflows'),router,search,dashboard];
+
+const SBW=30,RAILW=3,SBG='#262626';
+function summaries(st){
+  const y=DAYS[27],avg=DAYS.slice(-8,-1).reduce((a,d)=>a+d.usd,0)/7,dp=Math.round((y.usd/avg-1)*100);
+  const cs=list=>{const n=k=>list.filter(x=>x.state===k).length;return[S(n('new')+' new','ok'),S(' · ','dim'),S(n('updated')+' upd','warn'),S(' · ','dim'),S(n('retired')+' ret','bad')];};
+  const swn=ROUTER.filter(r=>r.rec!==r.most).length;
+  return[[S(usd(y.usd),'fg'),S('  '+(dp>0?'+':'')+dp+'% vs avg',dp>0?'warn':'ok')],[S('$968.40','fg'),S(' · last 30 days','dim')],cs(SKILLS),cs(WFS),[S(swn+' switches','ok'),S(' · autopilot ','dim'),S(st.hook?'on':'off',st.hook?'ok':'dim')],[S('/ ','hi',B),S('41,208 turns indexed','dim')],[S('opus ','dim'),S('83%','warn',B),S(' · today ','dim'),S('$12.40','fg')]];
+}
+function attention(st){const s=st.seen||{};return['warn',null,'ok','ok','warn',null,'warn'].map((c,i)=>s[i]?null:c);}
+function sidebar(sw,h,tab,st){
+  const att=attention(st),L=[];
+  if(sw===RAILW){L.push(fit([S(' ◆','hi',B)],sw,SBG));L.push(fit([],sw,SBG));
+    ORDER.forEach(i=>{const t=TABN[i],sel=i===tab,bg=sel?C.sel:SBG;L.push(fit([S(sel?'▌':' ','hi'),S(KEY(i),sel?'hi':'dim',sel?B:null),S(att[i]?'●':' ',att[i]||'dim')],sw,bg));L.push(fit([],sw,SBG));});
+    while(L.length<h)L.push(fit([],sw,SBG));return L.slice(0,h);}
+  const sm=summaries(st);
+  L.push([S(' LENSES','dim',B)]);
+  L.push([S(' local only · '+fmt(st.total)+' sessions','dim')]);
+  L.push([]);
+  ORDER.forEach(i=>{const t=TABN[i],sel=i===tab,bg=sel?C.sel:SBG;
+    L.push(fit([S(sel?'▌':' ','hi'),S(' '+KEY(i)+'  ','dim'),S(t,sel?'hi':'fg',B)],sw-3,bg).concat([S(att[i]?' ● ':'   ',att[i]||'dim',{b:bg})]));
+    L.push(fit([S('     '),...sm[i]],sw,bg));
+    L.push([]);});
+  const ns=SKILLS.filter(x=>st.sOn[x.name]).length,nw=WFS.filter(x=>st.wOn[x.name]).length;
+  L.push([S(' INSTALLED','dim',B)]);
+  L.push([S(' '+ns+' skills','fg'),S('  ·  ','dim'),S(nw+' workflows','fg')]);
+  L.push([S(' autopilot ','dim'),S(st.hook?'on':'off',st.hook?'ok':'dim',B)]);
+  while(L.length<h-2)L.push([]);
+  L.length=h-2;
+  L.push([S(' nothing leaves this machine','dim')]);
+  L.push([S(' ~/.local/share/agentlens','faint')]);
+  return L.map(l=>fit(l,sw,SBG));
+}
+function topbar(W,tab,st){
+  const l=[S(' ◆ agentlens ','hi',{bold:true,b:C.key}),S('  '+TABN[tab].toLowerCase(),'hi',B),S('   ['+KEY(tab)+']','dim')];
+  const r=[st.scanning?S('rescanning…   ','warn'):S('scanned '+st.scanTime+'   ','dim'),S(st.clock+' ','dim')];
+  return fit([...l,S(' '.repeat(Math.max(1,W-llen(l)-llen(r)))),...r],W,C.bar);
+}
+function statusbar(W,tab,st){
+  const ks=tab===5?[['0-6','jump'],['/','type'],['↑↓','results'],['tab','tool'],['enter','resume'],['esc','done']]:[['0-6','jump'],['/','search']];if(tab===5||tab===6){}else if(tab>=2)ks.push(['↑↓','select'],['space',tab===4?'autopilot':'toggle']);if(tab!==5)ks.push(['r','rescan'],['b','sidebar'],['q','quit']);
+  const l=[];ks.forEach(([k,d])=>l.push(S(' '+k+' ','hi',{bold:true,b:C.key}),S(' '+d+'  ')));
+  const r=[S('● local · offline ','dim')];
+  return fit([...l,S(' '.repeat(Math.max(1,W-llen(l)-llen(r)))),...r],W,C.bar);
+}
+const cells=l=>{const o=[];l.forEach(s=>{for(const ch of s.t)o.push({ch,c:s.c,b:s.b,bold:s.bold});});return o;};
+const merge=cs=>{const o=[];cs.forEach(x=>{const p=o[o.length-1];if(p&&p.c===x.c&&p.b===x.b&&!!p.bold===!!x.bold)p.t+=x.ch;else o.push({t:x.ch,c:x.c,b:x.b,bold:x.bold});});return o;};
+function compose(W,H,tab,st){
+  const sw=st.sbFull?SBW:RAILW,CW=W-sw-2,CH=H-2;
+  const side=sidebar(sw,CH,tab,st);
+  const body=[[]].concat(RENDER[tab](CW,CH-1,st)).slice(0,CH);while(body.length<CH)body.push([]);
+  const lines=[topbar(W,tab,st),...body.map((l,i)=>[...side[i],S(' '),...fit(l,CW),S(' ')]),statusbar(W,tab,st)];
+  const grid=lines.map(l=>cells(fit(l,W)));
+  if(st.toast){const tw=Math.min(44,W-sw-4),x0=W-tw-2;['',st.toast.msg,''].forEach((m,i)=>{const row=grid[H-5+i];cells([S('▌',st.toast.c||'ok',{b:C.bar}),...fit([S(' '+m,'hi')],tw-1,C.bar)]).forEach((c,j)=>row[x0+j]=c);});}
+  return grid.map(merge);
+}
+
+class Component extends DCLogic {
+  state={tab:6,size:null,sSel:3,wSel:1,rSel:0,sOn:Object.fromEntries(SKILLS.map(x=>[x.name,!!x.on])),wOn:Object.fromEntries(WFS.map(x=>[x.name,!!x.on])),hook:true,toast:null,seen:{6:true},sb:null,q:'refund',qSel:0,qTool:0,typing:false,scanning:false,total:1284,copied:false};
+  componentDidMount(){window.addEventListener('keydown',this.onKey);this.mt=setTimeout(()=>this.setState({mounted:true}),200);}
+  componentWillUnmount(){window.removeEventListener('keydown',this.onKey);clearTimeout(this.tt);clearTimeout(this.sc);}
+  cur(){const size=this.state.size||this.props.size||'150x45',[W,H]=size.split('x').map(Number);const tab=this.state.tab!=null?this.state.tab:Math.max(0,TABN.indexOf(this.props.startTab||'Dashboard'));return Object.assign({},this.state,{W,H,tab,size,sbFull:W>=140&&this.state.sb!=='rail',clock:'08:14:07',scanTime:'08:02'});}
+  toast(msg,c){this.setState({toast:{msg,c}});clearTimeout(this.tt);this.tt=setTimeout(()=>this.setState({toast:null}),3000);}
+  move(d){const t=this.cur().tab;if(t===5){const n=searchHits(this.cur()).length;this.setState(s=>({qSel:Math.max(0,Math.min(n-1,(s.qSel||0)+d))}));return;}const k=['','','sSel','wSel','rSel'][t];if(!k)return;const n=[0,0,SKILLS.length,WFS.length,ROUTER.length][t];this.setState(s=>({[k]:Math.max(0,Math.min(n-1,s[k]+d))}));}
+  toggle(){const c=this.cur();if(c.tab===5){const hs=searchHits(c),T=hs[Math.min(c.qSel,hs.length-1)];if(T)this.toast((T[1]==='cursor'?'cursor-agent':T[1])+' --resume '+T[3]+' at turn '+T[4],'ok');return;}
+    if(c.tab===2||c.tab===3){const isS=c.tab===2,key=isS?'sOn':'wOn',x=(isS?SKILLS:WFS)[isS?c.sSel:c.wSel],on=!c[key][x.name];
+      this.setState(s=>({[key]:Object.assign({},s[key],{[x.name]:on})}));this.toast(`${on?'installed':'removed'} ${isS?x.name:'wf-'+x.name}`,on?'ok':'dim');}
+    else if(c.tab===4){const on=!c.hook;this.setState({hook:on});this.toast(`autopilot ${on?'on':'off'}`,on?'ok':'dim');}}
+  rescan(){if(this.state.scanning)return;this.setState({scanning:true});clearTimeout(this.sc);
+    this.sc=setTimeout(()=>{const nn=this.rescans?0:7;this.rescans=(this.rescans||0)+1;const total=this.state.total+nn;this.setState({scanning:false,total});this.toast(`rescanned: ${fmt(total)} sessions, ${nn} new`,'ok');},900);}
+  onKey=(e)=>{if(e.metaKey||e.ctrlKey||e.altKey)return;const t=e.target;if(t&&(t.tagName==='INPUT'||t.tagName==='TEXTAREA'||t.isContentEditable))return;
+    const k=e.key,cs=this.cur();
+    if(cs.tab===5&&this.state.typing){e.preventDefault();
+      if(k==='Escape'||k==='Enter')this.setState({typing:false});
+      else if(k==='Backspace')this.setState(s=>({q:s.q.slice(0,-1),qSel:0}));
+      else if(k==='ArrowDown'||k==='ArrowUp')this.move(k==='ArrowDown'?1:-1);
+      else if(k.length===1)this.setState(s=>({q:s.q+k,qSel:0}));
+      return;}
+    if(k==='/'){e.preventDefault();this.go(5);this.setState({typing:true});return;}
+    if(cs.tab===5&&k==='Tab'){e.preventDefault();this.setState(s=>({qTool:((s.qTool||0)+1)%4,qSel:0}));return;}
+    let h=true;
+    if(k==='0')this.go(6);else if(k>='1'&&k<='6')this.go(+k-1);else if(k==='b'){const c=this.cur();if(c.W<140)this.toast('sidebar needs 140+ columns','dim');else this.setState(s=>({sb:s.sb==='rail'?null:'rail'}));}else if(k==='ArrowDown'||k==='j')this.move(1);else if(k==='ArrowUp'||k==='k')this.move(-1);
+    else if(k===' '||k==='Enter')this.toggle();else if(k==='r')this.rescan();else if(k==='q')this.toast('q quits (disabled in mockup)','dim');else h=false;
+    if(h)e.preventDefault();};
+  go(i){this.setState(s=>({tab:i,seen:Object.assign({},s.seen,{[i]:true})}));}
+  termClick=(e)=>{const c=this.cur(),r=e.currentTarget.getBoundingClientRect(),x=Math.floor((e.clientX-r.left)/(r.width/c.W)),y=Math.floor((e.clientY-r.top)/15);
+    const sw=c.sbFull?SBW:RAILW;
+    if(x<sw){if(c.sbFull){const k=y-4;if(k>=0&&k%3<2&&k/3<7)this.go(ORDER[Math.floor(k/3)]);}else{const k=y-3;if(k>=0&&k%2===0&&k/2<7)this.go(ORDER[k/2]);}return;}
+    if(c.tab===2||c.tab===3){const lw=Math.round((c.W-sw-2)*0.4),list=c.tab===2?SKILLS:WFS,idx=y-6;if(x-sw-1<=lw&&idx>=0&&idx<list.length)this.setState({[c.tab===2?'sSel':'wSel']:idx});}
+    else if(c.tab===4){const ri=Math.floor((y-11)/2);if(y>=11&&ri<ROUTER.length)this.setState({rSel:ri});}
+    else if(c.tab===5){const lw=Math.round((c.W-sw-2)*0.5),n=searchHits(c).length,bh=c.H-6,top=searchTop(Math.min(c.qSel,Math.max(0,n-1)),n,bh),i=Math.floor((y-6+top)/3);if(x-sw-1<=lw&&y>=6&&i<n)this.setState({qSel:i,typing:false});}};
+  copyAll=()=>{const c=this.cur();const txt=TABN.map((n,i)=>`-- ${i+1} ${n}  ${c.W}x${c.H} --\n`+compose(c.W,c.H,i,Object.assign({},c,{toast:null})).map(r=>r.map(s=>s.t).join('')).join('\n')).join('\n\n');
+    try{navigator.clipboard.writeText(txt);}catch(err){}this.setState({copied:true});setTimeout(()=>this.setState({copied:false}),1500);};
+  renderVals(){return this.baseVals();}
+  baseVals(){
+    const c=this.cur(),grid=compose(c.W,c.H,c.tab,c);
+    const rows=grid.map(segs=>({segs:segs.map(s=>({t:s.t,st:{color:C[s.c]||s.c,background:s.b||'transparent',fontWeight:s.bold?700:400}}))}));
+    const btn=a=>({background:a?'#d0d0d0':'transparent',color:a?'#1c1c1c':'#a8a8a8',border:'1px solid '+(a?'#d0d0d0':'#3a3a3a'),font:'inherit',fontSize:12,padding:'5px 10px',cursor:'pointer'});
+    let ruler='';for(let i=1;i<=c.W;i++)ruler+=i%10===0?String((i/10)%10):(i%5===0?'+':'·');
+    return{rows,ruler,
+      termStyle:{width:c.W+'ch',background:'#1c1c1c',color:'#d0d0d0',fontSize:13.5,lineHeight:'15px',fontFamily:"'JetBrains Mono',ui-monospace,Menlo,monospace",boxShadow:'0 0 0 1px #303030',cursor:'default'},
+      paneLabel:`tmux pane ${c.W}×${c.H} · Textual · xterm-256color`,
+      tabBtns:TABN.map((n,i)=>({label:`${i+1} ${n}`,on:()=>this.setState({tab:i}),st:btn(i===c.tab)})),
+      sizeBtns:['150x45','120x40'].map(s=>({label:s.replace('x','×'),on:()=>this.setState({size:s}),st:btn(s===c.size)})),
+      termClick:this.termClick,copyAll:this.copyAll,copyStyle:btn(false),copyLabel:this.state.copied?'copied':'copy all 5 as text'};
+  }
+}
+</script>
+</body>
+</html>

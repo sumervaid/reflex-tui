@@ -1,0 +1,28 @@
+{
+  "name": "@reflex/tui",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc -p tsconfig.json",
+    "preview": "tsup --config tsup.preview.config.ts && node dist/preview.js",
+    "reference": "node scripts/extract-reference.mjs ../../docs/design/tui-v5/reference/agentlens-tui-v5.dc.html ../../docs/design/tui-v5/mockups test/golden"
+  },
+  "dependencies": {
+    "@reflex/analysis": "workspace:*",
+    "@reflex/core": "workspace:*",
+    "@reflex/safety": "workspace:*",
+    "@reflex/skills": "workspace:*",
+    "@reflex/storage": "workspace:*"
+  },
+  "devDependencies": {
+    "@reflex/adapters": "workspace:*",
+    "@reflex/test-fixtures": "workspace:*",
+    "tsup": "^8.5.0"
+  }
+}

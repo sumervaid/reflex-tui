@@ -1,0 +1,40 @@
+ ◆ Reflex AI   router   [5]                                                                    scanned 14:51   14:51:40
+ ◆
+     AUTOPILOT   not available yet
+ 0
+    not measured yet
+ 1
+
+ 2
+
+ 3
+
+ 4
+
+▌5
+
+ 6
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+ 0-6  jump   /  search   ↑↓  select   space  autopilot   r  rescan   b  sidebar   q  quit             ● local · offline
