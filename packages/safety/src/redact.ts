@@ -1,4 +1,5 @@
-import { userInfo } from "node:os";
+import { createHash } from "node:crypto";
+import { homedir, userInfo } from "node:os";
 
 type Rule = { name: string; pattern: RegExp; replace: string | ((...m: string[]) => string) };
 
@@ -94,6 +95,30 @@ function currentUserPattern(): RegExp | undefined {
 }
 
 const userPattern = currentUserPattern();
+
+/**
+ * What user-specific redaction depends on (the user name and home folder), hashed. Stored traces
+ * record it so a change can be detected; the rules themselves change only with Reflex's code.
+ */
+export function redactionFingerprint(): string {
+  let name = "";
+  try {
+    name = process.env.REFLEX_REDACT_USER ?? userInfo().username;
+  } catch {
+    name = "";
+  }
+  return createHash("sha256").update(`${name}\n${homedir()}`).digest("hex").slice(0, 16);
+}
+
+/** Redact every string inside a JSON-like value (for stored data whose source can no longer be re-read). */
+export function redactDeep<T>(value: T): T {
+  if (typeof value === "string") return redact(value) as T;
+  if (Array.isArray(value)) return value.map((v) => redactDeep(v)) as T;
+  if (value && typeof value === "object") {
+    return Object.fromEntries(Object.entries(value).map(([k, v]) => [k, redactDeep(v)])) as T;
+  }
+  return value;
+}
 
 export type RedactionResult = { text: string; redactions: number; rules: string[] };
 

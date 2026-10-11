@@ -1,16 +1,15 @@
-import type { NormalizedSession, SourceId, TranscriptAdapter } from "@reflex/core";
+import type { SourceId, TranscriptAdapter } from "@reflex/core";
 import { debug } from "@reflex/core";
 import { ClaudeCodeAdapter, CodexAdapter, CursorAdapter } from "@reflex/adapters";
-import { type Suggestion, analyze, buildTrace, deduplicate, sessionContext } from "@reflex/analysis";
+import { type Suggestion, analyze, deduplicate } from "@reflex/analysis";
 import { displayPath } from "@reflex/safety";
 import { type MemorySync, syncMemory } from "@reflex/skills";
 import { Store, paths } from "@reflex/storage";
 import { c, confirm, out, plural, rows, spinner, title, warn } from "../ui";
 import { modelBytes } from "@reflex/embeddings";
-import { type VectorResult, sessionVectors } from "../embeddings";
-
-/** Bounds parse time and the quadratic clustering step on very large histories. */
-const MAX_FILES_PER_SOURCE = 2000;
+import { type VectorResult, sessionVectors, vectorNeeds } from "../embeddings";
+import { MAX_FILES_PER_SOURCE, collect, currentKeys } from "../collect";
+import { analysisKey, summarize } from "../analysis";
 
 export type ScanOptions = {
   days: number;
@@ -20,6 +19,8 @@ export type ScanOptions = {
   /** Only read these sources (`--source`). */
   source?: SourceId[];
   yes?: boolean;
+  /** Read every file again instead of reusing what earlier scans cached. */
+  full?: boolean;
 };
 
 export function parseDays(value: string): number {
@@ -73,64 +74,58 @@ export async function scan(opts: ScanOptions): Promise<void> {
   }
 
   const now = new Date();
-  const perSource: Partial<Record<SourceId, number>> = {};
-  const sessions: NormalizedSession[] = [];
-  let files = 0;
-  let partial = 0;
-  let unreadable = 0;
-  let skippedRecords = 0;
-  let capped = 0;
-
-  const spin = spinner();
-  for (const a of permitted) {
-    // Recorded even when no file is in the window: the scan record lists every source the user let Reflex read.
-    perSource[a.id] = 0;
-    const all = await a.discover({ days: opts.days, now });
-    const list = all.sort((x, y) => y.modifiedAt.getTime() - x.modifiedAt.getTime()).slice(0, MAX_FILES_PER_SOURCE);
-    capped += all.length - list.length;
-    spin.start(`Reading ${plural(list.length, `${a.label} file`)}…`);
-    for (const file of list) {
-      files++;
-      const result = await a.parse(file, { days: opts.days, now });
-      if (result.unreadable) {
-        unreadable++;
-        continue;
-      }
-      skippedRecords += result.skippedRecords;
-      if (result.skippedRecords > 0 && result.sessions.length) partial += result.sessions.length;
-      sessions.push(...result.sessions);
-      perSource[a.id] = (perSource[a.id] ?? 0) + result.sessions.length;
-    }
-    spin.stop(`${a.label}: ${plural(perSource[a.id] ?? 0, "session")} from ${plural(list.length, "file")}`);
-  }
-  debug("sessions parsed", { sessions: sessions.length, files, skipped: skippedRecords, unreadable });
-
-  const traces = sessions.map(buildTrace);
   const store = new Store();
   let suggestions: Suggestion[] = [];
   let memoryResult: MemorySync | undefined;
   let meaning: VectorResult = { status: "no-model" };
+  let collected;
   try {
+    const spin = spinner();
+    collected = await collect(permitted, store, {
+      days: opts.days,
+      now,
+      full: opts.full,
+      keys: currentKeys(),
+      needsDocument: await vectorNeeds(store),
+      onSource: (a, n) => spin.start(`Checking ${plural(n, `${a.label} file`)}…`),
+    });
+    spin.stop(`${plural(collected.files, "file")} checked: ${collected.read} read, ${collected.reused} unchanged`);
+    debug("sessions collected", { sessions: collected.traces.length, files: collected.files, read: collected.read, reused: collected.reused, kept: collected.kept });
+    const { traces } = collected;
     store.saveScan(
-      { startedAt: now.toISOString(), days: opts.days, mode, sources: perSource, files, sessions: traces.length, partial, unreadable, skippedRecords },
-      traces,
+      {
+        startedAt: now.toISOString(),
+        days: opts.days,
+        mode,
+        sources: collected.perSource,
+        files: collected.files,
+        sessions: traces.length,
+        partial: collected.partial,
+        unreadable: collected.unreadable,
+        skippedRecords: collected.skippedRecords,
+      },
+      collected.rows,
     );
     const embedSpin = spinner();
     let embedding = false;
     meaning = await sessionVectors(traces, store, {
-      documents: sessions.map((s, i) => sessionContext(s, traces[i]!)),
+      documents: collected.documents,
       onProgress: (n) => {
         embedding = true;
         embedSpin.start(`Comparing ${plural(n, "new session")} by meaning (local model)…`);
       },
     });
     if (embedding) embedSpin.stop(meaning.status === "ok" ? "Compared by meaning" : "Meaning comparison unavailable");
-    suggestions = analyze(traces, meaning.status === "ok" ? { vectors: meaning.vectors } : {}).suggestions;
-    store.saveSuggestions(store.latestScan()!.id, suggestions);
+    const analysis = analyze(traces, meaning.status === "ok" ? { vectors: meaning.vectors } : {});
+    suggestions = analysis.suggestions;
+    const scanId = store.latestScan()!.id;
+    store.saveSuggestions(scanId, suggestions);
+    store.saveAnalysis(scanId, analysisKey(meaning.status === "ok"), summarize(analysis, traces));
     memoryResult = await syncMemory(store);
   } finally {
     store.close();
   }
+  const { traces, perSource, partial, skippedRecords, unreadable, capped, kept } = collected;
   const { stats } = deduplicate(traces);
 
   out();
@@ -145,6 +140,7 @@ export async function scan(opts: ScanOptions): Promise<void> {
   if (folded.length) out(c.dim(`  counted once: ${folded.join(", ")}`));
   if (partial) out(c.dim(`  ${plural(partial, "session")} partially recovered (${plural(skippedRecords, "malformed record")} skipped)`));
   if (unreadable) warn(`${plural(unreadable, "unreadable file")} skipped`);
+  if (kept) out(c.dim(`  ${plural(kept, "session")} kept from transcripts that have since been deleted`));
   if (capped) warn(`${plural(capped, "older file")} skipped; Reflex reads the ${MAX_FILES_PER_SOURCE} most recent per source. Use a shorter --days window.`);
   if (meaning.status === "ok") out(c.dim(`  requests compared by words and by meaning (local model; ${plural(meaning.embedded, "session")} newly embedded)`));
   else if (meaning.status === "failed") warn(`Meaning comparison skipped (${meaning.error}); requests were compared by words only.`);

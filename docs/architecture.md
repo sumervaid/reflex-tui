@@ -172,9 +172,35 @@ no tokens, so a day or window with only Cursor sessions has no token value. More
 `~/.reflex/reflex.db` (mode 0600, directory 0700): scans, redacted traces, suggestions and their
 status, generated skills (with their cost baseline) and installations. `PRAGMA user_version` gates
 schema changes; version 2 adds `skills.baseline_json` in place; version 3 adds `embeddings`
-(vectors keyed by a hash of model id and context document, pruned to the latest scan). The
+(vectors keyed by a hash of model id and context document, kept for every cached trace so changing
+`--days` never re-embeds); version 4 replaces the per-scan `sessions` table with a transcript cache. The
 1,000-character request text is embedded during `scan` and never stored; each stored trace keeps
 only `contextHash`, so `suggest` and `stats` can find its vector without the text.
+
+### Incremental scans
+
+`transcript_files` records each file Reflex has read: size, mtime, ctime and inode, plus a hash of
+the Reflex build (`code_key`) and of the redaction inputs (`redaction_key`). `traces` holds every
+session read from it, unfiltered; `scan_sessions` lists which traces form the latest scan's working
+set, which is all `suggest`, `stats` and the TUI read.
+
+On each scan, a file whose identity and both keys match is not opened: its cached traces are
+filtered to the window (`!endedAt || endedAt >= cutoff`, the rule the adapters apply after
+parsing). ctime is part of the identity because tools that preserve mtime (`cp -p`, `rsync -t`,
+backup restores) cannot set it. Any other file is parsed with no window, turned into traces right
+away and dropped, so memory does not grow with transcript size. A cached file that is no longer on
+disk keeps its traces (marked `missing`); they count when their own date is in the window, and are
+redacted again if either key changed. A cached session that still needs an embedding forces its
+file to be re-read, since the request text is never stored. `scan --full` ignores the cache.
+
+### Saved analysis
+
+Analysis is deterministic, so `scan` saves its result with the scan: suggestions, the counts
+`stats` shows and the repository count, under a key naming what else it depends on (Reflex's build
+and whether meaning was compared). `suggest` and `stats` reuse it while the key matches; after an
+upgrade or a model install or removal they recompute once from the stored traces and save again.
+Approving or rejecting does not affect it. Analysis itself still runs once per scan and grows with
+the number of session pairs (about 30 s at 1,500 long sessions, mostly action-sequence LCS).
 
 The optional model lives in `~/.reflex/models/all-minilm-l6-v2-q8/` (23 MB, int8 ONNX). It is read
 only after its SHA-256 matches the pinned value, and is embedded one text at a time: the int8

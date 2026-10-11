@@ -1,9 +1,9 @@
 import { SOURCE_LABELS } from "@reflex/core";
-import { analyze, type Suggestion } from "@reflex/analysis";
+import type { Suggestion } from "@reflex/analysis";
 import { displayPath, excerpt } from "@reflex/safety";
 import { type StoredSuggestion, Store, paths } from "@reflex/storage";
 import { approveSuggestion } from "@reflex/skills";
-import { sessionVectors } from "../embeddings";
+import { latestAnalysis } from "../analysis";
 import { c, chooseKey, confirm, fileBlock, fmtTokens, interactive, ok, out, pct, plural, rows, shortDate, title } from "../ui";
 import { describeCost } from "./impact";
 import { installFlow } from "./skills";
@@ -119,23 +119,21 @@ export async function suggest(opts: { all?: boolean; interactive?: boolean }): P
   const store = new Store();
   try {
     requireScan(store);
-    const traces = store.traces();
-    const meaning = await sessionVectors(traces, store, { cacheOnly: true });
-    const analysis = analyze(traces, meaning.status === "ok" ? { vectors: meaning.vectors } : {});
-    store.saveSuggestions(store.latestScan()!.id, analysis.suggestions);
+    await latestAnalysis(store);
+    const sessionCount = store.latestScan()!.sessions;
     const list = store.suggestions();
     const visible = list.filter((s) => opts.all || s.status !== "rejected");
 
     if (!list.length) {
       title("No repeated workflows found");
-      out(`Reflex looked at ${plural(traces.length, "session")} and found no behavior repeated in at least 3 independent sessions.`);
+      out(`Reflex looked at ${plural(sessionCount, "session")} and found no behavior repeated in at least 3 independent sessions.`);
       out("It does not manufacture suggestions from one-off tasks.");
       out();
       out(`Try a longer history window: ${c.cyan("reflex scan --days 30")}`);
       return;
     }
 
-    title(`${plural(visible.length, "repeated workflow")} found in ${plural(traces.length, "session")}`);
+    title(`${plural(visible.length, "repeated workflow")} found in ${plural(sessionCount, "session")}`);
     for (const entry of visible) renderSuggestion(entry);
     const hidden = list.length - visible.length;
     if (hidden) out(c.dim(`${plural(hidden, "rejected suggestion")} hidden (use --all to show).`));
