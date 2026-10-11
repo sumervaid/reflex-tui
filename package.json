@@ -1,5 +1,5 @@
 {
-  "name": "reflix-monorepo",
+  "name": "reflex-monorepo",
   "private": true,
   "type": "module",
   "packageManager": "pnpm@12.11.2",
@@ -12,7 +12,7 @@
     "test:watch": "vitest",
     "typecheck": "turbo run typecheck",
     "lint": "eslint .",
-    "reflix": "node apps/cli/dist/reflix.js"
+    "reflex": "node apps/cli/dist/reflex.js"
   },
   "devDependencies": {
     "@eslint/js": "^9.37.0",

@@ -1,7 +1,7 @@
 import { defineConfig } from "tsup";
 
 export default defineConfig({
-  entry: { reflix: "src/main.ts" },
+  entry: { reflex: "src/main.ts" },
   format: ["esm"],
   platform: "node",
   target: "node22",
@@ -13,6 +13,6 @@ export default defineConfig({
   // Ship one self-contained file: workspace packages and npm dependencies are inlined.
   noExternal: [/.*/],
   banner: {
-    js: "#!/usr/bin/env node\nimport { createRequire as __reflixCreateRequire } from 'node:module';\nconst require = __reflixCreateRequire(import.meta.url);",
+    js: "#!/usr/bin/env node\nimport { createRequire as __reflexCreateRequire } from 'node:module';\nconst require = __reflexCreateRequire(import.meta.url);",
   },
 });

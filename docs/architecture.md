@@ -1,16 +1,16 @@
 # Architecture
 
-Reflix is a local CLI. It reads coding-agent history you point it at, and writes only inside its
+Reflex is a local CLI. It reads coding-agent history you point it at, and writes only inside its
 own folder until you explicitly install a skill.
 
 ```mermaid
 flowchart LR
-  A[Claude Code JSONL<br/>Codex rollouts] -->|adapters: stream, validate, redact| B[NormalizedSession]
+  A[Claude Code JSONL<br/>Codex rollouts<br/>Cursor agent transcripts] -->|adapters: stream, validate, redact| B[NormalizedSession]
   B -->|trace| C[WorkflowTrace]
   C -->|dedup| D[Independent instances]
   D -->|similarity + clustering + gates| E[Suggestions]
-  E -->|you approve| F[~/.reflix/skills/name/SKILL.md]
-  F -->|you install, per target| G[~/.claude/skills<br/>~/.codex/skills]
+  E -->|you approve| F[~/.reflex/skills/name/SKILL.md]
+  F -->|you install, per target| G[~/.claude/skills<br/>~/.codex/skills<br/>~/.cursor/skills]
   F -->|validate --run| H[Fresh Claude Code session<br/>in a disposable repo]
 ```
 
@@ -18,13 +18,13 @@ flowchart LR
 
 | Package | Responsibility |
 | --- | --- |
-| `@reflix/core` | Session model (`NormalizedSession`, `SessionEvent`, `WorkflowTrace`), adapter interface, hashing, debug counters |
-| `@reflix/safety` | Redaction, leak detection, path containment, slug validation, no-follow/exclusive file writes |
-| `@reflix/adapters` | Claude Code and Codex parsers: detection, permission prompt, bounded discovery, streaming parse |
-| `@reflix/analysis` | Command classification, traces, de-duplication, similarity, clustering, consensus steps, suggestions |
-| `@reflix/storage` | SQLite (`node:sqlite`) store in `REFLIX_HOME` (default `~/.reflix`) |
-| `@reflix/skills` | SKILL.md generation, validation, diffs, install planning, fresh-task sandbox |
-| `@reflix/test-fixtures` | Synthetic transcripts in the real on-disk layouts, for tests only (not bundled) |
+| `@reflex/core` | Session model (`NormalizedSession`, `SessionEvent`, `WorkflowTrace`), adapter interface, hashing, debug counters |
+| `@reflex/safety` | Redaction, leak detection, path containment, slug validation, no-follow/exclusive file writes |
+| `@reflex/adapters` | Claude Code, Codex and Cursor parsers: detection, permission prompt, bounded discovery, streaming parse |
+| `@reflex/analysis` | Command classification, traces, de-duplication, similarity, clustering, consensus steps, suggestions |
+| `@reflex/storage` | SQLite (`node:sqlite`) store in `REFLEX_HOME` (default `~/.reflex`) |
+| `@reflex/skills` | SKILL.md generation, validation, diffs, install planning, fresh-task sandbox |
+| `@reflex/test-fixtures` | Synthetic transcripts in the real on-disk layouts, for tests only (not bundled) |
 | `apps/cli` | Commands and prompts (`commander`, `@clack/prompts`), bundled into one file with tsup |
 
 Internal packages export TypeScript source; only the CLI is built.
@@ -42,6 +42,13 @@ skip bad lines, cap line size and events per session).
   `session_meta`, `response_item` (messages, `shell`/`exec_command` calls, `local_shell_call`,
   `apply_patch`, outputs with exit codes), `event_msg`. The parser follows the Codex protocol types;
   it has been tested on fixtures, not on real rollouts (no Codex history on the development machine).
+- Cursor: `~/.cursor/projects/<encoded-workspace>/agent-transcripts/<id>/<id>.jsonl`. `{role, message:
+  {content: [text | tool_use]}}` lines plus `turn_ended` markers. The developer's request is the
+  `<user_query>` block; session time comes from Cursor's `<timestamp>` tag. Tools map onto the same
+  events (`Shell`, `Read`/`ReadFile`, `StrReplace`, `Write`, `ApplyPatch`, `Grep`/`rg`/`Glob`).
+  Subagent transcripts and background-task notifications are skipped. The workspace path is decoded
+  by checking which folders exist (metadata only). Cursor records no tool results, so its sessions
+  never count as "recovered from a failure". Tested on fixtures and parsed cleanly on real history.
 
 All text is truncated and redacted inside the adapter, before anything else sees it.
 
@@ -73,12 +80,12 @@ creates or admits one.
 
 ## Skills
 
-`approve` writes `~/.reflix/skills/<name>/SKILL.md`: frontmatter (`name`, `description`,
+`approve` writes `~/.reflex/skills/<name>/SKILL.md`: frontmatter (`name`, `description`,
 provenance metadata with short session references), when to use, numbered consensus steps,
 completion criteria and notes. No transcript excerpts. The file is redacted again, checked for
 leaks and kept at 150 lines or fewer.
 
-`install` copies it into `~/.claude/skills/<name>/` or `~/.codex/skills/<name>/` only after a
+`install` copies it into `~/.claude/skills/<name>/`, `~/.codex/skills/<name>/` or `~/.cursor/skills/<name>/` only after a
 per-target confirmation, never overwriting. `validate --run` creates a fresh git repository with a
 bug none of the historical sessions saw, installs the skill project-locally, and runs a
 non-persistent Claude Code session with restricted tools to show the skill being invoked and the
@@ -86,15 +93,15 @@ tests passing.
 
 ## Storage
 
-`~/.reflix/reflix.db` (mode 0600, directory 0700): scans, redacted traces, suggestions and their
+`~/.reflex/reflex.db` (mode 0600, directory 0700): scans, redacted traces, suggestions and their
 status, generated skills and installations. `PRAGMA user_version` gates schema changes.
 
 ## Configuration
 
 | Variable | Purpose |
 | --- | --- |
-| `REFLIX_HOME` | Reflix data folder (default `~/.reflix`) |
-| `REFLIX_CLAUDE_DIR`, `REFLIX_CODEX_DIR`, `CODEX_HOME` | Transcript locations |
-| `REFLIX_CLAUDE_SKILLS_DIR`, `REFLIX_CODEX_SKILLS_DIR` | Install targets |
-| `REFLIX_DEBUG=1` | Local counters on stderr (counts only, never content) |
-| `REFLIX_REDACT_USER` | Extra user name to redact |
+| `REFLEX_HOME` | Reflex data folder (default `~/.reflex`) |
+| `REFLEX_CLAUDE_DIR`, `REFLEX_CODEX_DIR`, `CODEX_HOME`, `REFLEX_CURSOR_DIR` | Transcript locations |
+| `REFLEX_CLAUDE_SKILLS_DIR`, `REFLEX_CODEX_SKILLS_DIR`, `REFLEX_CURSOR_SKILLS_DIR` | Install targets |
+| `REFLEX_DEBUG=1` | Local counters on stderr (counts only, never content) |
+| `REFLEX_REDACT_USER` | Extra user name to redact |

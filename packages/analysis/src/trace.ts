@@ -1,6 +1,6 @@
-import type { ActionCategory, CommandFingerprint, NormalizedSession, WorkflowTrace } from "@reflix/core";
-import { shortHash } from "@reflix/core";
-import { excerpt } from "@reflix/safety";
+import type { ActionCategory, CommandFingerprint, NormalizedSession, WorkflowTrace } from "@reflex/core";
+import { shortHash } from "@reflex/core";
+import { excerpt } from "@reflex/safety";
 import { type FileCategory, MODIFY_ACTIONS, VERIFY_ACTIONS, classifyCommand, fileAction, fileCategory } from "./classify";
 import { intentTerms } from "./intents";
 

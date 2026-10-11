@@ -84,7 +84,7 @@ const RULES: Rule[] = [
 function currentUserPattern(): RegExp | undefined {
   let name: string | undefined;
   try {
-    name = process.env.REFLIX_REDACT_USER ?? userInfo().username;
+    name = process.env.REFLEX_REDACT_USER ?? userInfo().username;
   } catch {
     name = undefined;
   }

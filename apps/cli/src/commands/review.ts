@@ -1,10 +1,10 @@
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
-import { SOURCE_LABELS, sha256 } from "@reflix/core";
-import { analyze, type Suggestion } from "@reflix/analysis";
-import { displayPath, excerpt, pathExists } from "@reflix/safety";
-import { type StoredSuggestion, Store, paths } from "@reflix/storage";
-import { generateSkill, storeGenerated } from "@reflix/skills";
+import { SOURCE_LABELS, sha256 } from "@reflex/core";
+import { analyze, type Suggestion } from "@reflex/analysis";
+import { displayPath, excerpt, pathExists } from "@reflex/safety";
+import { type StoredSuggestion, Store, paths } from "@reflex/storage";
+import { generateSkill, storeGenerated } from "@reflex/skills";
 import { c, chooseKey, confirm, fileBlock, interactive, ok, out, pct, plural, rows, shortDate, title } from "../ui";
 import { installFlow } from "./skills";
 
@@ -90,12 +90,12 @@ export function renderShow(entry: StoredSuggestion): void {
 }
 
 function requireScan(store: Store): void {
-  if (!store.latestScan()) throw new Error("No scan yet. Run `reflix scan --days 7` first.");
+  if (!store.latestScan()) throw new Error("No scan yet. Run `reflex scan --days 7` first.");
 }
 
 function findOrThrow(store: Store, ref: string): StoredSuggestion {
   const s = store.findSuggestion(ref);
-  if (!s) throw new Error(`No suggestion "${ref.slice(0, 40)}". Run \`reflix suggest\` to list them.`);
+  if (!s) throw new Error(`No suggestion "${ref.slice(0, 40)}". Run \`reflex suggest\` to list them.`);
   return s;
 }
 
@@ -111,10 +111,10 @@ export async function suggest(opts: { all?: boolean; interactive?: boolean }): P
 
     if (!list.length) {
       title("No repeated workflows found");
-      out(`Reflix looked at ${plural(traces.length, "session")} and found no behavior repeated in at least 3 independent sessions.`);
+      out(`Reflex looked at ${plural(traces.length, "session")} and found no behavior repeated in at least 3 independent sessions.`);
       out("It does not manufacture suggestions from one-off tasks.");
       out();
-      out(`Try a longer history window: ${c.cyan("reflix scan --days 30")}`);
+      out(`Try a longer history window: ${c.cyan("reflex scan --days 30")}`);
       return;
     }
 
@@ -125,7 +125,7 @@ export async function suggest(opts: { all?: boolean; interactive?: boolean }): P
 
     const pending = visible.filter((s) => s.status === "pending");
     if (opts.interactive === false || !interactive() || !pending.length) {
-      out(`Review: ${c.cyan("reflix evidence 1")} · ${c.cyan("reflix approve 1")} · ${c.cyan("reflix reject 1")}`);
+      out(`Review: ${c.cyan("reflex evidence 1")} · ${c.cyan("reflex approve 1")} · ${c.cyan("reflex reject 1")}`);
       return;
     }
     for (const entry of pending) {
@@ -140,7 +140,7 @@ export async function suggest(opts: { all?: boolean; interactive?: boolean }): P
 async function reviewLoop(store: Store, entry: StoredSuggestion): Promise<"next" | "quit"> {
   for (;;) {
     const action = await chooseKey(`#${entry.rank} ${entry.data.title}`, [
-      { value: "a", label: "Approve", hint: "generate a skill in ~/.reflix/skills" },
+      { value: "a", label: "Approve", hint: "generate a skill in ~/.reflex/skills" },
       { value: "e", label: "Evidence", hint: "show the sessions behind this" },
       { value: "r", label: "Reject", hint: "don't suggest this again" },
       { value: "s", label: "Skip for now" },
@@ -154,7 +154,7 @@ async function reviewLoop(store: Store, entry: StoredSuggestion): Promise<"next"
     }
     if (action === "r") {
       store.setStatus(entry.slug, "rejected");
-      ok(`Rejected ${entry.slug}. It won't be suggested again unless you run \`reflix suggest --all\`.`);
+      ok(`Rejected ${entry.slug}. It won't be suggested again unless you run \`reflex suggest --all\`.`);
       return "next";
     }
     await approveEntry(store, entry, {});
@@ -170,7 +170,7 @@ export async function approveEntry(store: Store, entry: StoredSuggestion, opts: 
   if (await pathExists(file)) {
     const current = await readFile(file, "utf8");
     const editedByUser = !previous || previous.contentHash !== sha256(current);
-    if (editedByUser && !(await confirm(`${displayPath(file)} was edited after Reflix generated it. Replace it with a fresh version?`, opts))) {
+    if (editedByUser && !(await confirm(`${displayPath(file)} was edited after Reflex generated it. Replace it with a fresh version?`, opts))) {
       out("Kept the existing file. Nothing was changed.");
       return;
     }
@@ -181,13 +181,13 @@ export async function approveEntry(store: Store, entry: StoredSuggestion, opts: 
 
   out();
   ok(`Approved. Generated ${c.bold(displayPath(path))} ${c.dim(`(${skill.content.trimEnd().split("\n").length} lines)`)}`);
-  out(c.dim("Generation only writes to Reflix's own folder. Nothing was installed into Claude Code or Codex."));
+  out(c.dim("Generation only writes to Reflex's own folder. Nothing was installed into Claude Code, Codex or Cursor."));
   out();
   fileBlock(displayPath(path), skill.content);
   out();
   if (opts.noInstall) return;
   if (interactive() && !opts.yes) await installFlow(store, skill.name, {});
-  else out(`Install it explicitly: ${c.cyan(`reflix install ${skill.name}`)}`);
+  else out(`Install it explicitly: ${c.cyan(`reflex install ${skill.name}`)}`);
 }
 
 export async function show(ref: string): Promise<void> {
@@ -228,7 +228,7 @@ export async function reject(ref: string): Promise<void> {
   try {
     const entry = findOrThrow(store, ref);
     store.setStatus(entry.slug, "rejected");
-    ok(`Rejected ${entry.slug}. It won't be suggested again (see \`reflix suggest --all\`).`);
+    ok(`Rejected ${entry.slug}. It won't be suggested again (see \`reflex suggest --all\`).`);
   } finally {
     store.close();
   }

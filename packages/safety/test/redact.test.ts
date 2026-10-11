@@ -60,7 +60,7 @@ describe("redact", () => {
 
   it("only treats /home and /Users at the start of a path as a home directory", () => {
     expect(redact("open file:///Users/alice/a.txt")).toBe("open file://~/a.txt");
-    expect(redactPath("/tmp/reflix-x1/home/reflix.db")).toBe("/tmp/reflix-x1/home/reflix.db");
+    expect(redactPath("/tmp/reflex-x1/home/reflex.db")).toBe("/tmp/reflex-x1/home/reflex.db");
     expect(redactPath("/srv/app/Users/list.ts")).toBe("/srv/app/Users/list.ts");
   });
 

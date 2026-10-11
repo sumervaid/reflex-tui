@@ -42,7 +42,7 @@ export async function writeNewFile(path: string, content: string, mode = 0o644):
 }
 
 /**
- * Atomically replace a file that Reflix owns. Writes a private temp file next to the target and
+ * Atomically replace a file that Reflex owns. Writes a private temp file next to the target and
  * renames it into place; rename replaces a symlink itself rather than following it.
  */
 export async function replaceOwnedFile(path: string, content: string, mode = 0o644): Promise<void> {

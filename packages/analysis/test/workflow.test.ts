@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import type { NormalizedSession, WorkflowTrace } from "@reflix/core";
-import { DEBUG_DEPENDENCY, EXPLAIN_CI, FIX_CI, ONE_OFFS, REVIEW_PR, type FixtureSession } from "@reflix/test-fixtures";
+import type { NormalizedSession, WorkflowTrace } from "@reflex/core";
+import { DEBUG_DEPENDENCY, EXPLAIN_CI, FIX_CI, ONE_OFFS, REVIEW_PR, type FixtureSession } from "@reflex/test-fixtures";
 import { analyze, isSafeExample } from "../src/suggest";
 import { deduplicate } from "../src/dedup";
 import { buildTrace } from "../src/trace";

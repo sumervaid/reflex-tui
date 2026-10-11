@@ -193,25 +193,25 @@ importers:
       '@clack/prompts':
         specifier: ^0.11.0
         version: 0.11.0
-      '@reflix/adapters':
+      '@reflex/adapters':
         specifier: workspace:*
         version: link:../../packages/adapters
-      '@reflix/analysis':
+      '@reflex/analysis':
         specifier: workspace:*
         version: link:../../packages/analysis
-      '@reflix/core':
+      '@reflex/core':
         specifier: workspace:*
         version: link:../../packages/core
-      '@reflix/safety':
+      '@reflex/safety':
         specifier: workspace:*
         version: link:../../packages/safety
-      '@reflix/skills':
+      '@reflex/skills':
         specifier: workspace:*
         version: link:../../packages/skills
-      '@reflix/storage':
+      '@reflex/storage':
         specifier: workspace:*
         version: link:../../packages/storage
-      '@reflix/test-fixtures':
+      '@reflex/test-fixtures':
         specifier: workspace:*
         version: link:../../packages/test-fixtures
       commander:
@@ -226,33 +226,33 @@ importers:
 
   packages/adapters:
     dependencies:
-      '@reflix/core':
+      '@reflex/core':
         specifier: workspace:*
         version: link:../core
-      '@reflix/safety':
+      '@reflex/safety':
         specifier: workspace:*
         version: link:../safety
       zod:
         specifier: ^4.1.12
         version: 4.6.5
     devDependencies:
-      '@reflix/test-fixtures':
+      '@reflex/test-fixtures':
         specifier: workspace:*
         version: link:../test-fixtures
 
   packages/analysis:
     dependencies:
-      '@reflix/core':
+      '@reflex/core':
         specifier: workspace:*
         version: link:../core
-      '@reflix/safety':
+      '@reflex/safety':
         specifier: workspace:*
         version: link:../safety
     devDependencies:
-      '@reflix/adapters':
+      '@reflex/adapters':
         specifier: workspace:*
         version: link:../adapters
-      '@reflix/test-fixtures':
+      '@reflex/test-fixtures':
         specifier: workspace:*
         version: link:../test-fixtures
 
@@ -262,29 +262,29 @@ importers:
 
   packages/skills:
     dependencies:
-      '@reflix/analysis':
+      '@reflex/analysis':
         specifier: workspace:*
         version: link:../analysis
-      '@reflix/core':
+      '@reflex/core':
         specifier: workspace:*
         version: link:../core
-      '@reflix/safety':
+      '@reflex/safety':
         specifier: workspace:*
         version: link:../safety
     devDependencies:
-      '@reflix/adapters':
+      '@reflex/adapters':
         specifier: workspace:*
         version: link:../adapters
-      '@reflix/test-fixtures':
+      '@reflex/test-fixtures':
         specifier: workspace:*
         version: link:../test-fixtures
 
   packages/storage:
     dependencies:
-      '@reflix/analysis':
+      '@reflex/analysis':
         specifier: workspace:*
         version: link:../analysis
-      '@reflix/core':
+      '@reflex/core':
         specifier: workspace:*
         version: link:../core
       zod:
@@ -293,7 +293,7 @@ importers:
 
   packages/test-fixtures:
     dependencies:
-      '@reflix/core':
+      '@reflex/core':
         specifier: workspace:*
         version: link:../core
 

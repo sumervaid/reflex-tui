@@ -1,5 +1,5 @@
 {
-  "name": "@reflix/storage",
+  "name": "@reflex/storage",
   "version": "0.1.0",
   "private": true,
   "type": "module",
@@ -12,8 +12,8 @@
     "typecheck": "tsc -p tsconfig.json"
   },
   "dependencies": {
-    "@reflix/analysis": "workspace:*",
-    "@reflix/core": "workspace:*",
+    "@reflex/analysis": "workspace:*",
+    "@reflex/core": "workspace:*",
     "zod": "^4.1.12"
   }
 }

@@ -1,8 +1,8 @@
 import { lstat, readdir } from "node:fs/promises";
 import { basename, join } from "node:path";
-import type { NormalizedSession, SessionEvent, SourceId, TranscriptFile } from "@reflix/core";
-import { shortHash } from "@reflix/core";
-import { displayPath, redact } from "@reflix/safety";
+import type { NormalizedSession, SessionEvent, SourceId, TranscriptFile } from "@reflex/core";
+import { shortHash } from "@reflex/core";
+import { displayPath, redact } from "@reflex/safety";
 
 export const MAX_EVENTS_PER_SESSION = 3000;
 export const MAX_REQUESTS_PER_SESSION = 40;
@@ -33,6 +33,15 @@ export function isHarnessText(text: string): boolean {
 
 export function stripHarnessBlocks(text: string): string {
   return text.replace(/<system-reminder>[\s\S]*?<\/system-reminder>/g, "").trim();
+}
+
+/** Files touched by an apply_patch-style patch (`*** Update File: <path>`). */
+export function patchedFiles(patch: string): Array<{ op: "edit" | "write"; path: string }> {
+  const out: Array<{ op: "edit" | "write"; path: string }> = [];
+  for (const m of patch.matchAll(/^\*\*\* (Update|Add|Delete) File: (.+)$/gm)) {
+    out.push({ op: m[1] === "Add" ? "write" : "edit", path: m[2]!.trim() });
+  }
+  return out.slice(0, 50);
 }
 
 /** Files directly at `dir/**depth**` matching `ext`. Never follows symlinks, never recurses deeper. */

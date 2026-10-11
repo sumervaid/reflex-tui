@@ -1,10 +1,10 @@
 import { mkdir, readFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import { join } from "node:path";
-import { sha256 } from "@reflix/core";
-import { assertInside, assertSlug, displayPath, ensureDir, isSymlink, pathExists, replaceOwnedFile, writeNewFile } from "@reflix/safety";
+import { sha256 } from "@reflex/core";
+import { assertInside, assertSlug, displayPath, ensureDir, isSymlink, pathExists, replaceOwnedFile, writeNewFile } from "@reflex/safety";
 
-export type TargetId = "claude-code" | "codex";
+export type TargetId = "claude-code" | "codex" | "cursor";
 
 export type InstallTarget = {
   id: TargetId;
@@ -18,18 +18,25 @@ export type InstallTarget = {
 export async function detectTargets(): Promise<InstallTarget[]> {
   const claudeHome = join(homedir(), ".claude");
   const codexHome = process.env.CODEX_HOME ?? join(homedir(), ".codex");
+  const cursorHome = join(homedir(), ".cursor");
   return [
     {
       id: "claude-code",
       label: "Claude Code",
-      skillsDir: process.env.REFLIX_CLAUDE_SKILLS_DIR ?? join(claudeHome, "skills"),
-      detected: process.env.REFLIX_CLAUDE_SKILLS_DIR ? true : await pathExists(claudeHome),
+      skillsDir: process.env.REFLEX_CLAUDE_SKILLS_DIR ?? join(claudeHome, "skills"),
+      detected: process.env.REFLEX_CLAUDE_SKILLS_DIR ? true : await pathExists(claudeHome),
     },
     {
       id: "codex",
       label: "Codex",
-      skillsDir: process.env.REFLIX_CODEX_SKILLS_DIR ?? join(codexHome, "skills"),
-      detected: process.env.REFLIX_CODEX_SKILLS_DIR ? true : await pathExists(codexHome),
+      skillsDir: process.env.REFLEX_CODEX_SKILLS_DIR ?? join(codexHome, "skills"),
+      detected: process.env.REFLEX_CODEX_SKILLS_DIR ? true : await pathExists(codexHome),
+    },
+    {
+      id: "cursor",
+      label: "Cursor",
+      skillsDir: process.env.REFLEX_CURSOR_SKILLS_DIR ?? join(cursorHome, "skills"),
+      detected: process.env.REFLEX_CURSOR_SKILLS_DIR ? true : await pathExists(cursorHome),
     },
   ];
 }
@@ -67,7 +74,7 @@ export async function install(plan: InstallPlan, content: string): Promise<{ pat
   return { path: plan.destination, contentHash: sha256(content) };
 }
 
-/** Write a generated skill into Reflix-owned storage (~/.reflix/skills/<name>/). */
+/** Write a generated skill into Reflex-owned storage (~/.reflex/skills/<name>/). */
 export async function storeGenerated(skillsRoot: string, name: string, content: string, provenanceJson: string): Promise<string> {
   assertSlug(name);
   await ensureDir(skillsRoot, 0o700);

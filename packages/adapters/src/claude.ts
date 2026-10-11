@@ -1,9 +1,9 @@
 import { homedir } from "node:os";
 import { basename, join } from "node:path";
 import { z } from "zod";
-import type { DetectionResult, DiscoveryOptions, ParseResult, TranscriptAdapter, TranscriptFile } from "@reflix/core";
-import { debug } from "@reflix/core";
-import { displayPath } from "@reflix/safety";
+import type { DetectionResult, DiscoveryOptions, ParseResult, TranscriptAdapter, TranscriptFile } from "@reflex/core";
+import { debug } from "@reflex/core";
+import { displayPath } from "@reflex/safety";
 import { readJsonl } from "./jsonl";
 import { SessionBuilder, clean, cutoffFor, isDirectory, listFiles, toTranscriptFiles } from "./common";
 
@@ -71,7 +71,7 @@ export class ClaudeCodeAdapter implements TranscriptAdapter {
   readonly root: string;
 
   constructor(root?: string) {
-    this.root = root ?? process.env.REFLIX_CLAUDE_DIR ?? join(homedir(), ".claude", "projects");
+    this.root = root ?? process.env.REFLEX_CLAUDE_DIR ?? join(homedir(), ".claude", "projects");
   }
 
   async detect(): Promise<DetectionResult> {

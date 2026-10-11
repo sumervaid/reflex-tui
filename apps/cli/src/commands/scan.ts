@@ -1,15 +1,15 @@
-import type { NormalizedSession, SourceId, TranscriptAdapter } from "@reflix/core";
-import { debug } from "@reflix/core";
-import { ClaudeCodeAdapter, CodexAdapter } from "@reflix/adapters";
-import { type Suggestion, analyze, buildTrace, deduplicate } from "@reflix/analysis";
-import { displayPath } from "@reflix/safety";
-import { Store, paths } from "@reflix/storage";
+import type { NormalizedSession, SourceId, TranscriptAdapter } from "@reflex/core";
+import { debug } from "@reflex/core";
+import { ClaudeCodeAdapter, CodexAdapter, CursorAdapter } from "@reflex/adapters";
+import { type Suggestion, analyze, buildTrace, deduplicate } from "@reflex/analysis";
+import { displayPath } from "@reflex/safety";
+import { Store, paths } from "@reflex/storage";
 import { c, confirm, out, plural, rows, spinner, title, warn } from "../ui";
 
 /** Bounds parse time and the quadratic clustering step on very large histories. */
 const MAX_FILES_PER_SOURCE = 2000;
 
-export type ScanOptions = { days: number; claudeDir?: string; codexDir?: string; yes?: boolean };
+export type ScanOptions = { days: number; claudeDir?: string; codexDir?: string; cursorDir?: string; yes?: boolean };
 
 export function parseDays(value: string): number {
   const n = Number(value);
@@ -18,18 +18,19 @@ export function parseDays(value: string): number {
 }
 
 function chooseAdapters(opts: ScanOptions): { adapters: TranscriptAdapter[]; mode: "local" | "custom" } {
-  if (opts.claudeDir || opts.codexDir) {
+  if (opts.claudeDir || opts.codexDir || opts.cursorDir) {
     const adapters: TranscriptAdapter[] = [];
     if (opts.claudeDir) adapters.push(new ClaudeCodeAdapter(opts.claudeDir));
     if (opts.codexDir) adapters.push(new CodexAdapter(opts.codexDir));
+    if (opts.cursorDir) adapters.push(new CursorAdapter(opts.cursorDir));
     return { adapters, mode: "custom" };
   }
-  return { adapters: [new ClaudeCodeAdapter(), new CodexAdapter()], mode: "local" };
+  return { adapters: [new ClaudeCodeAdapter(), new CodexAdapter(), new CursorAdapter()], mode: "local" };
 }
 
 export async function scan(opts: ScanOptions): Promise<void> {
   const { adapters, mode } = chooseAdapters(opts);
-  title(`Reflix scan · last ${plural(opts.days, "day")}`);
+  title(`Reflex scan · last ${plural(opts.days, "day")}`);
 
   const found: TranscriptAdapter[] = [];
   const detection: Array<[string, string]> = [];
@@ -43,9 +44,9 @@ export async function scan(opts: ScanOptions): Promise<void> {
   out();
 
   if (!found.length) {
-    out("No supported Claude Code or Codex history was found.");
+    out("No supported Claude Code, Codex or Cursor history was found.");
     out();
-    out(`If your history lives elsewhere: ${c.cyan("reflix scan --claude-dir <dir>")} or ${c.cyan("--codex-dir <dir>")}`);
+    out(`If your history lives elsewhere: ${c.cyan("reflex scan --claude-dir <dir>")}, ${c.cyan("--codex-dir <dir>")} or ${c.cyan("--cursor-dir <dir>")}`);
     return;
   }
 
@@ -117,16 +118,16 @@ export async function scan(opts: ScanOptions): Promise<void> {
   if (folded.length) out(c.dim(`  counted once: ${folded.join(", ")}`));
   if (partial) out(c.dim(`  ${plural(partial, "session")} partially recovered (${plural(skippedRecords, "malformed record")} skipped)`));
   if (unreadable) warn(`${plural(unreadable, "unreadable file")} skipped`);
-  if (capped) warn(`${plural(capped, "older file")} skipped; Reflix reads the ${MAX_FILES_PER_SOURCE} most recent per source. Use a shorter --days window.`);
+  if (capped) warn(`${plural(capped, "older file")} skipped; Reflex reads the ${MAX_FILES_PER_SOURCE} most recent per source. Use a shorter --days window.`);
   out(`  ${c.green("0 bytes uploaded")} · transcripts were read locally; only redacted summaries were stored in ${displayPath(paths.db())}`);
   out();
   if (!traces.length) {
-    out(`No sessions in the last ${plural(opts.days, "day")}. Try a longer history window: ${c.cyan("reflix scan --days 30")}`);
+    out(`No sessions in the last ${plural(opts.days, "day")}. Try a longer history window: ${c.cyan("reflex scan --days 30")}`);
     return;
   }
   out(
     suggestions.length
-      ? `${plural(suggestions.length, "repeated workflow")} found. Next: ${c.cyan("reflix suggest")}`
-      : `No repeated workflows yet. Details: ${c.cyan("reflix suggest")}`,
+      ? `${plural(suggestions.length, "repeated workflow")} found. Next: ${c.cyan("reflex suggest")}`
+      : `No repeated workflows yet. Details: ${c.cyan("reflex suggest")}`,
   );
 }

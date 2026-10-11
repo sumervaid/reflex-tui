@@ -1,4 +1,4 @@
-import type { ActionCategory } from "@reflix/core";
+import type { ActionCategory } from "@reflex/core";
 
 export type StepKind = ActionCategory | "reproduce-failure" | "apply-fix";
 

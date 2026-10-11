@@ -1,4 +1,4 @@
-import type { ActionCategory, CommandFingerprint, FileOp } from "@reflix/core";
+import type { ActionCategory, CommandFingerprint, FileOp } from "@reflex/core";
 
 export type FileCategory =
   | "ci-config"

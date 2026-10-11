@@ -1,5 +1,5 @@
 {
-  "name": "reflix",
+  "name": "reflex-skills",
   "version": "0.1.0",
   "type": "module",
   "description": "Turn repeated Claude Code and Codex workflows into reusable skills, locally.",
@@ -19,7 +19,7 @@
     "node": ">=22.13"
   },
   "bin": {
-    "reflix": "./dist/reflix.js"
+    "reflex": "./dist/reflex.js"
   },
   "files": [
     "dist"
@@ -31,13 +31,13 @@
   },
   "devDependencies": {
     "@clack/prompts": "^0.11.0",
-    "@reflix/adapters": "workspace:*",
-    "@reflix/analysis": "workspace:*",
-    "@reflix/core": "workspace:*",
-    "@reflix/safety": "workspace:*",
-    "@reflix/skills": "workspace:*",
-    "@reflix/storage": "workspace:*",
-    "@reflix/test-fixtures": "workspace:*",
+    "@reflex/adapters": "workspace:*",
+    "@reflex/analysis": "workspace:*",
+    "@reflex/core": "workspace:*",
+    "@reflex/safety": "workspace:*",
+    "@reflex/skills": "workspace:*",
+    "@reflex/storage": "workspace:*",
+    "@reflex/test-fixtures": "workspace:*",
     "commander": "^14.0.1",
     "picocolors": "^1.1.1",
     "tsup": "^8.5.0"

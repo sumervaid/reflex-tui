@@ -1,11 +1,11 @@
 import { homedir } from "node:os";
 import { basename, join } from "node:path";
 import { z } from "zod";
-import type { DetectionResult, DiscoveryOptions, ParseResult, TranscriptAdapter, TranscriptFile } from "@reflix/core";
-import { debug } from "@reflix/core";
-import { displayPath } from "@reflix/safety";
+import type { DetectionResult, DiscoveryOptions, ParseResult, TranscriptAdapter, TranscriptFile } from "@reflex/core";
+import { debug } from "@reflex/core";
+import { displayPath } from "@reflex/safety";
 import { readJsonl } from "./jsonl";
-import { SessionBuilder, clean, cutoffFor, isDirectory, listFiles, toTranscriptFiles } from "./common";
+import { SessionBuilder, clean, cutoffFor, isDirectory, listFiles, patchedFiles, toTranscriptFiles } from "./common";
 
 /**
  * Codex CLI rollout files: one JSON object per line, `{ timestamp, type, payload }`, where type is
@@ -53,14 +53,6 @@ function shellText(command: unknown): string | undefined {
   return undefined;
 }
 
-function patchedFiles(patch: string): Array<{ op: "edit" | "write"; path: string }> {
-  const out: Array<{ op: "edit" | "write"; path: string }> = [];
-  for (const m of patch.matchAll(/^\*\*\* (Update|Add|Delete) File: (.+)$/gm)) {
-    out.push({ op: m[1] === "Add" ? "write" : "edit", path: m[2]!.trim() });
-  }
-  return out.slice(0, 50);
-}
-
 function exitFailed(output: unknown): boolean {
   if (typeof output !== "string") return false;
   try {
@@ -79,7 +71,7 @@ export class CodexAdapter implements TranscriptAdapter {
 
   constructor(root?: string) {
     const codexHome = process.env.CODEX_HOME ?? join(homedir(), ".codex");
-    this.root = root ?? process.env.REFLIX_CODEX_DIR ?? join(codexHome, "sessions");
+    this.root = root ?? process.env.REFLEX_CODEX_DIR ?? join(codexHome, "sessions");
   }
 
   async detect(): Promise<DetectionResult> {

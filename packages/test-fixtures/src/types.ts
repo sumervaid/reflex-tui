@@ -1,4 +1,4 @@
-import type { SourceId } from "@reflix/core";
+import type { SourceId } from "@reflex/core";
 
 export type FixtureStep =
   | { bash: string; fail?: boolean }

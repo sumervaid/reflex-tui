@@ -3,14 +3,14 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { CodexAdapter } from "../src/codex";
-import { FIX_CI, toCodexLines } from "@reflix/test-fixtures";
+import { FIX_CI, toCodexLines } from "@reflex/test-fixtures";
 
 const NOW = new Date("2026-10-11T12:00:00Z");
 const opts = { days: 7, now: NOW };
 let root: string;
 
 beforeEach(async () => {
-  root = await mkdtemp(join(tmpdir(), "reflix-codex-"));
+  root = await mkdtemp(join(tmpdir(), "reflex-codex-"));
 });
 afterEach(async () => {
   await rm(root, { recursive: true, force: true });

@@ -1,16 +1,16 @@
 import { spawnSync } from "node:child_process";
 import { rm, stat } from "node:fs/promises";
 import { join } from "node:path";
-import { SOURCE_LABELS } from "@reflix/core";
-import { createAdapters } from "@reflix/adapters";
-import { analyze, deduplicate, isGenericTrace } from "@reflix/analysis";
-import { displayPath, excerpt, pathExists } from "@reflix/safety";
-import { Store, paths } from "@reflix/storage";
-import { detectTargets } from "@reflix/skills";
+import { SOURCE_LABELS } from "@reflex/core";
+import { createAdapters } from "@reflex/adapters";
+import { analyze, deduplicate, isGenericTrace } from "@reflex/analysis";
+import { displayPath, excerpt, pathExists } from "@reflex/safety";
+import { Store, paths } from "@reflex/storage";
+import { detectTargets } from "@reflex/skills";
 import { c, confirm, ok, out, plural, rows, shortDate, title } from "../ui";
 
 export async function doctor(): Promise<void> {
-  title("Reflix doctor");
+  title("Reflex doctor");
   const nodeMajor = Number(process.versions.node.split(".")[0]);
   const home = paths.home();
   let homeMode = "not created yet";
@@ -18,8 +18,8 @@ export async function doctor(): Promise<void> {
   rows([
     ["Node.js", `${process.versions.node} ${nodeMajor >= 22 ? c.green("ok") : c.red("needs >= 22.13")}`],
     ["SQLite", `built-in node:sqlite ${c.green("ok")}`],
-    ["Reflix home", `${displayPath(home)} ${c.dim(homeMode)}`],
-    ["Network", "Reflix opens no network connections (enforced in-process)"],
+    ["Reflex home", `${displayPath(home)} ${c.dim(homeMode)}`],
+    ["Network", "Reflex opens no network connections (enforced in-process)"],
   ]);
   out();
   out("Transcript sources (detected by location; nothing is read)");
@@ -43,7 +43,7 @@ export async function sessions(): Promise<void> {
   const store = new Store();
   try {
     const scan = store.latestScan();
-    if (!scan) throw new Error("No scan yet. Run `reflix scan --days 7` first.");
+    if (!scan) throw new Error("No scan yet. Run `reflex scan --days 7` first.");
     const traces = store.traces();
     const { instances } = deduplicate(traces);
     const primary = new Set(instances.map((i) => i.primary.sessionId));
@@ -62,13 +62,13 @@ export async function stats(): Promise<void> {
   const store = new Store();
   try {
     const scan = store.latestScan();
-    if (!scan) throw new Error("No scan yet. Run `reflix scan --days 7` first.");
+    if (!scan) throw new Error("No scan yet. Run `reflex scan --days 7` first.");
     const traces = store.traces();
     const a = analyze(traces);
     const counts = store.statusCounts();
     const repos = new Set(traces.map((t) => t.projectHash).filter(Boolean));
     const approved = store.suggestions().filter((s) => s.status === "approved");
-    title("Reflix metrics (counts only, from local data)");
+    title("Reflex metrics (counts only, from local data)");
     rows([
       ["Sessions analyzed", String(traces.length)],
       ["Independent after de-duplication", String(a.stats.dedup.instances)],
@@ -96,11 +96,11 @@ export async function reset(opts: { yes?: boolean }): Promise<void> {
     out("Nothing to reset.");
     return;
   }
-  out(`This deletes Reflix's own data in ${displayPath(home)}: the local database, generated skills and validation sandboxes.`);
-  out(c.dim("Skills you installed into Claude Code or Codex are not touched."));
-  if (!(await confirm("Delete Reflix data?", opts))) return;
-  // Only remove what Reflix creates, never the whole directory: REFLIX_HOME may point anywhere.
-  for (const child of ["reflix.db", "reflix.db-journal", "skills", "validation"]) {
+  out(`This deletes Reflex's own data in ${displayPath(home)}: the local database, generated skills and validation sandboxes.`);
+  out(c.dim("Skills you installed into Claude Code, Codex or Cursor are not touched."));
+  if (!(await confirm("Delete Reflex data?", opts))) return;
+  // Only remove what Reflex creates, never the whole directory: REFLEX_HOME may point anywhere.
+  for (const child of ["reflex.db", "reflex.db-journal", "skills", "validation"]) {
     await rm(join(home, child), { recursive: true, force: true });
   }
   ok("Reset.");

@@ -1,4 +1,4 @@
-import type { WorkflowTrace } from "@reflix/core";
+import type { WorkflowTrace } from "@reflex/core";
 import { buildTfIdf, cosine } from "./intents";
 import { actionSimilarity } from "./similarity";
 

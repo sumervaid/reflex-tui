@@ -1,32 +1,33 @@
-# Reflix
+# Reflex
 
-Reflix finds the workflows you keep re-explaining to Claude Code and Codex, and turns the ones
+Reflex finds the workflows you keep re-explaining to Claude Code, Codex and Cursor, and turns the ones
 you have really repeated into reusable skills. It runs entirely on your machine.
 
 ```
 scan history → find repeats across ≥ 3 independent sessions → show evidence
-            → you approve → SKILL.md in ~/.reflix/skills → you install → a fresh agent session uses it
+            → you approve → SKILL.md in ~/.reflex/skills → you install → a fresh agent session uses it
 ```
 
 ## Quick start
 
-Requires Node.js 22.13 or newer and pnpm.
+Requires Node.js 22.13 or newer.
 
 ```sh
-npx reflix doctor             # what Reflix can see, without reading anything
-npx reflix scan --days 30     # read your Claude Code / Codex history (asks first)
-npx reflix suggest            # review suggestions: [a]pprove, [e]vidence, [r]eject
-npx reflix install <name>     # copy a skill into Claude Code and/or Codex (asks per target)
+npm install -g reflex-skills   # installs the `reflex` command (the npm name `reflex` is a different package)
+reflex doctor             # what Reflex can see, without reading anything
+reflex scan --days 30     # read your Claude Code / Codex / Cursor history (asks first)
+reflex suggest            # review suggestions: [a]pprove, [e]vidence, [r]eject
+reflex install <name>     # copy a skill into Claude Code, Codex and/or Cursor (asks per target)
 ```
 
 Suggestions need the same kind of task in at least 3 independent sessions. If a week of history
 finds nothing, try a longer window (`--days 30`).
 
-From source:
+From source (needs pnpm):
 
 ```sh
 pnpm install && pnpm build && pnpm test
-alias reflix="node $PWD/apps/cli/dist/reflix.js"
+alias reflex="node $PWD/apps/cli/dist/reflex.js"
 ```
 
 ## Commands
@@ -34,20 +35,20 @@ alias reflix="node $PWD/apps/cli/dist/reflix.js"
 | Command | What it does |
 | --- | --- |
 | `doctor` | Node and SQLite check, detected history locations and file counts, install targets, agent CLIs |
-| `scan --days <n>` | Ask per source, then read and store redacted workflow traces. `--claude-dir`, `--codex-dir`, `--yes` |
+| `scan --days <n>` | Ask per source, then read and store redacted workflow traces. `--claude-dir`, `--codex-dir`, `--cursor-dir`, `--yes` |
 | `sessions` | Sessions from the last scan, redacted |
 | `suggest` | Detect repeated workflows and review them interactively (`--no-interactive`, `--all`) |
 | `show <n\|name>` | A suggestion in detail: steps, support, uncertainty |
 | `evidence <n\|name>` | The sessions behind a suggestion: redacted request, actions, outcome, source |
-| `approve <n\|name>` | Generate `~/.reflix/skills/<name>/SKILL.md` (at most 150 lines) |
+| `approve <n\|name>` | Generate `~/.reflex/skills/<name>/SKILL.md` (at most 150 lines) |
 | `reject <n\|name>` | Stop suggesting it |
 | `skills` | Generated skills and where they are installed |
 | `show-skill <name>` | Print a generated skill |
-| `install <name>` | Install into Claude Code or Codex. `--target`, `--as <new-name>`, `--yes`. Never overwrites |
+| `install <name>` | Install into Claude Code, Codex or Cursor. `--target`, `--as <new-name>`, `--yes`. Never overwrites |
 | `explain <name>` | Why the skill exists: sessions, repositories, agents, steps, installs |
 | `validate <name>` | Static checks and installed-copy comparison. For `fix-ci`, also a fresh-task sandbox (`--run` starts Claude Code) |
 | `stats` | Counts from local data |
-| `reset` | Delete Reflix's own data (not installed skills) |
+| `reset` | Delete Reflex's own data (not installed skills) |
 
 Prompts default to No. Without a terminal, nothing is read or written unless you pass `--yes`.
 
@@ -68,10 +69,10 @@ Details: [docs/architecture.md](docs/architecture.md).
 ## Privacy and security
 
 - Transcripts are read locally and treated as data, never as instructions.
-- Reflix makes no network connections; outgoing sockets are blocked in-process.
+- Reflex makes no network connections; outgoing sockets are blocked in-process.
 - Secrets, emails, home paths and your user name are redacted before anything is stored or shown.
 - It reads only known agent history folders (or ones you pass), after asking.
-- Nothing is written outside `~/.reflix` until you install, per target, without overwriting.
+- Nothing is written outside `~/.reflex` until you install, per target, without overwriting.
 
 Threat model and mitigations: [docs/security.md](docs/security.md).
 
@@ -81,9 +82,10 @@ Threat model and mitigations: [docs/security.md](docs/security.md).
 | --- | --- | --- | --- |
 | Claude Code | `~/.claude/projects/*/*.jsonl` | `~/.claude/skills/<name>/SKILL.md` | Parser tested on fixtures matching real files; skill use verified with `validate --run` |
 | Codex | `$CODEX_HOME/sessions/YYYY/MM/DD/rollout-*.jsonl` | `~/.codex/skills/<name>/SKILL.md` | Parser follows the Codex protocol types and is tested on fixtures; not yet run against real rollouts or a live Codex session |
+| Cursor | `~/.cursor/projects/*/agent-transcripts/*/*.jsonl` | `~/.cursor/skills/<name>/SKILL.md` | Parser tested on fixtures and on real agent transcripts. Cursor doesn't record tool results, so pass/fail outcomes aren't available for its sessions |
 
-Override locations with `REFLIX_CLAUDE_DIR`, `REFLIX_CODEX_DIR`, `REFLIX_CLAUDE_SKILLS_DIR`,
-`REFLIX_CODEX_SKILLS_DIR` and `REFLIX_HOME`. `REFLIX_DEBUG=1` prints local counters (counts only).
+Override locations with `REFLEX_CLAUDE_DIR`, `REFLEX_CODEX_DIR`, `REFLEX_CURSOR_DIR`,
+`REFLEX_CLAUDE_SKILLS_DIR`, `REFLEX_CODEX_SKILLS_DIR`, `REFLEX_CURSOR_SKILLS_DIR` and `REFLEX_HOME`. `REFLEX_DEBUG=1` prints local counters (counts only).
 
 ## Walkthrough
 
@@ -92,7 +94,7 @@ Override locations with `REFLIX_CLAUDE_DIR`, `REFLIX_CODEX_DIR`, `REFLIX_CLAUDE_
 ## Development
 
 ```sh
-pnpm build       # bundles the CLI to apps/cli/dist/reflix.js
+pnpm build       # bundles the CLI to apps/cli/dist/reflex.js
 pnpm test        # vitest across all packages
 pnpm typecheck
 pnpm lint

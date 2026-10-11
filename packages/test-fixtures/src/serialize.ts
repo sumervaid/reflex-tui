@@ -1,4 +1,4 @@
-import { sha256 } from "@reflix/core";
+import { sha256 } from "@reflex/core";
 import type { FixtureSession, FixtureStep } from "./types";
 
 export const FIXTURE_HOME = "/Users/jordan";

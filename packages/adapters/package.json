@@ -1,5 +1,5 @@
 {
-  "name": "@reflix/adapters",
+  "name": "@reflex/adapters",
   "version": "0.1.0",
   "private": true,
   "type": "module",
@@ -12,11 +12,11 @@
     "typecheck": "tsc -p tsconfig.json"
   },
   "dependencies": {
-    "@reflix/core": "workspace:*",
-    "@reflix/safety": "workspace:*",
+    "@reflex/core": "workspace:*",
+    "@reflex/safety": "workspace:*",
     "zod": "^4.1.12"
   },
   "devDependencies": {
-    "@reflix/test-fixtures": "workspace:*"
+    "@reflex/test-fixtures": "workspace:*"
   }
 }

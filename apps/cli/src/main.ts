@@ -19,7 +19,7 @@ function run<A extends unknown[]>(fn: (...args: A) => Promise<void>) {
       await fn(...args);
     } catch (err) {
       fail(err instanceof Error ? err.message : String(err));
-      if (process.env.REFLIX_DEBUG === "1" && err instanceof Error) process.stderr.write(`${err.stack}\n`);
+      if (process.env.REFLEX_DEBUG === "1" && err instanceof Error) process.stderr.write(`${err.stack}\n`);
       process.exitCode = 1;
     }
   };
@@ -27,8 +27,8 @@ function run<A extends unknown[]>(fn: (...args: A) => Promise<void>) {
 
 const program = new Command();
 program
-  .name("reflix")
-  .description("Find workflows you keep re-teaching Claude Code and Codex, and turn proven repeats into reusable skills. Everything runs locally.")
+  .name("reflex")
+  .description("Find workflows you keep re-teaching Claude Code, Codex and Cursor, and turn proven repeats into reusable skills. Everything runs locally.")
   .version("0.1.0");
 
 program.command("doctor").description("check the environment and detected history locations").action(run(doctor));
@@ -39,8 +39,13 @@ program
   .option("--days <n>", "history window in days", "7")
   .option("--claude-dir <dir>", "read Claude Code transcripts from this directory")
   .option("--codex-dir <dir>", "read Codex rollouts from this directory")
+  .option("--cursor-dir <dir>", "read Cursor agent transcripts from this directory (default ~/.cursor/projects)")
   .option("-y, --yes", "consent to reading the detected history without prompting")
-  .action(run(async (o: { days: string; claudeDir?: string; codexDir?: string; yes?: boolean }) => scan({ ...o, days: parseDays(o.days) })));
+  .action(
+    run(async (o: { days: string; claudeDir?: string; codexDir?: string; cursorDir?: string; yes?: boolean }) =>
+      scan({ ...o, days: parseDays(o.days) }),
+    ),
+  );
 
 program.command("sessions").description("list sessions from the last scan (redacted)").action(run(sessions));
 
@@ -55,7 +60,7 @@ program.command("show <suggestion>").description("show a suggestion in detail (n
 program.command("evidence <suggestion>").description("show the sessions behind a suggestion").action(run(evidence));
 program
   .command("approve <suggestion>")
-  .description("generate a skill from a suggestion into ~/.reflix/skills")
+  .description("generate a skill from a suggestion into ~/.reflex/skills")
   .option("-y, --yes", "approve without prompting")
   .option("--no-install", "do not offer installation afterwards")
   .action(run(approve));
@@ -65,8 +70,8 @@ program.command("skills").description("list generated skills and where they are 
 program.command("show-skill <skill>").description("print a generated SKILL.md").action(run(showSkill));
 program
   .command("install <skill>")
-  .description("install a generated skill into Claude Code and/or Codex (asks per target)")
-  .addOption(new Option("--target <target...>", "install target").choices(["claude-code", "codex"]))
+  .description("install a generated skill into Claude Code, Codex and/or Cursor (asks per target)")
+  .addOption(new Option("--target <target...>", "install target").choices(["claude-code", "codex", "cursor"]))
   .option("--as <name>", "install under a different name")
   .option("-y, --yes", "consent to writing the skill file without prompting")
   .action(run(installCommand));
@@ -81,7 +86,7 @@ program
 program.command("stats").description("defensible counts from local data").action(run(stats));
 program
   .command("reset")
-  .description("delete Reflix's own local data (not installed skills)")
+  .description("delete Reflex's own local data (not installed skills)")
   .option("-y, --yes", "consent without prompting")
   .action(run(reset));
 

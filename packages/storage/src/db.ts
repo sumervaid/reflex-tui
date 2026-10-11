@@ -1,8 +1,8 @@
 import { chmodSync, existsSync, lstatSync, mkdirSync } from "node:fs";
 import { DatabaseSync } from "node:sqlite";
 import { z } from "zod";
-import type { SourceId, WorkflowTrace } from "@reflix/core";
-import type { Suggestion } from "@reflix/analysis";
+import type { SourceId, WorkflowTrace } from "@reflex/core";
+import type { Suggestion } from "@reflex/analysis";
 import { paths } from "./paths";
 
 export type SuggestionStatus = "pending" | "approved" | "rejected";
@@ -93,13 +93,13 @@ CREATE TABLE IF NOT EXISTS installations (
 `;
 
 const TraceShape = z
-  .object({ sessionId: z.string(), source: z.enum(["claude-code", "codex"]), actionSequence: z.array(z.string()), intents: z.array(z.string()) })
+  .object({ sessionId: z.string(), source: z.enum(["claude-code", "codex", "cursor"]), actionSequence: z.array(z.string()), intents: z.array(z.string()) })
   .passthrough();
 const SuggestionShape = z.object({ slug: z.string(), title: z.string(), steps: z.array(z.unknown()), evidence: z.array(z.unknown()) }).passthrough();
 
 function parseJson<T>(raw: string, shape: z.ZodType, what: string): T {
   const result = shape.safeParse(JSON.parse(raw));
-  if (!result.success) throw new Error(`Reflix database has a malformed ${what}. Run \`reflix scan\` again.`);
+  if (!result.success) throw new Error(`Reflex database has a malformed ${what}. Run \`reflex scan\` again.`);
   return result.data as T;
 }
 
@@ -108,12 +108,12 @@ export class Store {
 
   constructor(file = paths.db()) {
     const dir = paths.home();
-    if (existsSync(dir) && lstatSync(dir).isSymbolicLink()) throw new Error(`Refusing to use symlinked Reflix home ${dir}`);
+    if (existsSync(dir) && lstatSync(dir).isSymbolicLink()) throw new Error(`Refusing to use symlinked Reflex home ${dir}`);
     mkdirSync(dir, { recursive: true, mode: 0o700 });
     this.db = new DatabaseSync(file);
     chmodSync(file, 0o600);
     const version = Number((this.db.prepare("PRAGMA user_version").get() as { user_version: number }).user_version);
-    // Sessions are derived data and can always be rebuilt by `reflix scan`.
+    // Sessions are derived data and can always be rebuilt by `reflex scan`.
     if (version < SCHEMA_VERSION) this.db.exec("DROP TABLE IF EXISTS sessions");
     this.db.exec(SCHEMA);
     this.db.exec(`PRAGMA user_version = ${SCHEMA_VERSION}`);

@@ -1,8 +1,11 @@
-export type SourceId = "claude-code" | "codex";
+export type SourceId = "claude-code" | "codex" | "cursor";
+
+export const SOURCE_IDS: readonly SourceId[] = ["claude-code", "codex", "cursor"];
 
 export const SOURCE_LABELS: Record<SourceId, string> = {
   "claude-code": "Claude Code",
   codex: "Codex",
+  cursor: "Cursor",
 };
 
 /** All text fields below are redacted by the adapter before they leave it. */

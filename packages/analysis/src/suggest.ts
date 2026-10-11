@@ -1,6 +1,6 @@
-import type { ActionCategory, SourceId, WorkflowTrace } from "@reflix/core";
-import { debug } from "@reflix/core";
-import { toSlug } from "@reflix/safety";
+import type { ActionCategory, SourceId, WorkflowTrace } from "@reflex/core";
+import { SOURCE_IDS, debug } from "@reflex/core";
+import { toSlug } from "@reflex/safety";
 import { FAMILIES } from "./catalog";
 import { CLUSTER_THRESHOLD, clusterTraces } from "./cluster";
 import { type DedupStats, type WorkflowInstance, deduplicate } from "./dedup";
@@ -275,7 +275,7 @@ export function analyze(traces: WorkflowTrace[]): Analysis {
     const repos = [...new Set(group.map((g) => g.primary.projectHash ?? g.id))];
     const repoNames = [...new Set(group.map((g) => g.primary.projectName).filter((x): x is string => !!x))].sort();
     const sources: Partial<Record<SourceId, number>> = {};
-    for (const id of ["claude-code", "codex"] as const) {
+    for (const id of SOURCE_IDS) {
       const count = group.filter((g) => g.primary.source === id).length;
       if (count) sources[id] = count;
     }

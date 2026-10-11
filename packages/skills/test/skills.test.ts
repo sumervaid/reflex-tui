@@ -2,10 +2,10 @@ import { mkdtemp, mkdir, readFile, rm, symlink, writeFile } from "node:fs/promis
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { ClaudeCodeAdapter, CodexAdapter } from "@reflix/adapters";
-import { analyze, buildTrace, type Suggestion } from "@reflix/analysis";
-import { writeFixtureHistory } from "@reflix/test-fixtures";
-import { findLeaks } from "@reflix/safety";
+import { ClaudeCodeAdapter, CodexAdapter } from "@reflex/adapters";
+import { analyze, buildTrace, type Suggestion } from "@reflex/analysis";
+import { writeFixtureHistory } from "@reflex/test-fixtures";
+import { findLeaks } from "@reflex/safety";
 import { MAX_SKILL_LINES, generateSkill, renameSkill } from "../src/generate";
 import { checkSkill, parseFrontmatter } from "../src/validate";
 import { install, planInstall, storeGenerated, type InstallTarget } from "../src/install";
@@ -17,7 +17,7 @@ let tmp: string;
 let suggestions: Suggestion[];
 
 beforeEach(async () => {
-  tmp = await mkdtemp(join(tmpdir(), "reflix-skills-"));
+  tmp = await mkdtemp(join(tmpdir(), "reflex-skills-"));
   const h = await writeFixtureHistory(join(tmp, "history"), NOW);
   const traces = [];
   for (const a of [new ClaudeCodeAdapter(h.claudeRoot), new CodexAdapter(h.codexRoot)])
@@ -64,7 +64,7 @@ describe("skill generation", () => {
   it("records provenance metadata", () => {
     const ci = suggestions.find((s) => s.slug === "fix-ci")!;
     const skill = generateSkill(ci, NOW);
-    expect(skill.content).toContain("generator: reflix");
+    expect(skill.content).toContain("generator: reflex");
     expect(skill.content).toContain('independent-sessions: "6"');
     expect(skill.provenance.sourceSessions.every((r) => /^(claude-code|codex):[A-Za-z0-9-]{1,8}$/.test(r))).toBe(true);
     expect(skill.provenance.independentSessions).toBe(6);
@@ -114,11 +114,11 @@ describe("installation", () => {
     await expect(planInstall(target(join(tmp, "s")), "../evil", "x")).rejects.toThrow();
   });
 
-  it("stores generated skills in Reflix-owned storage", async () => {
+  it("stores generated skills in Reflex-owned storage", async () => {
     const skill = generateSkill(suggestions[0]!, NOW);
-    const file = await storeGenerated(join(tmp, "reflix-skills"), skill.name, skill.content, "{}");
+    const file = await storeGenerated(join(tmp, "reflex-skills"), skill.name, skill.content, "{}");
     expect(await readFile(file, "utf8")).toBe(skill.content);
-    await storeGenerated(join(tmp, "reflix-skills"), skill.name, skill.content, "{}");
+    await storeGenerated(join(tmp, "reflex-skills"), skill.name, skill.content, "{}");
   });
 
   it("shows a readable diff", () => {

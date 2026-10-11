@@ -2,7 +2,7 @@ import { spawn, spawnSync } from "node:child_process";
 import { mkdir, writeFile } from "node:fs/promises";
 import { realpathSync } from "node:fs";
 import { join, sep } from "node:path";
-import { assertSlug, displayPath, ensureDir, redact, writeNewFile } from "@reflix/safety";
+import { assertSlug, displayPath, ensureDir, redact, writeNewFile } from "@reflex/safety";
 
 /**
  * A brand-new repository with a realistic CI failure that none of the historical sessions saw:
@@ -79,7 +79,7 @@ function git(dir: string, args: string[]): void {
   const res = spawnSync("git", args, {
     cwd: dir,
     stdio: "ignore",
-    env: { ...process.env, GIT_AUTHOR_NAME: "Reflix", GIT_AUTHOR_EMAIL: "noreply@reflix.local", GIT_COMMITTER_NAME: "Reflix", GIT_COMMITTER_EMAIL: "noreply@reflix.local" },
+    env: { ...process.env, GIT_AUTHOR_NAME: "Reflex", GIT_AUTHOR_EMAIL: "noreply@reflex.local", GIT_COMMITTER_NAME: "Reflex", GIT_COMMITTER_EMAIL: "noreply@reflex.local" },
   });
   if (res.status !== 0) throw new Error(`git ${args[0]} failed in sandbox`);
 }
@@ -130,7 +130,7 @@ const ALLOWED_TOOLS = [
 ];
 
 /**
- * Run a fresh, non-persistent Claude Code session in the sandbox with a fixed Reflix prompt and a
+ * Run a fresh, non-persistent Claude Code session in the sandbox with a fixed Reflex prompt and a
  * restricted tool allowlist, then check whether the skill was invoked and the tests now pass.
  */
 export function runClaudeInSandbox(sandbox: Sandbox, skillName: string, timeoutMs = 6 * 60 * 1000): Promise<AgentRun> {

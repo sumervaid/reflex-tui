@@ -3,14 +3,14 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { ClaudeCodeAdapter } from "../src/claude";
-import { FIX_CI, toClaudeLines } from "@reflix/test-fixtures";
+import { FIX_CI, toClaudeLines } from "@reflex/test-fixtures";
 
 const NOW = new Date("2026-10-11T12:00:00Z");
 const opts = { days: 7, now: NOW };
 let root: string;
 
 beforeEach(async () => {
-  root = await mkdtemp(join(tmpdir(), "reflix-claude-"));
+  root = await mkdtemp(join(tmpdir(), "reflex-claude-"));
 });
 afterEach(async () => {
   await rm(root, { recursive: true, force: true });

@@ -1,4 +1,4 @@
-import { findLeaks, isValidSlug } from "@reflix/safety";
+import { findLeaks, isValidSlug } from "@reflex/safety";
 import { MAX_SKILL_LINES } from "./generate";
 
 export type SkillCheck = { ok: boolean; errors: string[]; warnings: string[]; name?: string; steps: number; lines: number };
@@ -48,7 +48,7 @@ export function checkSkill(content: string, expectedName?: string): SkillCheck {
 
   if (findLeaks(content).length) errors.push("contains sensitive-looking content (secret, email, or home path)");
   if (/(^|[\s`'"(])(\/Users\/|\/home\/|[A-Z]:\\Users\\)/m.test(content)) errors.push("contains a local absolute path");
-  if (!/generator: reflix/.test(content)) warnings.push("no Reflix provenance metadata (hand-written or edited skill)");
+  if (!/generator: reflex/.test(content)) warnings.push("no Reflex provenance metadata (hand-written or edited skill)");
 
   return { ok: errors.length === 0, errors, warnings, name, steps, lines };
 }
