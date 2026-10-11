@@ -33,6 +33,7 @@ export async function writeDemoHistory(root: string, now = new Date(), sessions:
   const codexRoot = join(root, "codex", "sessions");
   const rendered = new Map<string, { lines: Record<string, unknown>[]; end: Date; sessionId: string }>();
   let files = 0;
+  let codexFiles = 0;
 
   for (const s of sessions) {
     const start = startFor(s, now);
@@ -49,7 +50,7 @@ export async function writeDemoHistory(root: string, now = new Date(), sessions:
         await utimes(path, out.end, out.end);
       }
     } else {
-      const out = toCodexLines(s, start, sessionId);
+      const out = toCodexLines(s, start, sessionId, codexFiles++ % 2 === 0 ? "shell" : "exec_command");
       const d = start;
       const dir = join(codexRoot, String(d.getUTCFullYear()), pad(d.getUTCMonth() + 1), pad(d.getUTCDate()));
       await mkdir(dir, { recursive: true });

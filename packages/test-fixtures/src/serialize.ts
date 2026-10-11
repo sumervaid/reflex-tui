@@ -76,10 +76,17 @@ function claudeTool(step: FixtureStep, cwd: string): [string, Line] {
   throw new Error("unreachable");
 }
 
-export function toCodexLines(session: FixtureSession, start: Date, sessionId: string): { lines: Line[]; end: Date } {
+/** Older Codex builds call the shell tool `shell` with an argv array; newer ones use `exec_command`. */
+export type CodexShellStyle = "shell" | "exec_command";
+
+export function toCodexLines(
+  session: FixtureSession,
+  start: Date,
+  sessionId: string,
+  style: CodexShellStyle = "exec_command",
+): { lines: Line[]; end: Date } {
   const cwd = cwdFor(session.project);
-  // Older Codex builds call the shell tool `shell` with an argv array; newer ones use `exec_command`.
-  const modernShell = parseInt(sha256(session.key).slice(0, 2), 16) % 2 === 0;
+  const modernShell = style === "exec_command";
   let t = start.getTime();
   const lines: Line[] = [];
   const at = () => new Date(t).toISOString();
