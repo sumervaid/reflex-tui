@@ -27,8 +27,8 @@ shows full names and summaries; below that it is a narrow rail.
 | `2` | Tokens | The scan window: token identity (fresh input, cache writes, cache reads, output), cache hit rate, sessions per tool, tokens per day |
 | `3` | Skills | Generated skills and pending suggestions, with the SKILL.md in a scrollable preview |
 | `4` | Workflows | Every repeated workflow the last analysis found (rejected ones left out), with its evidence: sessions, repositories and tools, confidence, median tokens, tool calls and duration, each step with how many sessions had it, recurring corrections, uncertainty and the sessions themselves. `space` approves or installs its skill, or removes it |
-| `5` | Router | `not measured yet` |
-| `6` | Search | Each scanned session's redacted opening request (`you`, turn 1) and its normalized steps (`ai`, turns 2..). `tab` filters by tool; enter resumes a Codex session with `codex resume <id>` and a Claude Code session with `claude --resume <id>` in the folder it ran in. Cursor chats are not resumed |
+| `5` | Router | Suggestions only. Sessions with a priced model, grouped by kind of task (from what the agent did: review, CI, debugging, features and tests, edits, research, questions). For each model: sessions, average cost and how often it needed fixing (your corrections, failed tool calls and immediately repeated commands, per request). The pick is the cheapest model with 3+ sessions within 0.05 of the most reliable; with fewer sessions the verdict is LEARNING. Autopilot is not available |
+| `6` | Search | Each scanned session's redacted opening request (`you`, turn 1) and its normalized steps (`ai`, turns 2..), with the session's cost and request count. `tab` filters by tool; enter resumes a Codex session with `codex resume <id>`, a Claude Code session with `claude --resume <id>` in the folder it ran in, and opens a Cursor chat's workspace with `cursor <folder>` (or the Cursor app on macOS); the chat is in Cursor's agent history |
 
 ## Keys
 
@@ -86,13 +86,13 @@ heading and `not measured yet`; a missing value inside a block shows `—`.
 | Tokens for the window, per day, yesterday | yes | `usage` on stored traces; days by session start in local time. Each session id counts once. Yesterday only when the scan covers all of it |
 | Skills: new, retired, installed, support, steps, preview | yes | `suggestions`, `skills`, `installations`; SKILL.md read from disk (64 KB cap, no symlinks) or generated in memory for pending items |
 | Needs a look | yes | new suggestions; retired skills still installed |
-| Cost in dollars, cache savings, budget | not measured | Reflex has no pricing |
+| Cost in dollars: today, yesterday, month, all scanned, per day, tool, model and project, cache savings, most expensive sessions | yes | `usageByModel` on stored traces at API list prices (`packages/core/src/pricing.ts`). Unknown models and Cursor (no tokens) are unpriced. A session's cost counts on the day it started; the daily series ends yesterday. "Most expensive prompts" are the opening requests of the most expensive sessions |
+| Budget | no | no budget setting, so no budget line |
 | Usage limits and pace | not measured | no plans file |
-| Cost by model and project, most expensive prompts and sessions | not measured | |
 | Workflows: support, steps, evidence, installed | yes | `suggestions` (pending and approved), their skills' installation records; a workflow installs as its skill, so it has no `runAs` and is not counted again as an installed workflow |
-| Router and autopilot | not measured | no router |
+| Router | yes | priced sessions by kind of task and main model (the one that cost the most); see the Router row above. Autopilot: no |
 | Search | yes | stored traces: `excerpt` and `displaySteps`, each session once. Raw transcripts are not stored, so later prompts and replies are not searchable |
-| Resume | Claude Code, Codex | native session id from the trace; Claude's folder from the `cwd` in the first 256 KB of its transcript (no symlinks) |
+| Resume | Claude Code, Codex, Cursor (workspace) | native session id from the trace; Claude's folder from the `cwd` in the first 256 KB of its transcript (no symlinks); a Cursor chat's workspace from the folder its transcript sits in |
 
 Cursor records no tokens, so a day with only Cursor sessions has no token value.
 

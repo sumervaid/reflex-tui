@@ -5,7 +5,7 @@ import type { DetectionResult, DiscoveryOptions, ParseResult, TranscriptAdapter,
 import { addUsage, debug } from "@reflex/core";
 import { displayPath } from "@reflex/safety";
 import { readJsonl } from "./jsonl";
-import { SessionBuilder, clean, cutoffFor, isDirectory, listFiles, skillName, toTranscriptFiles, tokens } from "./common";
+import { SessionBuilder, clean, cutoffFor, isDirectory, listFiles, modelName, skillName, toTranscriptFiles, tokens } from "./common";
 
 const ContentBlock = z
   .object({
@@ -163,12 +163,16 @@ export class ClaudeCodeAdapter implements TranscriptAdapter {
         const messageId = rec.message?.id;
         if (usage && messageId && !countedMessages.has(messageId)) {
           countedMessages.add(messageId);
-          b.usage = addUsage(b.usage, {
+          const u = {
             input: tokens(usage.input_tokens),
             output: tokens(usage.output_tokens),
             cacheRead: tokens(usage.cache_read_input_tokens),
             cacheWrite: tokens(usage.cache_creation_input_tokens),
-          });
+          };
+          b.usage = addUsage(b.usage, u);
+          // "<synthetic>" marks messages Claude Code wrote itself; they carry no billed usage.
+          const model = modelName(rec.message?.model);
+          if (model) b.usageByModel = { ...b.usageByModel, [model]: addUsage(b.usageByModel?.[model], u) };
         }
 
         if (!Array.isArray(content)) continue;

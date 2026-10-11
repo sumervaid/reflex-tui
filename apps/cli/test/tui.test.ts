@@ -95,7 +95,7 @@ describe("reflex tui on fixture history", () => {
     expect(data.reads).toEqual([join(root, "history/codex/sessions")]);
   });
 
-  it("maps the latest scan: sessions, tools, tokens and new skills, and no money", async () => {
+  it("maps the latest scan: sessions, tools, tokens and new skills", async () => {
     await scan({ days: 7, yes: true });
     const { scan: s, traces } = latest();
     const data = await source.load();
@@ -105,7 +105,7 @@ describe("reflex tui on fixture history", () => {
     expect(data.scannedAt).toMatch(/^\d\d:\d\d$/);
     expect(data.tools.map((t) => t.tool)).toEqual(["claude", "codex"]);
     expect(data.tools.reduce((a, t) => a + t.sessions, 0)).toBe(s.sessions);
-    expect(data.tools.every((t) => t.sessions > 0 && t.usd === undefined)).toBe(true);
+    expect(data.tools.every((t) => t.sessions > 0)).toBe(true);
     expect(data.reads).toEqual([join(root, "history/claude/projects"), join(root, "history/codex/sessions")]);
 
     const sum = (k: "input" | "output" | "cacheRead" | "cacheWrite") =>
@@ -115,10 +115,9 @@ describe("reflex tui on fixture history", () => {
     expect(data.window!.tokens).toEqual({ input: sum("input"), output: sum("output"), cacheRead: sum("cacheRead"), cacheWrite: sum("cacheWrite") });
     expect(data.window!.tokens.cacheRead).toBeGreaterThan(0);
     expect(data.days!.length).toBeGreaterThanOrEqual(7);
-    expect(data.days!.every((d) => /^\d\d [A-Z][a-z]{2}$/.test(d.label) && d.usd === undefined && d.byTool === undefined)).toBe(true);
+    expect(data.days!.every((d) => /^\d\d [A-Z][a-z]{2}$/.test(d.label))).toBe(true);
     expect(data.days!.reduce((a, d) => a + (d.tokens ?? 0), 0)).toBeGreaterThan(0);
     expect(data.yesterday?.label).toMatch(/^[a-z]{3} \d\d [a-z]{3}$/);
-    expect(data.yesterday?.byTool).toBeUndefined();
 
     const fresh = data.skills.items.filter((i) => i.state === "new");
     expect(fresh.map((i) => i.name).sort()).toEqual(["debug-dependency", "fix-ci", "review-pr"]);
@@ -133,10 +132,57 @@ describe("reflex tui on fixture history", () => {
     expect(data.skills.targets).toEqual(["claude", "codex", "cursor"].map((t) => `${join(root, `${t}-skills`)}/<name>/SKILL.md`));
     expect(data.attention).toEqual([{ tone: "ok", text: "3 new skills to review", view: "skills" }]);
 
-    for (const k of ["money", "limits", "plansFile", "topPrompts", "topSessions", "router"] as const) expect(data[k]).toBeUndefined();
-    expect(JSON.stringify(data)).not.toMatch(/usd/i);
+    expect(data.limits).toBeUndefined();
+    expect(data.plansFile).toBeUndefined();
     // Pending previews are generated in memory only.
     expect(await exists(join(root, "reflex", "skills"))).toBe(false);
+  });
+
+  it("prices every session at API list prices for its model", async () => {
+    const { traces } = latest();
+    const data = await source.load();
+    const unique = [...new Map(traces.map((t) => [t.sessionId, t])).values()];
+    // $ per million tokens: input, output, cache write, cache read.
+    const PRICE = { "claude-code": [2, 10, 2.5, 0.1], codex: [1.25, 10, 1.25, 0.125] } as const;
+    const costOf = (t: (typeof unique)[number]) => {
+      const [i, o, w, r] = PRICE[t.source as keyof typeof PRICE];
+      const u = t.usage!;
+      return (u.input * i + u.output * o + u.cacheWrite * w + u.cacheRead * r) / 1e6;
+    };
+    expect(unique.every((t) => Object.keys(t.usageByModel ?? {}).length === 1)).toBe(true);
+    const total = unique.reduce((a, t) => a + costOf(t), 0);
+    expect(total).toBeGreaterThan(0);
+    expect(data.window!.usd!.total).toBeCloseTo(total, 9);
+    expect(data.window!.usd!.uncached).toBeGreaterThan(total);
+    expect(data.money!.allTime.usd).toBeCloseTo(total, 9);
+    // The daily series ends yesterday; today's sessions count in the totals only.
+    const midnight = new Date(new Date().setHours(0, 0, 0, 0)).getTime();
+    const beforeToday = unique.filter((t) => Date.parse(t.startedAt!) < midnight).reduce((a, t) => a + costOf(t), 0);
+    expect(data.days!.reduce((a, d) => a + (d.usd ?? 0), 0)).toBeCloseTo(beforeToday, 9);
+    expect(data.days!.every((d) => d.byTool !== undefined)).toBe(true);
+    const byTool = (src: string) => unique.filter((t) => t.source === src).reduce((a, t) => a + costOf(t), 0);
+    expect(data.tools.find((t) => t.tool === "claude")!.usd).toBeCloseTo(byTool("claude-code"), 9);
+    expect(data.tools.find((t) => t.tool === "codex")!.usd).toBeCloseTo(byTool("codex"), 9);
+    expect(data.window!.byModel!.map((b) => b.name).sort()).toEqual(["claude-sonnet-5-5", "gpt-5-codex"]);
+    const top = data.topSessions!;
+    expect(top.length).toBeGreaterThan(0);
+    expect(top.map((s) => s.usd)).toEqual([...top.map((s) => s.usd)].sort((a, b) => b - a));
+    expect(top[0]!.usd).toBeCloseTo(Math.max(...unique.map(costOf)), 9);
+    expect(data.topPrompts![0]!.usd).toBe(top[0]!.usd);
+  });
+
+  it("builds router suggestions from the models each kind of task ran on", async () => {
+    const r = (await source.load()).router!;
+    expect(r.autopilot).toBe(false);
+    expect(r.sessions).toBeGreaterThan(0);
+    expect(r.tasks.length).toBeGreaterThan(0);
+    for (const t of r.tasks) {
+      expect(t.evidence.reduce((a, e) => a + e.sessions, 0)).toBe(t.sessions);
+      expect(t.evidence.map((e) => e.model)).toContain(t.rec);
+      expect(t.evidence.every((e) => e.usd > 0 && e.friction >= 0)).toBe(true);
+    }
+    expect(r.tasks.reduce((a, t) => a + t.sessions, 0)).toBe(r.sessions);
+    expect(await source.setAutopilot(true)).toEqual({ ok: false, message: "autopilot is not available yet: the router only suggests models", tone: "dim" });
   });
 
   it("lists every workflow the scan found, with the evidence behind its skill", async () => {
@@ -255,7 +301,7 @@ describe("reflex tui on fixture history", () => {
   });
 
   it("answers unavailable features plainly", async () => {
-    expect(await source.setAutopilot(true)).toEqual({ ok: false, message: "the router is not available yet", tone: "dim" });
+    expect(await source.setAutopilot(true)).toEqual({ ok: false, message: "autopilot is not available yet: the router only suggests models", tone: "dim" });
     expect(await source.rescan()).toEqual({ ok: false, message: NOT_SCANNED, tone: "dim" });
     const rescan = vi.fn(async () => ({ ok: true, message: "rescanned: 1 sessions, 0 new", tone: "ok" as const }));
     expect((await createLiveSource({ rescan }).rescan()).message).toBe("rescanned: 1 sessions, 0 new");

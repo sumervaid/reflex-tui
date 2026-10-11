@@ -88,6 +88,11 @@ export function skillName(value: unknown): string | undefined {
   return typeof value === "string" && /^[A-Za-z0-9._:-]{1,80}$/.test(value) ? value : undefined;
 }
 
+/** A model id as a source records it ("claude-opus-5-5", "gpt-5.6-sol"), or undefined. */
+export function modelName(value: unknown): string | undefined {
+  return typeof value === "string" && /^[A-Za-z0-9][A-Za-z0-9._:/-]{0,79}$/.test(value) ? value : undefined;
+}
+
 /** Non-negative integer token count, or 0. */
 export function tokens(value: unknown): number {
   return typeof value === "number" && Number.isFinite(value) && value > 0 ? Math.round(value) : 0;
@@ -115,6 +120,7 @@ export class SessionBuilder {
   endedAt?: string;
   cwd?: string;
   usage?: TokenUsage;
+  usageByModel?: Record<string, TokenUsage>;
   private pendingTools = new Map<string, SessionEvent>();
 
   constructor(
@@ -165,6 +171,7 @@ export class SessionBuilder {
       sourceRef: { file: this.file.displayPath, nativeId: this.nativeId },
       skippedRecords: this.skipped,
       usage: this.usage,
+      usageByModel: this.usageByModel,
     };
   }
 }

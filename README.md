@@ -64,10 +64,14 @@ reflex                 # or `reflex tui`
 
 `reflex` on its own (or `reflex tui`) opens a full-screen view of Reflex's local data in seven
 views: Dashboard, Morning, Tokens, Skills, Workflows, Router and Search (keys `0`-`6`). It shows
-sessions per tool, token counts from the last scan, generated skills plus suggestions waiting for
-review, every repeated workflow with the evidence behind it, and a search over each session's
-opening request and steps (enter reopens a Claude Code or Codex session). Money, usage limits and
-the router are not recorded, so those blocks say `not measured yet` instead of showing numbers.
+sessions per tool, tokens from the last scan and what they would cost at API list prices (per day,
+tool, model and project, the most expensive sessions, what caching saved), generated skills plus
+suggestions waiting for review, every repeated workflow with the evidence behind it, router
+suggestions (which model was cheapest and about as reliable, per kind of task), and a search over
+each session's opening request and steps. Enter reopens a Claude Code or Codex session, or opens a
+Cursor chat's workspace in Cursor. Cursor records no tokens, so its sessions have no cost. Usage
+limits are not recorded, so that block says `not measured yet`. Run `reflex scan` again (or press
+`r`) after upgrading: costs need the model of each session, which older scans did not store.
 
 In Skills, `space` on a new suggestion approves it and installs it into every detected agent;
 `space` on an installed skill removes the copies Reflex wrote, unless you edited them. `r`
