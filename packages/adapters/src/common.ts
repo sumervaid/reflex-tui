@@ -75,7 +75,13 @@ export async function toTranscriptFiles(paths: string[], cutoff: Date): Promise<
     try {
       const st = await lstat(path);
       if (!st.isFile() || st.mtime < cutoff) continue;
-      files.push({ path, displayPath: displayPath(path), modifiedAt: st.mtime, sizeBytes: st.size });
+      files.push({
+        path,
+        displayPath: displayPath(path),
+        modifiedAt: st.mtime,
+        sizeBytes: st.size,
+        identity: { mtimeMs: st.mtimeMs, ctimeMs: st.ctimeMs, ino: String(st.ino) },
+      });
     } catch {
       continue;
     }

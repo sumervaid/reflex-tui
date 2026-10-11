@@ -100,7 +100,7 @@ export async function reset(opts: { yes?: boolean }): Promise<void> {
     out("Nothing to reset.");
     return;
   }
-  out(`This deletes Reflex's own data in ${displayPath(home)}: the local database, generated skills and validation sandboxes.`);
+  out(`This deletes Reflex's own data in ${displayPath(home)}: the local database (including sessions kept from deleted transcripts), generated skills and validation sandboxes.`);
   out(c.dim("Skills you installed into Claude Code, Codex or Cursor are not touched. The embedding model is kept (`reflex model remove`)."));
   if (!(await confirm("Delete Reflex data?", opts))) return;
   // Only remove what Reflex creates, never the whole directory: REFLEX_HOME may point anywhere.

@@ -27,6 +27,40 @@ export type ScanRecord = {
   skippedRecords: number;
 };
 
+export type CachedFile = {
+  path: string;
+  source: string;
+  size: number;
+  mtimeMs: number;
+  ctimeMs: number;
+  ino: string;
+  /** Hash of the Reflex build that produced the traces. */
+  codeKey: string;
+  /** `redactionFingerprint()` when the traces were produced. */
+  redactionKey: string;
+  skippedRecords: number;
+  missing: boolean;
+  checkedAt: string;
+};
+
+export type CachedTrace = { row: number; trace: WorkflowTrace };
+
+function toCachedFile(r: Record<string, unknown>): CachedFile {
+  return {
+    path: String(r.path),
+    source: String(r.source),
+    size: Number(r.size),
+    mtimeMs: Number(r.mtime_ms),
+    ctimeMs: Number(r.ctime_ms),
+    ino: String(r.ino),
+    codeKey: String(r.code_key),
+    redactionKey: String(r.redaction_key),
+    skippedRecords: Number(r.skipped_records),
+    missing: Number(r.missing) === 1,
+    checkedAt: String(r.checked_at),
+  };
+}
+
 export type SkillRecord = {
   name: string;
   suggestionSlug: string;
@@ -45,7 +79,7 @@ export type InstallationRecord = {
   contentHash: string;
 };
 
-const SCHEMA_VERSION = 3;
+const SCHEMA_VERSION = 4;
 
 const SCHEMA = `
 CREATE TABLE IF NOT EXISTS scans (
@@ -60,14 +94,32 @@ CREATE TABLE IF NOT EXISTS scans (
   unreadable INTEGER NOT NULL,
   skipped_records INTEGER NOT NULL
 );
-CREATE TABLE IF NOT EXISTS sessions (
-  row_id INTEGER PRIMARY KEY AUTOINCREMENT,
-  id TEXT NOT NULL,
-  scan_id INTEGER NOT NULL,
+CREATE TABLE IF NOT EXISTS transcript_files (
+  path TEXT PRIMARY KEY,
   source TEXT NOT NULL,
-  started_at TEXT,
-  project_name TEXT,
+  size INTEGER NOT NULL,
+  mtime_ms REAL NOT NULL,
+  ctime_ms REAL NOT NULL,
+  ino TEXT NOT NULL,
+  code_key TEXT NOT NULL,
+  redaction_key TEXT NOT NULL,
+  skipped_records INTEGER NOT NULL,
+  missing INTEGER NOT NULL DEFAULT 0,
+  checked_at TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS traces (
+  row_id INTEGER PRIMARY KEY AUTOINCREMENT,
+  path TEXT NOT NULL,
+  session_id TEXT NOT NULL,
+  source TEXT NOT NULL,
+  ended_at TEXT,
+  context_hash TEXT,
   trace_json TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS traces_by_path ON traces (path);
+CREATE TABLE IF NOT EXISTS scan_sessions (
+  scan_id INTEGER NOT NULL,
+  trace_row INTEGER NOT NULL
 );
 CREATE TABLE IF NOT EXISTS suggestions (
   slug TEXT PRIMARY KEY,
@@ -122,8 +174,8 @@ export class Store {
     this.db = new DatabaseSync(file);
     chmodSync(file, 0o600);
     const version = Number((this.db.prepare("PRAGMA user_version").get() as { user_version: number }).user_version);
-    // Sessions are derived data and can always be rebuilt by `reflex scan`.
-    if (version < 1) this.db.exec("DROP TABLE IF EXISTS sessions");
+    // The old per-scan session copies are derived data; `reflex scan` rebuilds them into the cache.
+    if (version < 4) this.db.exec("DROP TABLE IF EXISTS sessions");
     this.db.exec(SCHEMA);
     const skillColumns = this.db.prepare("PRAGMA table_info(skills)").all() as Array<{ name: string }>;
     if (!skillColumns.some((c) => c.name === "baseline_json")) this.db.exec("ALTER TABLE skills ADD COLUMN baseline_json TEXT");
@@ -134,8 +186,8 @@ export class Store {
     this.db.close();
   }
 
-  /** Replace the working set of sessions with the result of a new scan. */
-  saveScan(scan: Omit<ScanRecord, "id">, traces: WorkflowTrace[]): number {
+  /** Record a scan and make the given cached traces its working set (what suggest, stats and the TUI see). */
+  saveScan(scan: Omit<ScanRecord, "id">, traceRows: number[]): number {
     this.db.exec("BEGIN");
     try {
       const res = this.db
@@ -144,16 +196,92 @@ export class Store {
         )
         .run(scan.startedAt, scan.days, scan.mode, JSON.stringify(scan.sources), scan.files, scan.sessions, scan.partial, scan.unreadable, scan.skippedRecords);
       const scanId = Number(res.lastInsertRowid);
-      this.db.exec("DELETE FROM sessions");
+      this.db.exec("DELETE FROM scan_sessions");
       // Duplicate records (e.g. the same session copied to two places) are kept: de-duplication happens in analysis.
-      const insert = this.db.prepare("INSERT INTO sessions (id, scan_id, source, started_at, project_name, trace_json) VALUES (?,?,?,?,?,?)");
-      for (const t of traces) insert.run(t.sessionId, scanId, t.source, t.startedAt ?? null, t.projectName ?? null, JSON.stringify(t));
+      const insert = this.db.prepare("INSERT INTO scan_sessions (scan_id, trace_row) VALUES (?,?)");
+      for (const row of traceRows) insert.run(scanId, row);
       this.db.exec("COMMIT");
       return scanId;
     } catch (err) {
       this.db.exec("ROLLBACK");
       throw err;
     }
+  }
+
+  /** What the cache knows about a transcript file, if it was read before. */
+  cachedFile(path: string): CachedFile | undefined {
+    const r = this.db.prepare("SELECT * FROM transcript_files WHERE path = ?").get(path) as Record<string, unknown> | undefined;
+    return r && toCachedFile(r);
+  }
+
+  /** Cached files of one source, for finding ones that have since been deleted. */
+  cachedFiles(source: string): CachedFile[] {
+    return (this.db.prepare("SELECT * FROM transcript_files WHERE source = ? ORDER BY path").all(source) as Array<Record<string, unknown>>).map(toCachedFile);
+  }
+
+  /** Every trace read from one file, with its row id, oldest first. */
+  fileTraces(path: string): CachedTrace[] {
+    const rows = this.db.prepare("SELECT row_id, trace_json FROM traces WHERE path = ? ORDER BY row_id").all(path) as Array<{ row_id: number; trace_json: string }>;
+    return rows.map((r) => ({ row: Number(r.row_id), trace: parseJson<WorkflowTrace>(r.trace_json, TraceShape, "session") }));
+  }
+
+  /** Replace what is cached for one file (its identity and its traces) atomically. */
+  saveFile(file: Omit<CachedFile, "missing" | "checkedAt">, traces: WorkflowTrace[]): CachedTrace[] {
+    this.db.exec("BEGIN");
+    try {
+      this.db.prepare("DELETE FROM traces WHERE path = ?").run(file.path);
+      this.db
+        .prepare(
+          `INSERT INTO transcript_files (path, source, size, mtime_ms, ctime_ms, ino, code_key, redaction_key, skipped_records, missing, checked_at)
+           VALUES (?,?,?,?,?,?,?,?,?,0,?)
+           ON CONFLICT(path) DO UPDATE SET source = excluded.source, size = excluded.size, mtime_ms = excluded.mtime_ms, ctime_ms = excluded.ctime_ms,
+             ino = excluded.ino, code_key = excluded.code_key, redaction_key = excluded.redaction_key, skipped_records = excluded.skipped_records,
+             missing = 0, checked_at = excluded.checked_at`,
+        )
+        .run(file.path, file.source, file.size, file.mtimeMs, file.ctimeMs, file.ino, file.codeKey, file.redactionKey, file.skippedRecords, new Date().toISOString());
+      const insert = this.db.prepare("INSERT INTO traces (path, session_id, source, ended_at, context_hash, trace_json) VALUES (?,?,?,?,?,?)");
+      const out = traces.map((t) => ({
+        row: Number(insert.run(file.path, t.sessionId, t.source, t.endedAt ?? null, t.contextHash ?? null, JSON.stringify(t)).lastInsertRowid),
+        trace: t,
+      }));
+      this.db.exec("COMMIT");
+      return out;
+    } catch (err) {
+      this.db.exec("ROLLBACK");
+      throw err;
+    }
+  }
+
+  /**
+   * The transcript is gone (deleted by the user or by the agent's own cleanup). Its traces are kept,
+   * already redacted, so history outlives the agent's retention; `reflex reset` removes them.
+   */
+  markMissing(path: string): void {
+    this.db.prepare("UPDATE transcript_files SET missing = 1, checked_at = ? WHERE path = ?").run(new Date().toISOString(), path);
+  }
+
+  /** Rewrite a kept trace in place (re-redaction after the rules or the user's identity changed). */
+  updateKeptTraces(path: string, traces: CachedTrace[], keys: { codeKey: string; redactionKey: string }): void {
+    this.db.exec("BEGIN");
+    try {
+      const update = this.db.prepare("UPDATE traces SET trace_json = ? WHERE row_id = ?");
+      for (const t of traces) update.run(JSON.stringify(t.trace), t.row);
+      this.db.prepare("UPDATE transcript_files SET code_key = ?, redaction_key = ? WHERE path = ?").run(keys.codeKey, keys.redactionKey, path);
+      this.db.exec("COMMIT");
+    } catch (err) {
+      this.db.exec("ROLLBACK");
+      throw err;
+    }
+  }
+
+  /** Context hashes of every cached trace: embeddings for anything else can be dropped. */
+  contextHashes(): string[] {
+    return (this.db.prepare("SELECT DISTINCT context_hash FROM traces WHERE context_hash IS NOT NULL").all() as Array<{ context_hash: string }>).map((r) => r.context_hash);
+  }
+
+  /** Keys of every cached embedding, to decide without loading vectors which sessions still need one. */
+  embeddingKeys(): Set<string> {
+    return new Set((this.db.prepare("SELECT key FROM embeddings").all() as Array<{ key: string }>).map((r) => r.key));
   }
 
   latestScan(): ScanRecord | undefined {
@@ -173,8 +301,11 @@ export class Store {
     };
   }
 
+  /** The latest scan's working set. */
   traces(): WorkflowTrace[] {
-    const rows = this.db.prepare("SELECT trace_json FROM sessions ORDER BY row_id").all() as Array<{ trace_json: string }>;
+    const rows = this.db
+      .prepare("SELECT t.trace_json FROM scan_sessions s JOIN traces t ON t.row_id = s.trace_row ORDER BY s.rowid")
+      .all() as Array<{ trace_json: string }>;
     return rows.map((r) => parseJson<WorkflowTrace>(r.trace_json, TraceShape, "session"));
   }
 

@@ -57,8 +57,9 @@ program
   .option("--cursor-dir <dir>", "read Cursor agent transcripts from this directory (default ~/.cursor/projects)")
   .addOption(new Option("--source <source...>", "only read these sources (repeatable)").choices(["claude-code", "codex", "cursor"]))
   .option("-y, --yes", "consent to reading the detected history without prompting")
+  .option("--full", "read every transcript again instead of reusing unchanged ones")
   .action(
-    run(async (o: { days: string; claudeDir?: string; codexDir?: string; cursorDir?: string; source?: SourceId[]; yes?: boolean }) =>
+    run(async (o: { days: string; claudeDir?: string; codexDir?: string; cursorDir?: string; source?: SourceId[]; yes?: boolean; full?: boolean }) =>
       scan({ ...o, days: parseDays(o.days) }),
     ),
   );
