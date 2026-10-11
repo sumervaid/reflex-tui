@@ -92,12 +92,18 @@ Token usage, where recorded, is attached to the session as `{input, output, cach
    consensus and verification rate. It is shown as a ranking signal, not a probability.
 
 8. **Constraints.** Follow-up requests (not the first) are split into clauses. A clause counts as a
-   correction if it says "don't / never / stop / avoid …" (avoid) or "X instead of Y / always … /
-   no, X" (prefer). The trace keeps its plain words without filler; a clause with any non-word token
-   is dropped. Within a cluster, corrections with the same polarity from different sessions match at
-   word Jaccard ≥ 0.5 with ≥ 2 shared words. A matched group in ≥ 2 sessions becomes a rule from its
-   shared words only. Rules pass the command safety filter and a steering-word filter; at most 5
-   per skill.
+   correction only if it opens with "don't / do not / never / stop / avoid / no need to" (avoid),
+   or with "always / make sure / prefer", "X instead of Y", "X instead" or follows a bare "no"
+   (prefer). A prefer clause must also open with a verb from a short allowlist (`use`, `run`, `keep`,
+   `pin`, …). The trace keeps at most 8 plain words without filler, and at most 8 corrections per
+   session. A clause with any non-word token (shell syntax, flags, URLs, paths, hosts, IP addresses,
+   redaction markers) is dropped. Within a cluster, two corrections with the same polarity from
+   different sessions match at stemmed-word Jaccard ≥ 0.5; the words after "not" only match each
+   other, so "pnpm not npm" never matches "npm not pnpm". Each matching pair yields a rule made of
+   the words both used, and its session count is the number of sessions that produced that same
+   rule. Rules must be at most 80 characters and pass a steering-word filter (prompts, secrets,
+   permissions, confirmation); prefer rules must also pass the command safety filter. At most 5 per
+   skill.
 
 A small family catalog (`fix-ci`, `review-pr`, `debug-dependency`, …) names clusters. It never
 creates or admits one.

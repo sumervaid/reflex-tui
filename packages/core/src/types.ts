@@ -146,7 +146,7 @@ export type OutcomeSignal = {
   summarized: boolean;
 };
 
-/** A developer's follow-up pushback, reduced to generalized words. Never the original sentence. */
+/** A developer's follow-up pushback: up to 8 lowercase content words in order, filler removed. */
 export type Correction = {
   polarity: "avoid" | "prefer";
   words: string[];

@@ -49,7 +49,7 @@ export function renderSuggestion(entry: StoredSuggestion): void {
   });
   if (s.constraints?.length) {
     out();
-    out("  Your recurring corrections (become constraints in the skill)");
+    out("  Recurring corrections");
     for (const k of s.constraints) out(`    - ${k.text} ${c.dim(`${k.sessions} sessions`)}`);
   }
   if (s.notes.length) {
