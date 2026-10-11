@@ -3,6 +3,7 @@ import { shortHash } from "@reflex/core";
 import { excerpt } from "@reflex/safety";
 import { type FileCategory, MODIFY_ACTIONS, VERIFY_ACTIONS, classifyCommand, fileAction, fileCategory } from "./classify";
 import { extractCorrections } from "./corrections";
+import { contextHash, sessionContext } from "./context";
 import { intentTerms } from "./intents";
 
 const TOOL_ACTIONS: Record<string, ActionCategory> = {
@@ -116,7 +117,7 @@ export function buildTrace(session: NormalizedSession): WorkflowTrace {
     16,
   );
 
-  return {
+  const trace: WorkflowTrace = {
     sessionId: session.id,
     source: session.source,
     startedAt: session.startedAt,
@@ -139,6 +140,9 @@ export function buildTrace(session: NormalizedSession): WorkflowTrace {
     skillsUsed: [...skills].sort(),
     corrections: extractCorrections(session.requests.map((r) => r.text)),
   };
+  // Only a hash is kept: the longer request text used for embedding is never stored.
+  trace.contextHash = contextHash(sessionContext(session, trace));
+  return trace;
 }
 
 function outcomeOf(steps: Step[], summarized: boolean): WorkflowTrace["outcome"] {

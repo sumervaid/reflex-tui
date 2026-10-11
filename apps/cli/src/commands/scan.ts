@@ -1,7 +1,7 @@
 import type { NormalizedSession, SourceId, TranscriptAdapter } from "@reflex/core";
 import { debug } from "@reflex/core";
 import { ClaudeCodeAdapter, CodexAdapter, CursorAdapter } from "@reflex/adapters";
-import { type Suggestion, analyze, buildTrace, deduplicate } from "@reflex/analysis";
+import { type Suggestion, analyze, buildTrace, deduplicate, sessionContext } from "@reflex/analysis";
 import { displayPath } from "@reflex/safety";
 import { Store, paths } from "@reflex/storage";
 import { c, confirm, out, plural, rows, spinner, title, warn } from "../ui";
@@ -116,6 +116,7 @@ export async function scan(opts: ScanOptions): Promise<void> {
     const embedSpin = spinner();
     let embedding = false;
     meaning = await sessionVectors(traces, store, {
+      documents: sessions.map((s, i) => sessionContext(s, traces[i]!)),
       onProgress: (n) => {
         embedding = true;
         embedSpin.start(`Comparing ${plural(n, "new session")} by meaning (local model)…`);
