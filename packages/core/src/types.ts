@@ -138,6 +138,8 @@ export type WorkflowTrace = {
   fileCategories: string[];
   /** Ordered actions with consecutive repeats collapsed. */
   actionSequence: ActionCategory[];
+  /** Ordered, human-readable steps for evidence display: normalized commands and file operations. */
+  displaySteps: string[];
   outcome: OutcomeSignal;
   /** Redacted, truncated first request used for evidence display. */
   excerpt: string;

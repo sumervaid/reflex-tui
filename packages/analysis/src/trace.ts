@@ -1,7 +1,7 @@
 import type { ActionCategory, CommandFingerprint, NormalizedSession, WorkflowTrace } from "@reflix/core";
 import { shortHash } from "@reflix/core";
 import { excerpt } from "@reflix/safety";
-import { MODIFY_ACTIONS, VERIFY_ACTIONS, classifyCommand, fileAction, fileCategory } from "./classify";
+import { type FileCategory, MODIFY_ACTIONS, VERIFY_ACTIONS, classifyCommand, fileAction, fileCategory } from "./classify";
 import { intentTerms } from "./intents";
 
 const TOOL_ACTIONS: Record<string, ActionCategory> = {
@@ -13,6 +13,17 @@ const TOOL_ACTIONS: Record<string, ActionCategory> = {
 
 const MAX_SEQUENCE = 80;
 
+const FILE_LABEL: Record<FileCategory, string> = {
+  "ci-config": "CI workflow",
+  "dependency-manifest": "dependency manifest",
+  test: "test file",
+  config: "config file",
+  docs: "docs",
+  migration: "migration",
+  logs: "log file",
+  source: "source file",
+};
+
 type Step = { action: ActionCategory; isError?: boolean; command?: CommandFingerprint };
 
 export function buildTrace(session: NormalizedSession): WorkflowTrace {
@@ -21,6 +32,10 @@ export function buildTrace(session: NormalizedSession): WorkflowTrace {
   const tools = new Set<string>();
   const fileCategories = new Set<string>();
   const eventHashes: string[] = [];
+  const displaySteps: string[] = [];
+  const show = (s: string) => {
+    if (displaySteps[displaySteps.length - 1] !== s && displaySteps.length < MAX_SEQUENCE) displaySteps.push(s);
+  };
 
   for (const ev of session.events) {
     switch (ev.kind) {
@@ -29,6 +44,7 @@ export function buildTrace(session: NormalizedSession): WorkflowTrace {
         for (const fp of classifyCommand(ev.command)) {
           commands.push(fp);
           steps.push({ action: fp.action, isError: ev.isError, command: fp });
+          show(fp.normalized);
         }
         eventHashes.push(shortHash(`shell|${ev.at ?? ""}|${ev.command}`));
         break;
@@ -38,13 +54,17 @@ export function buildTrace(session: NormalizedSession): WorkflowTrace {
         const category = fileCategory(ev.path);
         fileCategories.add(category);
         steps.push({ action: fileAction(ev.op, category), isError: ev.isError });
+        show(`${ev.op === "read" ? "read" : "edit"} ${FILE_LABEL[category]}`);
         eventHashes.push(shortHash(`file|${ev.at ?? ""}|${ev.op}|${ev.path}`));
         break;
       }
       case "tool": {
         tools.add(ev.tool);
         const action = TOOL_ACTIONS[ev.tool];
-        if (action) steps.push({ action, isError: ev.isError });
+        if (action) {
+          steps.push({ action, isError: ev.isError });
+          show(action === "search-code" ? "search code" : "look up docs");
+        }
         break;
       }
       case "user":
@@ -88,6 +108,7 @@ export function buildTrace(session: NormalizedSession): WorkflowTrace {
     commands,
     fileCategories: [...fileCategories].sort(),
     actionSequence: actionSequence.slice(0, MAX_SEQUENCE),
+    displaySteps,
     outcome: outcomeOf(steps, summarized),
     excerpt: excerpt(session.requests[0]?.text ?? "", 180),
     fingerprint,

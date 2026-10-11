@@ -85,10 +85,12 @@ function generalizeArg(token: string): string {
   if (/^https?:\/\//.test(token)) return "<url>";
   if (/^#?\d+$/.test(token)) return "<n>";
   if (/^[0-9a-f]{7,40}$/.test(token)) return "<sha>";
-  if (/^(HEAD|main|master|origin)([~^.\/]|$)|\.\.\./.test(token)) return "<ref>";
+  if (/^(HEAD|main|master|origin)([~^./]|$)|\.\.\./.test(token)) return "<ref>";
   if (/[/.]/.test(token) || /^[\w-]+\.[a-z]{1,5}$/i.test(token)) return "<file>";
   return "<arg>";
 }
+
+const REF_FLAGS = new Set(["--branch", "-b", "--base", "--head", "--ref"]);
 
 const SUBCOMMAND_DEPTH: Record<string, number> = { gh: 2, git: 1, docker: 1, kubectl: 1, cargo: 1, go: 1, pip: 1, poetry: 1, make: 1 };
 
@@ -100,9 +102,11 @@ export function normalizeSegment(segment: string): string {
   const depth = PACKAGE_MANAGERS.has(program!) ? (rest[0] === "run" || rest[0] === "exec" ? 2 : 1) : (SUBCOMMAND_DEPTH[program!] ?? 0);
   const head = [program!, ...rest.slice(0, depth).filter((t) => !t.startsWith("-"))];
   const args: string[] = [];
+  let prev = "";
   for (const t of rest.slice(head.length - 1)) {
-    const g = generalizeArg(t);
+    const g = REF_FLAGS.has(prev) && !t.startsWith("-") ? "<ref>" : generalizeArg(t);
     if (args[args.length - 1] !== g) args.push(g);
+    prev = t;
   }
   return [...head, ...args].join(" ").slice(0, 120);
 }

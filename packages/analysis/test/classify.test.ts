@@ -10,6 +10,8 @@ describe("command normalization", () => {
     expect(normalizeSegment("DATABASE_URL=[REDACTED] npm test")).toBe("npm test");
     expect(normalizeSegment("npx vitest run src/x.test.ts")).toBe("vitest <arg> <file>");
     expect(normalizeSegment("pnpm run build")).toBe("pnpm run build");
+    expect(normalizeSegment("gh run list --branch feat/checkout --limit 5")).toBe("gh run list --branch <ref> --limit <n>");
+    expect(normalizeSegment("git checkout -b fix/ci")).toBe("git checkout -b <ref>");
   });
 
   it("classifies actions", () => {

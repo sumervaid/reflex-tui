@@ -33,7 +33,8 @@ export function deduplicate(traces: WorkflowTrace[]): { instances: WorkflowInsta
   // 1. Identical content (same file read twice, mirrored or copied history).
   const byFingerprint = new Map<string, WorkflowTrace>();
   const copiesOf = new Map<string, WorkflowTrace[]>();
-  for (const t of traces) {
+  // Prefer the shortest source path as the original (backups and mirrors tend to be nested or suffixed).
+  for (const t of [...traces].sort((a, b) => a.sourceFile.length - b.sourceFile.length)) {
     if (byFingerprint.has(t.fingerprint)) {
       stats.copies++;
       copiesOf.set(t.fingerprint, [...(copiesOf.get(t.fingerprint) ?? []), t]);

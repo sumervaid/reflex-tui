@@ -147,8 +147,49 @@ function consensusSteps(instances: WorkflowInstance[]): ConsensusStep[] {
       .map(([cmd]) => cmd);
     ranked.push({ step: { kind, ...STEP_TEXT[kind], support, examples }, pos: kind === "summarize" ? 2 : (median(pos) ?? 0) });
   }
-  return ranked.sort((a, b) => a.pos - b.pos).map((r) => r.step);
+
+  // Order by pairwise precedence: A goes before B if most sessions that contain both did A first.
+  // Medians alone mislead when steps appear in different subsets of sessions.
+  const orders = instances.map(stepOrder);
+  const before = (a: StepKind, b: StepKind) => {
+    let ab = 0;
+    let ba = 0;
+    for (const o of orders) {
+      const x = o.get(a);
+      const y = o.get(b);
+      if (x === undefined || y === undefined) continue;
+      if (x < y) ab++;
+      else if (y < x) ba++;
+    }
+    return ab - ba;
+  };
+  return ranked
+    .sort((a, b) => {
+      if (a.step.kind === "summarize") return 1;
+      if (b.step.kind === "summarize") return -1;
+      const votes = before(b.step.kind, a.step.kind);
+      return votes !== 0 ? votes : a.pos - b.pos;
+    })
+    .map((r) => r.step);
 }
+
+/** Where each step happens in one session: first occurrence, or last for verification-type steps. */
+function stepOrder(inst: WorkflowInstance): Map<StepKind, number> {
+  const seq = inst.primary.actionSequence;
+  const at = new Map<StepKind, number>();
+  seq.forEach((a, i) => {
+    if (LAST_OCCURRENCE.has(a) || !at.has(a)) at.set(a, i);
+  });
+  const firstModify = seq.findIndex((a) => a.startsWith("modify-"));
+  if (firstModify >= 0) {
+    at.set("apply-fix", firstModify);
+    for (const a of seq) if (a.startsWith("modify-")) at.set(a, firstModify);
+    if (inst.primary.outcome.recoveredFromFailure) at.set("reproduce-failure", firstModify - 0.5);
+  }
+  return at;
+}
+
+const LAST_OCCURRENCE: ReadonlySet<StepKind> = new Set(["run-tests", "run-build", "run-lint", "inspect-diff"]);
 
 function completionCriteria(steps: Set<StepKind>): string[] {
   const out: string[] = [];
@@ -174,20 +215,15 @@ function topTerms(instances: WorkflowInstance[], limit = 6): string[] {
 
 function evidenceFor(inst: WorkflowInstance): Evidence {
   const t = inst.primary;
-  const actions: string[] = [];
-  for (const c of t.commands) if (!actions.includes(c.normalized)) actions.push(c.normalized);
-  const fileSteps = t.actionSequence.filter((a) => !t.commands.some((c) => c.action === a) && a !== "summarize");
-  for (const a of fileSteps) {
-    const label = STEP_TEXT[a].label;
-    if (!actions.includes(label)) actions.push(label);
-  }
+  const actions = t.displaySteps.slice(0, 12);
+  if (t.outcome.summarized) actions.push("summarize");
   return {
     sessionId: t.sessionId,
     source: t.source,
     date: t.startedAt,
     project: t.projectName,
     excerpt: t.excerpt,
-    actions: actions.slice(0, 10),
+    actions,
     verified: t.outcome.verified,
     duplicates: inst.merged.length,
     sourceFile: t.sourceFile,
@@ -227,7 +263,10 @@ export function analyze(traces: WorkflowTrace[]): Analysis {
     const repos = [...new Set(group.map((g) => g.primary.projectHash ?? g.id))];
     const repoNames = [...new Set(group.map((g) => g.primary.projectName).filter((x): x is string => !!x))].sort();
     const sources: Partial<Record<SourceId, number>> = {};
-    for (const g of group) sources[g.primary.source] = (sources[g.primary.source] ?? 0) + 1;
+    for (const id of ["claude-code", "codex"] as const) {
+      const count = group.filter((g) => g.primary.source === id).length;
+      if (count) sources[id] = count;
+    }
     const dates = group.map((g) => g.primary.startedAt).filter((d): d is string => !!d).sort();
     const verifiedRate = group.filter((g) => g.primary.outcome.verified).length / group.length;
     const durations = group
