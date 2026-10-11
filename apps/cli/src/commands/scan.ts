@@ -2,7 +2,7 @@ import { rm } from "node:fs/promises";
 import type { NormalizedSession, SourceId, TranscriptAdapter } from "@reflix/core";
 import { debug } from "@reflix/core";
 import { ClaudeCodeAdapter, CodexAdapter } from "@reflix/adapters";
-import { buildTrace, deduplicate } from "@reflix/analysis";
+import { type Suggestion, analyze, buildTrace, deduplicate } from "@reflix/analysis";
 import { displayPath } from "@reflix/safety";
 import { Store, paths } from "@reflix/storage";
 import { writeDemoHistory } from "@reflix/test-fixtures";
@@ -103,11 +103,14 @@ export async function scan(opts: ScanOptions): Promise<void> {
 
   const traces = sessions.map(buildTrace);
   const store = new Store();
+  let suggestions: Suggestion[] = [];
   try {
     store.saveScan(
       { startedAt: now.toISOString(), days: opts.days, mode, sources: perSource, files, sessions: traces.length, partial, unreadable, skippedRecords },
       traces,
     );
+    suggestions = analyze(traces).suggestions;
+    store.saveSuggestions(store.latestScan()!.id, suggestions);
   } finally {
     store.close();
   }
@@ -132,5 +135,9 @@ export async function scan(opts: ScanOptions): Promise<void> {
     out(`No sessions in the last ${plural(opts.days, "day")}. Try a longer history window: ${c.cyan("reflix scan --days 30")}`);
     return;
   }
-  out(`Next: ${c.cyan("reflix suggest")}`);
+  out(
+    suggestions.length
+      ? `${plural(suggestions.length, "repeated workflow")} found. Next: ${c.cyan("reflix suggest")}`
+      : `No repeated workflows yet. Details: ${c.cyan("reflix suggest")}`,
+  );
 }

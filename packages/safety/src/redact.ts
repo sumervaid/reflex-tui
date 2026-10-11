@@ -68,8 +68,8 @@ const RULES: Rule[] = [
     pattern: /\b(?!git@)[A-Za-z0-9._%+-]+@[A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)*\.[A-Za-z]{2,}\b/g,
     replace: "[EMAIL]",
   },
-  { name: "macos-home", pattern: /\/Users\/(?!Shared\b)[^/\s"'`:]+/g, replace: "~" },
-  { name: "linux-home", pattern: /\/home\/[^/\s"'`:]+/g, replace: "~" },
+  { name: "macos-home", pattern: /(?<![\w.-])\/Users\/(?!Shared\b)[^/\s"'`:]+/g, replace: "~" },
+  { name: "linux-home", pattern: /(?<![\w.-])\/home\/[^/\s"'`:]+/g, replace: "~" },
   { name: "windows-home", pattern: /\b[A-Za-z]:\\Users\\[^\\\s"'`]+/g, replace: "~" },
   // Claude Code encodes project paths into directory names: -Users-alice-code-app
   { name: "encoded-home", pattern: /-(?:Users|home)-[A-Za-z0-9._]+(?=-|\b)/g, replace: "-~" },
@@ -150,8 +150,8 @@ const LEAK_PATTERNS: RegExp[] = [
   /\beyJ[A-Za-z0-9_-]{8,}\.eyJ[A-Za-z0-9_-]{8,}\./,
   /\bgh[pousr]_[A-Za-z0-9]{30,}/,
   /\b(?:postgres(?:ql)?|mysql|mongodb(?:\+srv)?|redis):\/\/[^\s[]+/i,
-  /\/Users\/[^/\s]+\//,
-  /\/home\/[^/\s]+\//,
+  /(?<![\w.-])\/Users\/[^/\s]+\//,
+  /(?<![\w.-])\/home\/[^/\s]+\//,
   /[A-Za-z0-9._%+-]+@[A-Za-z0-9-]+\.[A-Za-z]{2,}/,
 ];
 

@@ -1,6 +1,6 @@
 import { mkdtemp, readFile, rm, stat } from "node:fs/promises";
 import net from "node:net";
-import { tmpdir } from "node:os";
+import { homedir, tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { findLeaks } from "@reflix/safety";
@@ -49,6 +49,8 @@ describe("reflix end-to-end loop on demo history", () => {
   it("scans, de-duplicates and suggests only the recurring workflows", async () => {
     const text = await capture(() => scan({ days: 7, demo: true, yes: true }));
     expect(text).toMatch(/0 bytes uploaded/);
+    expect(text).toContain("3 repeated workflows found");
+    expect(text).toContain(join(root, "home", "reflix.db").replace(homedir(), "~"));
     const list = await capture(() => suggest({ interactive: false }));
     expect(list).toContain("3 repeated workflows");
     expect(list).toContain("fix-ci");

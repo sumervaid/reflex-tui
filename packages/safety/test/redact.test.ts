@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { excerpt, findLeaks, redact, redactWithReport } from "../src/redact";
+import { excerpt, findLeaks, redact, redactPath, redactWithReport } from "../src/redact";
 import { assertInside, displayPath, isValidSlug, toSlug } from "../src/paths";
 import { homedir } from "node:os";
 
@@ -56,6 +56,12 @@ describe("redact", () => {
     expect(redact(text)).toBe(text);
     expect(redact("CI=true pnpm test")).toBe("CI=true pnpm test");
     expect(redact("git clone git@github.com:acme/app.git")).toBe("git clone git@github.com:acme/app.git");
+  });
+
+  it("only treats /home and /Users at the start of a path as a home directory", () => {
+    expect(redact("open file:///Users/alice/a.txt")).toBe("open file://~/a.txt");
+    expect(redactPath("/tmp/reflix-x1/home/reflix.db")).toBe("/tmp/reflix-x1/home/reflix.db");
+    expect(redactPath("/srv/app/Users/list.ts")).toBe("/srv/app/Users/list.ts");
   });
 
   it("keeps git SHAs", () => {
