@@ -119,7 +119,7 @@ export function runTui(opts: RunOptions): Promise<void> {
     const resume = async (c: ResumeCommand): Promise<void> => {
       let error: Error | undefined;
       await term.suspend(() => {
-        error = spawnSync(c.cmd, c.args, { stdio: "inherit" }).error;
+        error = spawnSync(c.cmd, c.args, { stdio: "inherit", cwd: c.cwd }).error;
       });
       term.invalidate();
       if (error) toast({ ok: false, message: `could not start ${c.cmd}: ${error.message}`, tone: "bad" });

@@ -159,6 +159,12 @@ export type ItemList = {
   items: Item[];
   /** Display paths `space` writes, with "<name>" standing for the item name. */
   targets: string[];
+  /**
+   * Slash-command prefix when workflows install as their own commands ("/wf-", run as
+   * "/wf-<name> <task>"). Absent when a workflow installs as its skill: then the Workflows view is
+   * the evidence behind each skill and its items are not counted again as installed workflows.
+   */
+  runAs?: string;
 };
 
 export type ModelEvidence = {

@@ -59,14 +59,15 @@ Prompts default to No. Without a terminal, nothing is read or written unless you
 
 ```sh
 reflex scan --days 7   # the UI shows what the last scan read, so scan first
-reflex tui
+reflex                 # or `reflex tui`
 ```
 
-`reflex tui` opens a full-screen view of Reflex's local data in seven views: Dashboard, Morning,
-Tokens, Skills, Workflows, Router and Search (keys `0`-`6`). It shows what Reflex records today:
-sessions per tool, token counts from the last scan, and generated skills plus suggestions waiting
-for review. Money, usage limits, workflows, the router and search are not recorded yet, so those
-blocks say `not measured yet` (Search: `not indexed yet`) instead of showing numbers.
+`reflex` on its own (or `reflex tui`) opens a full-screen view of Reflex's local data in seven
+views: Dashboard, Morning, Tokens, Skills, Workflows, Router and Search (keys `0`-`6`). It shows
+sessions per tool, token counts from the last scan, generated skills plus suggestions waiting for
+review, every repeated workflow with the evidence behind it, and a search over each session's
+opening request and steps (enter reopens a Claude Code or Codex session). Money, usage limits and
+the router are not recorded, so those blocks say `not measured yet` instead of showing numbers.
 
 In Skills, `space` on a new suggestion approves it and installs it into every detected agent;
 `space` on an installed skill removes the copies Reflex wrote, unless you edited them. `r`

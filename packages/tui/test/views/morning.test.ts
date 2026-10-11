@@ -67,6 +67,17 @@ describe("morning view", () => {
       expect(rowWith(out.lines, "DATA").trimEnd()).toBe("DATA    ~/.reflex  reads ~/.claude/projects  ~/.codex/sessions  ~/.cursor/projects");
     });
 
+    it(`does not list or count workflows that install as their skill again at ${W}x${H}`, () => {
+      const r = viewRegion(W, H);
+      const data = liveShapeData();
+      data.workflows = { items: data.skills.items.map((i) => ({ ...i, state: "new" as const })), targets: data.skills.targets };
+      const out = renderMorning(r.w, r.h, data, designUi("morning"));
+      const t = checkShape(out.lines, r.w, r.h);
+      expect(t).not.toContain("/wf-");
+      expect(t).toMatch(/wf +review-pr +\d+ sess/);
+      expect(rowWith(out.lines, "ACTIVE").trimEnd()).toBe("ACTIVE  3 skills  in ~/.claude/skills  ~/.codex/skills  ~/.cursor/skills");
+    });
+
     it(`falls back block by block on partial data at ${W}x${H}`, () => {
       const r = viewRegion(W, H);
       const data: TuiData = { ...designData(), money: undefined, router: undefined, workflows: undefined };

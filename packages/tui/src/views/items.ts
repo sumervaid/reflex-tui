@@ -29,12 +29,19 @@ const NARROW_COLS: Column[] = [
  * `space` and the files it writes. With the design's two targets this is the prototype's copy; when
  * the targets do not fit in `w`, the last ones collapse into "N more".
  */
-function hint(kind: Kind, targets: string[], w: number, wide: boolean): Line {
+function hint(kind: Kind, targets: string[], runAs: string | undefined, w: number, wide: boolean): Line {
   if (!targets.length) return [];
   const isS = kind === "skills";
-  const verb = isS ? (wide ? " toggles the selected skill: installs or removes " : " installs/removes ") : wide ? " toggles the workflow: installs or removes " : " installs ";
+  const verb =
+    isS || !runAs
+      ? wide
+        ? ` toggles the ${isS ? "selected skill" : "workflow's skill"}: installs or removes `
+        : " installs/removes "
+      : wide
+        ? " toggles the workflow: installs or removes "
+        : " installs ";
   const build = (k: number): Line => {
-    const parts: Line[] = targets.slice(0, k).map((t, i) => (isS || i ? [S(t)] : [S(t), S(wide ? " (run as " : " (", "dim"), S("/wf-<name> <task>"), S(")", "dim")]));
+    const parts: Line[] = targets.slice(0, k).map((t, i) => (isS || !runAs || i ? [S(t)] : [S(t), S(wide ? " (run as " : " (", "dim"), S(runAs + "<name> <task>"), S(")", "dim")]));
     if (k < targets.length) parts.push([S(`${targets.length - k} more`, "dim")]);
     const l: Line = [S("space", "hi", BOLD), S(verb, "dim")];
     parts.forEach((p, i) => {
@@ -53,7 +60,7 @@ export function renderItems(kind: Kind, w: number, h: number, data: TuiData, ui:
   const src = kind === "skills" ? data.skills : data.workflows;
   const list: Item[] = src?.items ?? [];
   const wide = w >= 140;
-  const hintLine: Line = src ? hint(kind, src.targets, w, wide) : [S("workflows are not available yet", "dim")];
+  const hintLine: Line = src ? hint(kind, src.targets, src.runAs, w, wide) : [S("workflows are not available yet", "dim")];
   const lw = Math.round(w * 0.4);
   const rw = w - lw - 1;
   const bh = h - 2;

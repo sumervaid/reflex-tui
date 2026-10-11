@@ -71,9 +71,10 @@ function yesterdayVsAvg(data: TuiData): { y: number; avg?: number } | undefined 
   return avg > 0 ? { y, avg } : { y };
 }
 
-function itemCounts(list: ItemList | undefined, empty: string): Line {
+function itemCounts(list: ItemList | undefined, empty: string, asEvidence = false): Line {
   if (!list) return notMeasured();
   if (!list.items.length) return [S(empty, "dim")];
+  if (asEvidence) return [S(fmt(list.items.length) + " found", "fg"), S(" · ", "dim"), S(list.items.filter((x) => x.on).length + " installed", "ok")];
   const n = (k: string): number => list.items.filter((x) => x.state === k).length;
   return [S(n("new") + " new", "ok"), S(" · ", "dim"), S(n("updated") + " upd", "warn"), S(" · ", "dim"), S(n("retired") + " ret", "bad")];
 }
@@ -119,7 +120,7 @@ export function summaries(data: TuiData): Record<ViewId, Line> {
     morning,
     tokens,
     skills: itemCounts(data.skills, "no skills yet"),
-    workflows: itemCounts(data.workflows, "no workflows yet"),
+    workflows: itemCounts(data.workflows, "no workflows yet", !!data.workflows && !data.workflows.runAs),
     router,
     search,
   };
@@ -176,7 +177,9 @@ function sidebar(sw: number, h: number, data: TuiData, ui: UiState): Line[] {
   const ns = data.skills.items.filter((x) => x.on).length;
   const nw = data.workflows?.items.filter((x) => x.on).length;
   L.push([S(" INSTALLED", "dim", BOLD)]);
-  L.push([S(" " + ns + " skills", "fg"), S("  ·  ", "dim"), ...(nw === undefined ? [S("—", "dim"), S(" workflows", "fg")] : [S(nw + " workflows", "fg")])]);
+  // Workflows that install as their skill are already counted under skills.
+  if (data.workflows && !data.workflows.runAs) L.push([S(" " + ns + " skills", "fg")]);
+  else L.push([S(" " + ns + " skills", "fg"), S("  ·  ", "dim"), ...(nw === undefined ? [S("—", "dim"), S(" workflows", "fg")] : [S(nw + " workflows", "fg")])]);
   const r = data.router;
   L.push([S(" autopilot ", "dim"), r ? S(r.autopilot ? "on" : "off", r.autopilot ? "ok" : "dim", BOLD) : S("—", "dim")]);
   while (L.length < h - 2) L.push([]);
