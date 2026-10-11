@@ -2,7 +2,7 @@ import { chmodSync, existsSync, lstatSync, mkdirSync } from "node:fs";
 import { DatabaseSync } from "node:sqlite";
 import { z } from "zod";
 import type { SourceId, WorkflowTrace } from "@reflex/core";
-import type { Suggestion, WorkflowCost } from "@reflex/analysis";
+import type { AnalysisStats, Suggestion, WorkflowCost } from "@reflex/analysis";
 import { paths } from "./paths";
 
 export type SuggestionStatus = "pending" | "approved" | "rejected";
@@ -25,7 +25,13 @@ export type ScanRecord = {
   partial: number;
   unreadable: number;
   skippedRecords: number;
+  /** Key of the saved analysis (see `saveAnalysis`), when one was saved. */
+  analysisKey?: string;
+  analysis?: SavedAnalysis;
 };
+
+/** What `scan` concluded, saved so `suggest` and `stats` need not recompute it. */
+export type SavedAnalysis = { stats: AnalysisStats; repositories: number };
 
 export type CachedFile = {
   path: string;
@@ -179,6 +185,8 @@ export class Store {
     this.db.exec(SCHEMA);
     const skillColumns = this.db.prepare("PRAGMA table_info(skills)").all() as Array<{ name: string }>;
     if (!skillColumns.some((c) => c.name === "baseline_json")) this.db.exec("ALTER TABLE skills ADD COLUMN baseline_json TEXT");
+    const scanColumns = this.db.prepare("PRAGMA table_info(scans)").all() as Array<{ name: string }>;
+    if (!scanColumns.some((c) => c.name === "analysis_key")) this.db.exec("ALTER TABLE scans ADD COLUMN analysis_key TEXT; ALTER TABLE scans ADD COLUMN analysis_json TEXT");
     this.db.exec(`PRAGMA user_version = ${SCHEMA_VERSION}`);
   }
 
@@ -206,6 +214,15 @@ export class Store {
       this.db.exec("ROLLBACK");
       throw err;
     }
+  }
+
+  /**
+   * Save the analysis of a scan under a key naming everything it depends on beyond the stored
+   * traces (Reflex's build and whether meaning was compared). The suggestions themselves are saved
+   * by `saveSuggestions`.
+   */
+  saveAnalysis(scanId: number, key: string, analysis: SavedAnalysis): void {
+    this.db.prepare("UPDATE scans SET analysis_key = ?, analysis_json = ? WHERE id = ?").run(key, JSON.stringify(analysis), scanId);
   }
 
   /** What the cache knows about a transcript file, if it was read before. */
@@ -298,6 +315,8 @@ export class Store {
       partial: Number(row.partial),
       unreadable: Number(row.unreadable),
       skippedRecords: Number(row.skipped_records),
+      analysisKey: row.analysis_key == null ? undefined : String(row.analysis_key),
+      analysis: row.analysis_json == null ? undefined : (JSON.parse(String(row.analysis_json)) as SavedAnalysis),
     };
   }
 

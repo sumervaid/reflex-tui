@@ -193,6 +193,15 @@ disk keeps its traces (marked `missing`); they count when their own date is in t
 redacted again if either key changed. A cached session that still needs an embedding forces its
 file to be re-read, since the request text is never stored. `scan --full` ignores the cache.
 
+### Saved analysis
+
+Analysis is deterministic, so `scan` saves its result with the scan: suggestions, the counts
+`stats` shows and the repository count, under a key naming what else it depends on (Reflex's build
+and whether meaning was compared). `suggest` and `stats` reuse it while the key matches; after an
+upgrade or a model install or removal they recompute once from the stored traces and save again.
+Approving or rejecting does not affect it. Analysis itself still runs once per scan and grows with
+the number of session pairs (about 30 s at 1,500 long sessions, mostly action-sequence LCS).
+
 The optional model lives in `~/.reflex/models/all-minilm-l6-v2-q8/` (23 MB, int8 ONNX). It is read
 only after its SHA-256 matches the pinned value, and is embedded one text at a time: the int8
 model quantizes per batch, so batching would make a session's vector depend on its neighbors.

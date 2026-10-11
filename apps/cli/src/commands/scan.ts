@@ -8,6 +8,7 @@ import { c, confirm, out, plural, rows, spinner, title, warn } from "../ui";
 import { modelBytes } from "@reflex/embeddings";
 import { type VectorResult, sessionVectors, vectorNeeds } from "../embeddings";
 import { MAX_FILES_PER_SOURCE, collect, currentKeys } from "../collect";
+import { analysisKey, summarize } from "../analysis";
 
 export type ScanOptions = {
   days: number;
@@ -113,8 +114,11 @@ export async function scan(opts: ScanOptions): Promise<void> {
       },
     });
     if (embedding) embedSpin.stop(meaning.status === "ok" ? "Compared by meaning" : "Meaning comparison unavailable");
-    suggestions = analyze(traces, meaning.status === "ok" ? { vectors: meaning.vectors } : {}).suggestions;
-    store.saveSuggestions(store.latestScan()!.id, suggestions);
+    const analysis = analyze(traces, meaning.status === "ok" ? { vectors: meaning.vectors } : {});
+    suggestions = analysis.suggestions;
+    const scanId = store.latestScan()!.id;
+    store.saveSuggestions(scanId, suggestions);
+    store.saveAnalysis(scanId, analysisKey(meaning.status === "ok"), summarize(analysis, traces));
   } finally {
     store.close();
   }

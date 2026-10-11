@@ -184,3 +184,35 @@ describe("scan with the cache", () => {
     expect(full.suggestions.length).toBeGreaterThan(0);
   });
 });
+
+describe("saved analysis", () => {
+  it("is reused by suggest and stats until something it depends on changes", async () => {
+    const { latestAnalysis } = await import("../src/analysis");
+    vi.spyOn(process.stdout, "write").mockImplementation(() => true);
+    await scan({ claudeDir: claudeRoot, codexDir: codexRoot, yes: true, days: 7 });
+    const store = new Store();
+    try {
+      const scanned = store.latestScan()!;
+      const suggestions = JSON.stringify(store.suggestions().map((s) => s.data));
+      const first = await latestAnalysis(store);
+      expect(first.reused).toBe(true);
+      expect(first.stats).toEqual(scanned.analysis!.stats);
+
+      // Approving or rejecting does not change the analysis.
+      store.setStatus(store.suggestions()[0]!.slug, "approved");
+      expect((await latestAnalysis(store)).reused).toBe(true);
+
+      // A different build (or matching mode) recomputes once, with the same result, then reuses again.
+      store.saveAnalysis(scanned.id, "older-build|words", scanned.analysis!);
+      const recomputed = await latestAnalysis(store);
+      expect(recomputed.reused).toBe(false);
+      expect(recomputed.stats).toEqual(scanned.analysis!.stats);
+      expect(recomputed.repositories).toBe(scanned.analysis!.repositories);
+      expect(JSON.stringify(store.suggestions().map((s) => s.data))).toBe(suggestions);
+      expect(store.suggestions()[0]!.status).toBe("approved");
+      expect((await latestAnalysis(store)).reused).toBe(true);
+    } finally {
+      store.close();
+    }
+  });
+});
