@@ -276,6 +276,12 @@ describe("reduce: mouse", () => {
     const r = reduce(su, mouseAt("press", sh.x0 + 1, sh.y0), { data: d, w: 120, h: 40, frame: sf });
     expect(r.ui.sel.search).toBe(1);
     expect(r.ui.typing).toBe(false);
+    expect(r.effects).toEqual([]);
+
+    // A second click on the selected hit resumes it.
+    const again = reduce(r.ui, mouseAt("press", sh.x0 + 1, sh.y0), { data: d, w: 120, h: 40, frame: compose(120, 40, d, r.ui) });
+    const hit = searchHits(d, r.ui)[1]!;
+    expect(again.effects).toEqual([{ type: "resume", sessionId: hit.session, turn: hit.turn }]);
   });
 
   it("the wheel scrolls the preview pane and stops at its end", () => {

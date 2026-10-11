@@ -217,6 +217,8 @@ function mouse(ui: UiState, ev: Extract<InputEvent, { type: "mouse" }>, ctx: Red
   if (ev.action !== "press" || ev.button !== 0) return { ui, effects: [] };
   if (a.type === "view") return { ui: go(ui, a.view), effects: [] };
   if (a.type === "select") {
+    // Clicking the search result that is already selected opens it, like Enter.
+    if (a.list === "search" && !ui.typing && ui.sel.search === a.index) return activate(ui, ctx.data);
     const s = select(ui, a.list, a.index);
     return { ui: a.list === "search" && s.typing ? { ...s, typing: false } : s, effects: [] };
   }
