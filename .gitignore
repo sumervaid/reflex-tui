@@ -1,0 +1,16 @@
+node_modules/
+dist/
+.turbo/
+coverage/
+*.log
+.DS_Store
+.env
+.env.*
+
+# Local Reflix state and any scratch history must never be committed
+.reflix/
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
+tmp/
