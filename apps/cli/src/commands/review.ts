@@ -5,7 +5,7 @@ import { analyze, type Suggestion } from "@reflix/analysis";
 import { displayPath, excerpt, pathExists } from "@reflix/safety";
 import { type StoredSuggestion, Store, paths } from "@reflix/storage";
 import { generateSkill, storeGenerated } from "@reflix/skills";
-import { c, choose, confirm, fileBlock, interactive, ok, out, pct, plural, rows, shortDate, title } from "../ui";
+import { c, chooseKey, confirm, fileBlock, interactive, ok, out, pct, plural, rows, shortDate, title } from "../ui";
 import { installFlow } from "./skills";
 
 const sourceSummary = (s: Suggestion) =>
@@ -139,20 +139,20 @@ export async function suggest(opts: { all?: boolean; interactive?: boolean }): P
 
 async function reviewLoop(store: Store, entry: StoredSuggestion): Promise<"next" | "quit"> {
   for (;;) {
-    const action = await choose(`#${entry.rank} ${entry.data.title}`, [
-      { value: "approve", label: "[A] Approve", hint: "generate a skill in ~/.reflix/skills" },
-      { value: "evidence", label: "[E] Evidence", hint: "show the sessions behind this" },
-      { value: "reject", label: "[R] Reject", hint: "don't suggest this again" },
-      { value: "skip", label: "Skip for now" },
-      { value: "quit", label: "Quit" },
+    const action = await chooseKey(`#${entry.rank} ${entry.data.title}`, [
+      { value: "a", label: "Approve", hint: "generate a skill in ~/.reflix/skills" },
+      { value: "e", label: "Evidence", hint: "show the sessions behind this" },
+      { value: "r", label: "Reject", hint: "don't suggest this again" },
+      { value: "s", label: "Skip for now" },
+      { value: "q", label: "Quit" },
     ]);
-    if (!action || action === "quit") return "quit";
-    if (action === "skip") return "next";
-    if (action === "evidence") {
+    if (!action || action === "q") return "quit";
+    if (action === "s") return "next";
+    if (action === "e") {
       renderEvidence(entry.data);
       continue;
     }
-    if (action === "reject") {
+    if (action === "r") {
       store.setStatus(entry.slug, "rejected");
       ok(`Rejected ${entry.slug}. It won't be suggested again unless you run \`reflix suggest --all\`.`);
       return "next";

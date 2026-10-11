@@ -69,6 +69,13 @@ export async function choose<T extends string>(message: string, options: Array<{
   return p.isCancel(answer) ? undefined : (answer as T);
 }
 
+/** Single-keypress choice; each option value is the key that selects it. */
+export async function chooseKey<T extends string>(message: string, options: Array<{ value: T; label: string; hint?: string }>): Promise<T | undefined> {
+  if (!interactive()) return undefined;
+  const answer = await p.selectKey({ message, options: options as never });
+  return p.isCancel(answer) ? undefined : (answer as T);
+}
+
 export async function chooseMany<T extends string>(message: string, options: Array<{ value: T; label: string; hint?: string }>): Promise<T[]> {
   if (!interactive()) return [];
   const answer = await p.multiselect({ message, options: options as never, required: false, initialValues: [] });

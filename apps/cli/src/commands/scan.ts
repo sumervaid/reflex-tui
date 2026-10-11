@@ -8,6 +8,9 @@ import { Store, paths } from "@reflix/storage";
 import { writeDemoHistory } from "@reflix/test-fixtures";
 import { c, confirm, out, plural, rows, spinner, title, warn } from "../ui";
 
+/** Bounds parse time and the quadratic clustering step on very large histories. */
+const MAX_FILES_PER_SOURCE = 2000;
+
 export type ScanOptions = { days: number; demo?: boolean; claudeDir?: string; codexDir?: string; yes?: boolean };
 
 export function parseDays(value: string): number {
@@ -74,10 +77,13 @@ export async function scan(opts: ScanOptions): Promise<void> {
   let partial = 0;
   let unreadable = 0;
   let skippedRecords = 0;
+  let capped = 0;
 
   const spin = spinner();
   for (const a of permitted) {
-    const list = await a.discover({ days: opts.days, now });
+    const all = await a.discover({ days: opts.days, now });
+    const list = all.sort((x, y) => y.modifiedAt.getTime() - x.modifiedAt.getTime()).slice(0, MAX_FILES_PER_SOURCE);
+    capped += all.length - list.length;
     spin.start(`Reading ${plural(list.length, `${a.label} file`)}…`);
     for (const file of list) {
       files++;
@@ -119,6 +125,7 @@ export async function scan(opts: ScanOptions): Promise<void> {
   if (folded.length) out(c.dim(`  counted once: ${folded.join(", ")}`));
   if (partial) out(c.dim(`  ${plural(partial, "session")} partially recovered (${plural(skippedRecords, "malformed record")} skipped)`));
   if (unreadable) warn(`${plural(unreadable, "unreadable file")} skipped`);
+  if (capped) warn(`${plural(capped, "older file")} skipped; Reflix reads the ${MAX_FILES_PER_SOURCE} most recent per source. Use a shorter --days window.`);
   out(`  ${c.green("0 bytes uploaded")} · transcripts were read locally; only redacted summaries were stored in ${displayPath(paths.db())}`);
   out();
   if (!traces.length) {

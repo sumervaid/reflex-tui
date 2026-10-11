@@ -13,7 +13,7 @@
     "typecheck": "turbo run typecheck",
     "lint": "eslint .",
     "reflix": "node apps/cli/dist/reflix.js",
-    "demo:reset": "node apps/cli/dist/reflix.js demo reset"
+    "demo:reset": "node apps/cli/dist/reflix.js reset"
   },
   "devDependencies": {
     "@eslint/js": "^9.37.0",
