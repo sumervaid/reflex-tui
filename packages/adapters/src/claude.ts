@@ -2,10 +2,10 @@ import { homedir } from "node:os";
 import { basename, join } from "node:path";
 import { z } from "zod";
 import type { DetectionResult, DiscoveryOptions, ParseResult, TranscriptAdapter, TranscriptFile } from "@reflex/core";
-import { debug } from "@reflex/core";
+import { addUsage, debug } from "@reflex/core";
 import { displayPath } from "@reflex/safety";
 import { readJsonl } from "./jsonl";
-import { SessionBuilder, clean, cutoffFor, isDirectory, listFiles, toTranscriptFiles } from "./common";
+import { SessionBuilder, clean, cutoffFor, isDirectory, listFiles, skillName, toTranscriptFiles, tokens } from "./common";
 
 const ContentBlock = z
   .object({
@@ -31,7 +31,9 @@ const ClaudeRecord = z
     message: z
       .object({
         role: z.string().optional(),
+        id: z.string().optional(),
         content: z.union([z.string(), z.array(z.unknown())]).optional(),
+        usage: z.record(z.string(), z.unknown()).optional(),
       })
       .passthrough()
       .optional(),
@@ -96,6 +98,8 @@ export class ClaudeCodeAdapter implements TranscriptAdapter {
     const cutoff = cutoffFor(options.days, options.now).toISOString();
     const builders = new Map<string, SessionBuilder>();
     const seenUuids = new Set<string>();
+    // Claude Code writes one record per content block and repeats the message's usage on each.
+    const countedMessages = new Set<string>();
     let totalRecords = 0;
     let skippedRecords = 0;
     const fallbackId = basename(file.path, ".jsonl");
@@ -153,6 +157,18 @@ export class ClaudeCodeAdapter implements TranscriptAdapter {
           continue;
         }
 
+        const usage = rec.message?.usage;
+        const messageId = rec.message?.id;
+        if (usage && messageId && !countedMessages.has(messageId)) {
+          countedMessages.add(messageId);
+          b.usage = addUsage(b.usage, {
+            input: tokens(usage.input_tokens),
+            output: tokens(usage.output_tokens),
+            cacheRead: tokens(usage.cache_read_input_tokens),
+            cacheWrite: tokens(usage.cache_creation_input_tokens),
+          });
+        }
+
         if (!Array.isArray(content)) continue;
         for (const raw of content) {
           const block = ContentBlock.safeParse(raw);
@@ -195,6 +211,10 @@ export class ClaudeCodeAdapter implements TranscriptAdapter {
     if (op) {
       const path = str(input.file_path) ?? str(input.notebook_path) ?? str(input.path);
       if (path) b.push({ kind: "file", at, op, path: clean.path(path) }, id);
+      return;
+    }
+    if (name === "Skill") {
+      b.push({ kind: "tool", at, tool: name, skill: skillName(input.skill) }, id);
       return;
     }
     b.push({ kind: "tool", at, tool: name.slice(0, 64) }, id);

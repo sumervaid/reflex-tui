@@ -26,6 +26,19 @@ const FILE_LABEL: Record<FileCategory, string> = {
 
 type Step = { action: ActionCategory; isError?: boolean; command?: CommandFingerprint };
 
+/** `skills/<name>/SKILL.md` anywhere except Reflex's own generated copies. */
+const SKILL_FILE = /(?:^|[/\\])skills[/\\]([A-Za-z0-9._-]{1,80})[/\\]SKILL\.md\b/g;
+
+function skillsIn(text: string): string[] {
+  if (/[/\\]\.reflex[/\\]skills[/\\]/.test(text)) return [];
+  return [...text.matchAll(SKILL_FILE)].map((m) => m[1]!);
+}
+
+/** True if the trace loaded this skill. Claude Code may prefix plugin skills (`plugin:name`). */
+export function usedSkill(trace: WorkflowTrace, name: string): boolean {
+  return (trace.skillsUsed ?? []).some((s) => s === name || s.endsWith(`:${name}`));
+}
+
 export function buildTrace(session: NormalizedSession): WorkflowTrace {
   const steps: Step[] = [];
   const commands: CommandFingerprint[] = [];
@@ -33,14 +46,18 @@ export function buildTrace(session: NormalizedSession): WorkflowTrace {
   const fileCategories = new Set<string>();
   const eventHashes: string[] = [];
   const displaySteps: string[] = [];
+  const skills = new Set<string>();
+  let toolCalls = 0;
   const show = (s: string) => {
     if (displaySteps[displaySteps.length - 1] !== s && displaySteps.length < MAX_SEQUENCE) displaySteps.push(s);
   };
 
   for (const ev of session.events) {
+    if (ev.kind === "shell" || ev.kind === "file" || ev.kind === "tool") toolCalls++;
     switch (ev.kind) {
       case "shell": {
         tools.add("shell");
+        for (const s of skillsIn(ev.command)) skills.add(s);
         for (const fp of classifyCommand(ev.command)) {
           commands.push(fp);
           steps.push({ action: fp.action, isError: ev.isError, command: fp });
@@ -51,6 +68,7 @@ export function buildTrace(session: NormalizedSession): WorkflowTrace {
       }
       case "file": {
         tools.add(`file-${ev.op}`);
+        if (ev.op === "read") for (const s of skillsIn(ev.path)) skills.add(s);
         const category = fileCategory(ev.path);
         fileCategories.add(category);
         steps.push({ action: fileAction(ev.op, category), isError: ev.isError });
@@ -60,6 +78,7 @@ export function buildTrace(session: NormalizedSession): WorkflowTrace {
       }
       case "tool": {
         tools.add(ev.tool);
+        if (ev.skill) skills.add(ev.skill);
         const action = TOOL_ACTIONS[ev.tool];
         if (action) {
           steps.push({ action, isError: ev.isError });
@@ -114,6 +133,9 @@ export function buildTrace(session: NormalizedSession): WorkflowTrace {
     fingerprint,
     eventHashes,
     sourceFile: session.sourceRef.file,
+    usage: session.usage,
+    toolCalls,
+    skillsUsed: [...skills].sort(),
   };
 }
 

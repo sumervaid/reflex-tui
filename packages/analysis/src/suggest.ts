@@ -1,11 +1,12 @@
 import type { ActionCategory, SourceId, WorkflowTrace } from "@reflex/core";
-import { SOURCE_IDS, debug } from "@reflex/core";
+import { SOURCE_IDS, debug, totalTokens } from "@reflex/core";
 import { toSlug } from "@reflex/safety";
 import { FAMILIES } from "./catalog";
 import { CLUSTER_THRESHOLD, clusterTraces } from "./cluster";
 import { type DedupStats, type WorkflowInstance, deduplicate } from "./dedup";
 import { MODIFY_TARGET_LABEL, STEP_TEXT, type StepKind } from "./steps";
-import { isGenericTrace } from "./trace";
+import { type WorkflowCost, median, workflowCost } from "./impact";
+import { isGenericTrace, usedSkill } from "./trace";
 
 export const MIN_INSTANCES = 3;
 const MIN_INTENT_COHESION = 0.2;
@@ -50,6 +51,10 @@ export type Evidence = {
   /** Duplicate records (copies, resumes, retries) folded into this instance. */
   duplicates: number;
   sourceFile: string;
+  /** Whole-session tokens, when the source records them. */
+  tokens?: number;
+  toolCalls?: number;
+  usedSkill?: boolean;
 };
 
 export type Suggestion = {
@@ -75,6 +80,8 @@ export type Suggestion = {
   medianMinutes?: number;
   /** Source session ids of every instance, for provenance. */
   sourceSessions: string[];
+  /** Cost of the runs that did not load a skill with this name: the baseline for `reflex impact`. */
+  cost?: WorkflowCost;
 };
 
 export type AnalysisStats = {
@@ -87,13 +94,6 @@ export type AnalysisStats = {
 };
 
 export type Analysis = { suggestions: Suggestion[]; stats: AnalysisStats };
-
-function median(xs: number[]): number | undefined {
-  if (!xs.length) return undefined;
-  const s = [...xs].sort((a, b) => a - b);
-  const mid = Math.floor(s.length / 2);
-  return s.length % 2 ? s[mid] : (s[mid - 1]! + s[mid]!) / 2;
-}
 
 function consensusSteps(instances: WorkflowInstance[]): ConsensusStep[] {
   const n = instances.length;
@@ -225,7 +225,7 @@ function topTerms(instances: WorkflowInstance[], limit = 6): string[] {
     .map(([t]) => t);
 }
 
-function evidenceFor(inst: WorkflowInstance): Evidence {
+function evidenceFor(inst: WorkflowInstance, slug: string): Evidence {
   const t = inst.primary;
   const actions = t.displaySteps.slice(0, 12);
   if (t.outcome.summarized) actions.push("summarize");
@@ -239,6 +239,9 @@ function evidenceFor(inst: WorkflowInstance): Evidence {
     verified: t.outcome.verified,
     duplicates: inst.merged.length,
     sourceFile: t.sourceFile,
+    tokens: t.usage ? totalTokens(t.usage) : undefined,
+    toolCalls: t.toolCalls,
+    usedSkill: usedSkill(t, slug) || undefined,
   };
 }
 
@@ -315,11 +318,12 @@ export function analyze(traces: WorkflowTrace[]): Analysis {
       steps,
       completion: completionCriteria(stepKinds),
       topTerms: terms,
-      evidence: group.map(evidenceFor).sort((a, b) => (a.date ?? "").localeCompare(b.date ?? "")),
+      evidence: group.map((g) => evidenceFor(g, slug)).sort((a, b) => (a.date ?? "").localeCompare(b.date ?? "")),
       notes,
       verifiedRate: Math.round(verifiedRate * 100) / 100,
       medianMinutes: median(durations),
       sourceSessions: group.flatMap((g) => [g.primary.sessionId, ...g.merged.map((m) => m.sessionId)]),
+      cost: workflowCost(group.map((g) => g.primary).filter((t) => !usedSkill(t, slug))),
     });
   }
 

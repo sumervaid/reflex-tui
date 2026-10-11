@@ -52,6 +52,16 @@ skip bad lines, cap line size and events per session).
 
 All text is truncated and redacted inside the adapter, before anything else sees it.
 
+Token usage, where recorded, is attached to the session as `{input, output, cacheRead, cacheWrite}`:
+
+- Claude Code: `message.usage` on assistant records, counted once per `message.id` (Claude Code
+  repeats the same usage on every content-block record of one API message). Sidechain records are
+  skipped, so subagent tokens are not included.
+- Codex: the last cumulative `event_msg` `token_count.info.total_token_usage`. `input_tokens`
+  includes `cached_input_tokens`, so the cached part is moved into `cacheRead`. Like the rest of the
+  Codex parser, this follows the protocol types and is tested on fixtures only.
+- Cursor: no usage in its transcripts.
+
 ## From sessions to suggestions
 
 1. **Trace.** Each session becomes an ordered list of action categories (`inspect-ci`,
@@ -78,6 +88,17 @@ All text is truncated and redacted inside the adapter, before anything else sees
 A small family catalog (`fix-ci`, `review-pr`, `debug-dependency`, …) names clusters. It never
 creates or admits one.
 
+## Cost and impact
+
+Each suggestion carries a cost: run count, runs with token data, median whole-session tokens, summed
+token mix and median tool calls. Runs that already loaded a skill with the suggestion's name are
+excluded. `approve` stores this as the skill's baseline, and a later approval keeps the first one.
+A trace records skill use from Claude Code's `Skill` tool call (plugin prefixes like `x:name` match),
+from file reads, and from shell commands that mention `skills/<name>/SKILL.md`. Reflex's own copies
+in `~/.reflex/skills` are excluded. `reflex impact` de-duplicates the current traces, takes the runs
+that used the skill, and reports the relative change of each median only when both sides have at
+least 3 runs.
+
 ## Skills
 
 `approve` writes `~/.reflex/skills/<name>/SKILL.md`: frontmatter (`name`, `description`,
@@ -94,7 +115,8 @@ tests passing.
 ## Storage
 
 `~/.reflex/reflex.db` (mode 0600, directory 0700): scans, redacted traces, suggestions and their
-status, generated skills and installations. `PRAGMA user_version` gates schema changes.
+status, generated skills (with their cost baseline) and installations. `PRAGMA user_version` gates
+schema changes; version 2 adds `skills.baseline_json` in place.
 
 ## Configuration
 

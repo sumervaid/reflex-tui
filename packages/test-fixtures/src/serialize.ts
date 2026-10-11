@@ -42,6 +42,13 @@ export function toClaudeLines(session: FixtureSession, start: Date, sessionId: s
   });
   const push = (type: "user" | "assistant", message: Line, extra: Line = {}) => {
     const uuid = fixtureUuid(`${session.key}:${n++}`);
+    if (type === "assistant") {
+      message = {
+        ...message,
+        id: `msg_${sha256(uuid).slice(0, 20)}`,
+        usage: { input_tokens: 40, output_tokens: 120, cache_read_input_tokens: 8000 + n * 400, cache_creation_input_tokens: 600 },
+      };
+    }
     lines.push({ ...base(), type, message, uuid, timestamp: new Date(t).toISOString(), ...extra });
     parent = uuid;
     t += STEP_SECONDS * 1000;
@@ -143,6 +150,11 @@ export function toCodexLines(
     });
   });
   push("response_item", { type: "message", role: "assistant", content: [{ type: "output_text", text: session.summary }] });
+  const input = 9000 * (session.steps.length + 1);
+  push("event_msg", {
+    type: "token_count",
+    info: { total_token_usage: { input_tokens: input, cached_input_tokens: Math.round(input * 0.8), output_tokens: 150 * session.steps.length, reasoning_output_tokens: 0 } },
+  });
   return { lines, end: new Date(t) };
 }
 

@@ -122,6 +122,33 @@ describe("ClaudeCodeAdapter", () => {
     expect(files.map((f) => f.path.split("/").pop())).toEqual(["fresh.jsonl"]);
   });
 
+  it("counts each message's token usage once and records Skill tool calls", async () => {
+    const usage = { input_tokens: 10, output_tokens: 5, cache_read_input_tokens: 100, cache_creation_input_tokens: 20 };
+    const assistant = (id: string, block: Record<string, unknown>) => ({
+      type: "assistant",
+      sessionId: "s1",
+      timestamp: "2026-10-10T10:00:01.000Z",
+      message: { role: "assistant", id, usage, content: [block] },
+    });
+    await writeSession("s1", [
+      user("review this PR"),
+      assistant("m1", { type: "text", text: "Looking." }),
+      assistant("m1", { type: "tool_use", id: "t1", name: "Skill", input: { skill: "review-pr" } }),
+      assistant("m2", { type: "tool_use", id: "t2", name: "Skill", input: { skill: "$(rm -rf /)" } }),
+    ]);
+    const [result] = await parseOnly(new ClaudeCodeAdapter(root));
+    const s = result!.sessions[0]!;
+    expect(s.usage).toEqual({ input: 20, output: 10, cacheRead: 200, cacheWrite: 40 });
+    const skills = s.events.filter((e) => e.kind === "tool" && e.tool === "Skill").map((e) => (e.kind === "tool" ? e.skill : ""));
+    expect(skills).toEqual(["review-pr", undefined]);
+  });
+
+  it("leaves usage undefined when no record carries it", async () => {
+    await writeSession("s1", [user("hello there")]);
+    const [result] = await parseOnly(new ClaudeCodeAdapter(root));
+    expect(result!.sessions[0]!.usage).toBeUndefined();
+  });
+
   it("reports a missing root as not found", async () => {
     const d = await new ClaudeCodeAdapter(join(root, "nope")).detect();
     expect(d.found).toBe(false);

@@ -12,6 +12,7 @@ import { parseDays, scan } from "./commands/scan";
 import { approve, evidence, reject, show, suggest } from "./commands/review";
 import { explain, installCommand, listSkills, showSkill, validate } from "./commands/skills";
 import { doctor, reset, sessions, stats } from "./commands/misc";
+import { impact } from "./commands/impact";
 
 function run<A extends unknown[]>(fn: (...args: A) => Promise<void>) {
   return async (...args: A) => {
@@ -83,6 +84,7 @@ program
   .option("-y, --yes", "consent without prompting")
   .action(run(validate));
 
+program.command("impact [skill]").description("compare a workflow's tokens and tool calls before and after its skill").action(run(impact));
 program.command("stats").description("defensible counts from local data").action(run(stats));
 program
   .command("reset")

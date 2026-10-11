@@ -9,6 +9,7 @@ import { scan } from "../src/commands/scan";
 import { approve, evidence, reject, suggest } from "../src/commands/review";
 import { explain, installCommand, listSkills } from "../src/commands/skills";
 import { stats } from "../src/commands/misc";
+import { impact } from "../src/commands/impact";
 import { installNetworkGuard } from "../src/guard";
 
 let root: string;
@@ -85,6 +86,18 @@ describe("reflex end-to-end loop on fixture transcripts", () => {
 
     await capture(() => installCommand("fix-ci", { target: ["claude-code"], yes: true }));
     expect(await readFile(join(root, "claude-skills", "fix-ci", "SKILL.md"), "utf8")).toBe(skill);
+  });
+
+  it("shows the workflow's measured cost and an honest impact report", async () => {
+    const shown = await capture(() => suggest({ interactive: false }));
+    expect(shown).toMatch(/Cost\s+6 runs · median [\d.]+k tokens · median \d+ tool calls/);
+    expect(await capture(() => evidence("fix-ci"))).toMatch(/[\d.]+k tokens, \d+ tool calls/);
+    const report = await capture(() => impact("fix-ci"));
+    expect(report).toMatch(/Before the skill\s+6 runs · median [\d.]+k tokens/);
+    expect(report).toContain("no runs yet");
+    expect(report).toContain("not enough runs to compare");
+    expect(report).toMatch(/Skill overhead\s+≈[\d.]+k? tokens/);
+    await expect(impact("nope")).rejects.toThrow('No generated skill "nope"');
   });
 
   it("explains provenance, lists skills and reports counts", async () => {

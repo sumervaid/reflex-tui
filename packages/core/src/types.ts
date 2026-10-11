@@ -16,10 +16,27 @@ export type UserRequest = {
 
 export type FileOp = "read" | "write" | "edit";
 
+/** Token counts as recorded by the source tool. `input` excludes cached input. */
+export type TokenUsage = {
+  input: number;
+  output: number;
+  cacheRead: number;
+  cacheWrite: number;
+};
+
+export function totalTokens(u: TokenUsage): number {
+  return u.input + u.output + u.cacheRead + u.cacheWrite;
+}
+
+export function addUsage(a: TokenUsage | undefined, b: TokenUsage): TokenUsage {
+  if (!a) return { ...b };
+  return { input: a.input + b.input, output: a.output + b.output, cacheRead: a.cacheRead + b.cacheRead, cacheWrite: a.cacheWrite + b.cacheWrite };
+}
+
 export type SessionEvent =
   | { kind: "user"; at?: string; text: string }
   | { kind: "assistant"; at?: string; text: string }
-  | { kind: "tool"; at?: string; tool: string; isError?: boolean }
+  | { kind: "tool"; at?: string; tool: string; isError?: boolean; skill?: string }
   | { kind: "shell"; at?: string; command: string; isError?: boolean }
   | { kind: "file"; at?: string; op: FileOp; path: string; isError?: boolean }
   | { kind: "error"; at?: string; message: string };
@@ -46,6 +63,8 @@ export type NormalizedSession = {
   sourceRef: LocalSourceReference;
   /** Number of records in this session that could not be interpreted and were skipped. */
   skippedRecords: number;
+  /** Absent when the source does not record token usage (Cursor). */
+  usage?: TokenUsage;
 };
 
 export type DetectionResult = {
@@ -151,4 +170,9 @@ export type WorkflowTrace = {
   /** Hashes of individual user/action events, used to detect resumed sessions. */
   eventHashes: string[];
   sourceFile: string;
+  usage?: TokenUsage;
+  /** Shell, file and other tool calls. Optional in traces stored before it existed. */
+  toolCalls?: number;
+  /** Skill names the agent loaded (Skill tool call or reading a `skills/<name>/SKILL.md`). */
+  skillsUsed?: string[];
 };

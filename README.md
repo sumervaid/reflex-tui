@@ -47,6 +47,7 @@ alias reflex="node $PWD/apps/cli/dist/reflex.js"
 | `install <name>` | Install into Claude Code, Codex or Cursor. `--target`, `--as <new-name>`, `--yes`. Never overwrites |
 | `explain <name>` | Why the skill exists: sessions, repositories, agents, steps, installs |
 | `validate <name>` | Static checks and installed-copy comparison. For `fix-ci`, also a fresh-task sandbox (`--run` starts Claude Code) |
+| `impact [name]` | Tokens and tool calls per run before the skill vs. runs that loaded it, plus the skill's own size |
 | `stats` | Counts from local data |
 | `reset` | Delete Reflex's own data (not installed skills) |
 
@@ -65,6 +66,19 @@ generic "read, edit, test" patterns are not suggested.
 The skill contains only steps seen in at least half the sessions, in the order they usually
 happened, with example commands that recurred and passed a safety filter. No transcript text.
 Details: [docs/architecture.md](docs/architecture.md).
+
+## Measuring a skill
+
+Each suggestion shows what the workflow costs today: median tokens and tool calls per run. When you
+approve it, Reflex keeps that as the baseline. After you've used the skill, run `reflex scan` and
+`reflex impact <name>`. Reflex finds the sessions that loaded the skill (a `Skill` call, or the agent
+reading its `SKILL.md`) and compares their medians with the baseline. It reports a change only when
+both sides have at least 3 runs, and never predicts savings in advance.
+
+- Tokens are whole-session totals as Claude Code and Codex record them, cache reads included, so
+  other work in the same session counts too.
+- Cursor doesn't record tokens. Cursor runs count tool calls only.
+- The skill's own cost is shown as an estimate from its file size (4 characters per token).
 
 ## Privacy and security
 

@@ -2,7 +2,7 @@ import { chmodSync, existsSync, lstatSync, mkdirSync } from "node:fs";
 import { DatabaseSync } from "node:sqlite";
 import { z } from "zod";
 import type { SourceId, WorkflowTrace } from "@reflex/core";
-import type { Suggestion } from "@reflex/analysis";
+import type { Suggestion, WorkflowCost } from "@reflex/analysis";
 import { paths } from "./paths";
 
 export type SuggestionStatus = "pending" | "approved" | "rejected";
@@ -33,6 +33,8 @@ export type SkillRecord = {
   path: string;
   createdAt: string;
   contentHash: string;
+  /** The workflow's cost when the skill was approved, the "before" side of `reflex impact`. */
+  baseline?: WorkflowCost;
 };
 
 export type InstallationRecord = {
@@ -43,7 +45,7 @@ export type InstallationRecord = {
   contentHash: string;
 };
 
-const SCHEMA_VERSION = 1;
+const SCHEMA_VERSION = 2;
 
 const SCHEMA = `
 CREATE TABLE IF NOT EXISTS scans (
@@ -80,7 +82,8 @@ CREATE TABLE IF NOT EXISTS skills (
   suggestion_slug TEXT NOT NULL,
   path TEXT NOT NULL,
   created_at TEXT NOT NULL,
-  content_hash TEXT NOT NULL
+  content_hash TEXT NOT NULL,
+  baseline_json TEXT
 );
 CREATE TABLE IF NOT EXISTS installations (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -95,6 +98,7 @@ CREATE TABLE IF NOT EXISTS installations (
 const TraceShape = z
   .object({ sessionId: z.string(), source: z.enum(["claude-code", "codex", "cursor"]), actionSequence: z.array(z.string()), intents: z.array(z.string()) })
   .passthrough();
+const BaselineShape = z.object({ runs: z.number(), runsWithTokens: z.number() }).passthrough();
 const SuggestionShape = z.object({ slug: z.string(), title: z.string(), steps: z.array(z.unknown()), evidence: z.array(z.unknown()) }).passthrough();
 
 function parseJson<T>(raw: string, shape: z.ZodType, what: string): T {
@@ -114,8 +118,10 @@ export class Store {
     chmodSync(file, 0o600);
     const version = Number((this.db.prepare("PRAGMA user_version").get() as { user_version: number }).user_version);
     // Sessions are derived data and can always be rebuilt by `reflex scan`.
-    if (version < SCHEMA_VERSION) this.db.exec("DROP TABLE IF EXISTS sessions");
+    if (version < 1) this.db.exec("DROP TABLE IF EXISTS sessions");
     this.db.exec(SCHEMA);
+    const skillColumns = this.db.prepare("PRAGMA table_info(skills)").all() as Array<{ name: string }>;
+    if (!skillColumns.some((c) => c.name === "baseline_json")) this.db.exec("ALTER TABLE skills ADD COLUMN baseline_json TEXT");
     this.db.exec(`PRAGMA user_version = ${SCHEMA_VERSION}`);
   }
 
@@ -218,10 +224,11 @@ export class Store {
   saveSkill(skill: SkillRecord): void {
     this.db
       .prepare(
-        `INSERT INTO skills (name, suggestion_slug, path, created_at, content_hash) VALUES (?,?,?,?,?)
-         ON CONFLICT(name) DO UPDATE SET suggestion_slug = excluded.suggestion_slug, path = excluded.path, created_at = excluded.created_at, content_hash = excluded.content_hash`,
+        `INSERT INTO skills (name, suggestion_slug, path, created_at, content_hash, baseline_json) VALUES (?,?,?,?,?,?)
+         ON CONFLICT(name) DO UPDATE SET suggestion_slug = excluded.suggestion_slug, path = excluded.path, created_at = excluded.created_at,
+           content_hash = excluded.content_hash, baseline_json = COALESCE(skills.baseline_json, excluded.baseline_json)`,
       )
-      .run(skill.name, skill.suggestionSlug, skill.path, skill.createdAt, skill.contentHash);
+      .run(skill.name, skill.suggestionSlug, skill.path, skill.createdAt, skill.contentHash, skill.baseline ? JSON.stringify(skill.baseline) : null);
   }
 
   skills(): SkillRecord[] {
@@ -232,7 +239,14 @@ export class Store {
       path: String(r.path),
       createdAt: String(r.created_at),
       contentHash: String(r.content_hash),
+      baseline: r.baseline_json ? parseJson<WorkflowCost>(String(r.baseline_json), BaselineShape, "skill baseline") : undefined,
     }));
+  }
+
+  /** A suggestion by slug, including ones the latest scan no longer found. */
+  suggestionBySlug(slug: string): Suggestion | undefined {
+    const row = this.db.prepare("SELECT data_json FROM suggestions WHERE slug = ?").get(slug) as { data_json: string } | undefined;
+    return row ? parseJson<Suggestion>(row.data_json, SuggestionShape, "suggestion") : undefined;
   }
 
   skill(name: string): SkillRecord | undefined {

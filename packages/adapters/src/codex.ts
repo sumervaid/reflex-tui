@@ -5,7 +5,7 @@ import type { DetectionResult, DiscoveryOptions, ParseResult, TranscriptAdapter,
 import { debug } from "@reflex/core";
 import { displayPath } from "@reflex/safety";
 import { readJsonl } from "./jsonl";
-import { SessionBuilder, clean, cutoffFor, isDirectory, listFiles, patchedFiles, toTranscriptFiles } from "./common";
+import { SessionBuilder, clean, cutoffFor, isDirectory, listFiles, patchedFiles, toTranscriptFiles, tokens } from "./common";
 
 /**
  * Codex CLI rollout files: one JSON object per line, `{ timestamp, type, payload }`, where type is
@@ -37,6 +37,18 @@ const Item = z
     id: z.string().optional(),
     cwd: z.string().optional(),
     timestamp: z.string().optional(),
+  })
+  .passthrough();
+
+/** `event_msg` payload `{ type: "token_count", info: { total_token_usage } }`; totals are cumulative per session. */
+const TokenCount = z
+  .object({
+    type: z.literal("token_count"),
+    info: z
+      .object({ total_token_usage: z.record(z.string(), z.unknown()).optional() })
+      .passthrough()
+      .nullable()
+      .optional(),
   })
   .passthrough();
 
@@ -141,6 +153,12 @@ export class CodexAdapter implements TranscriptAdapter {
 
         if (kind === "event_msg") {
           if (item.type === "user_message" && item.message) eventUserMessages.push({ text: item.message, at });
+          const total = item.type === "token_count" ? TokenCount.safeParse(body).data?.info?.total_token_usage : undefined;
+          if (total) {
+            // OpenAI-style counts: input_tokens includes cached input, output_tokens includes reasoning.
+            const cached = tokens(total.cached_input_tokens);
+            b.usage = { input: Math.max(0, tokens(total.input_tokens) - cached), output: tokens(total.output_tokens), cacheRead: cached, cacheWrite: 0 };
+          }
           continue;
         }
 

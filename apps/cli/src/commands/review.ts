@@ -5,13 +5,21 @@ import { analyze, type Suggestion } from "@reflex/analysis";
 import { displayPath, excerpt, pathExists } from "@reflex/safety";
 import { type StoredSuggestion, Store, paths } from "@reflex/storage";
 import { generateSkill, storeGenerated } from "@reflex/skills";
-import { c, chooseKey, confirm, fileBlock, interactive, ok, out, pct, plural, rows, shortDate, title } from "../ui";
+import { c, chooseKey, confirm, fileBlock, fmtTokens, interactive, ok, out, pct, plural, rows, shortDate, title } from "../ui";
+import { describeCost } from "./impact";
 import { installFlow } from "./skills";
 
 const sourceSummary = (s: Suggestion) =>
   Object.entries(s.sources)
     .map(([k, n]) => `${SOURCE_LABELS[k as keyof typeof SOURCE_LABELS] ?? k} ${n}`)
     .join(", ");
+
+function costLine(s: Suggestion): string {
+  const cost = s.cost!;
+  const line = describeCost(cost);
+  if (cost.runsWithTokens) return line;
+  return s.sources.cursor ? `${line} ${c.dim("(Cursor doesn't record tokens)")}` : line;
+}
 
 export function renderSuggestion(entry: StoredSuggestion): void {
   const s = entry.data;
@@ -26,6 +34,7 @@ export function renderSuggestion(entry: StoredSuggestion): void {
       ["Consolidated", `${plural(s.records, "history record")} (copies, resumes and retries counted once)`],
       ["Confidence", `${c.bold(pct(s.confidence))} ${c.dim("ranking heuristic, not a probability")}`],
       ["Window", `${shortDate(s.firstSeen)} → ${shortDate(s.lastSeen)}`],
+      ...(s.cost ? ([["Cost", costLine(s)]] as Array<[string, string]>) : []),
     ],
     2,
   );
@@ -51,7 +60,10 @@ export function renderEvidence(s: Suggestion): void {
   out();
   for (const e of s.evidence) {
     const agent = SOURCE_LABELS[e.source];
-    out(`${c.bold(shortDate(e.date))} · ${e.project ?? "unknown project"} · ${c.dim(agent)}`);
+    const cost = [e.tokens !== undefined ? `${fmtTokens(e.tokens)} tokens` : "", e.toolCalls !== undefined ? plural(e.toolCalls, "tool call") : ""]
+      .filter(Boolean)
+      .join(", ");
+    out(`${c.bold(shortDate(e.date))} · ${e.project ?? "unknown project"} · ${c.dim(agent)}${cost ? c.dim(` · ${cost}`) : ""}`);
     out(`  "${excerpt(e.excerpt, 170)}"`);
     out(`  ${c.dim("Actions:")} ${e.actions.slice(0, 8).join(c.dim(" → "))}`);
     const outcome = e.verified ? c.green("checks passed after the change") : c.yellow("no passing check observed");
@@ -176,7 +188,14 @@ export async function approveEntry(store: Store, entry: StoredSuggestion, opts: 
     }
   }
   const path = await storeGenerated(paths.skills(), skill.name, skill.content, JSON.stringify(skill.provenance, null, 2) + "\n");
-  store.saveSkill({ name: skill.name, suggestionSlug: entry.slug, path, createdAt: skill.provenance.createdAt, contentHash: skill.contentHash });
+  store.saveSkill({
+    name: skill.name,
+    suggestionSlug: entry.slug,
+    path,
+    createdAt: skill.provenance.createdAt,
+    contentHash: skill.contentHash,
+    baseline: entry.data.cost,
+  });
   store.setStatus(entry.slug, "approved");
 
   out();
@@ -185,9 +204,11 @@ export async function approveEntry(store: Store, entry: StoredSuggestion, opts: 
   out();
   fileBlock(displayPath(path), skill.content);
   out();
-  if (opts.noInstall) return;
-  if (interactive() && !opts.yes) await installFlow(store, skill.name, {});
-  else out(`Install it explicitly: ${c.cyan(`reflex install ${skill.name}`)}`);
+  if (!opts.noInstall) {
+    if (interactive() && !opts.yes) await installFlow(store, skill.name, {});
+    else out(`Install it explicitly: ${c.cyan(`reflex install ${skill.name}`)}`);
+  }
+  out(c.dim(`To measure it: use the skill a few times, run \`reflex scan\`, then \`reflex impact ${skill.name}\`.`));
 }
 
 export async function show(ref: string): Promise<void> {

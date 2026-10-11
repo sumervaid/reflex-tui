@@ -1,6 +1,6 @@
 import { lstat, readdir } from "node:fs/promises";
 import { basename, join } from "node:path";
-import type { NormalizedSession, SessionEvent, SourceId, TranscriptFile } from "@reflex/core";
+import type { NormalizedSession, SessionEvent, SourceId, TokenUsage, TranscriptFile } from "@reflex/core";
 import { shortHash } from "@reflex/core";
 import { displayPath, redact } from "@reflex/safety";
 
@@ -82,6 +82,16 @@ export async function toTranscriptFiles(paths: string[], cutoff: Date): Promise<
   return files;
 }
 
+/** A skill name as written by an agent, or undefined if it doesn't look like one. */
+export function skillName(value: unknown): string | undefined {
+  return typeof value === "string" && /^[A-Za-z0-9._:-]{1,80}$/.test(value) ? value : undefined;
+}
+
+/** Non-negative integer token count, or 0. */
+export function tokens(value: unknown): number {
+  return typeof value === "number" && Number.isFinite(value) && value > 0 ? Math.round(value) : 0;
+}
+
 export function cutoffFor(days: number, now = new Date()): Date {
   return new Date(now.getTime() - days * 24 * 60 * 60 * 1000);
 }
@@ -103,6 +113,7 @@ export class SessionBuilder {
   startedAt?: string;
   endedAt?: string;
   cwd?: string;
+  usage?: TokenUsage;
   private pendingTools = new Map<string, SessionEvent>();
 
   constructor(
@@ -152,6 +163,7 @@ export class SessionBuilder {
       events: this.events,
       sourceRef: { file: this.file.displayPath, nativeId: this.nativeId },
       skippedRecords: this.skipped,
+      usage: this.usage,
     };
   }
 }

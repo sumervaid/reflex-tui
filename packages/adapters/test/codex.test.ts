@@ -89,6 +89,20 @@ describe("CodexAdapter", () => {
     expect(r!.sessions[0]!.requests[0]!.text).toBe("fix the build");
   });
 
+  it("keeps the last cumulative token_count and splits cached input out", async () => {
+    const count = (input: number, cached: number, output: number) =>
+      line("event_msg", { type: "token_count", info: { total_token_usage: { input_tokens: input, cached_input_tokens: cached, output_tokens: output } } });
+    await writeRollout("rollout-e.jsonl", [
+      meta,
+      userMsg("fix ci"),
+      line("event_msg", { type: "token_count", info: null }),
+      count(1000, 600, 50),
+      count(3000, 2000, 120),
+    ]);
+    const [r] = await parseAll();
+    expect(r!.sessions[0]!.usage).toEqual({ input: 1000, output: 120, cacheRead: 2000, cacheWrite: 0 });
+  });
+
   it("redacts secrets in commands", async () => {
     await writeRollout("rollout-d.jsonl", [
       meta,
