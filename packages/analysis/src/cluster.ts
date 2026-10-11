@@ -1,5 +1,5 @@
 import type { WorkflowTrace } from "@reflex/core";
-import { buildTfIdf, concepts, cosine } from "./intents";
+import { concepts, cosine, termSimilarities } from "./intents";
 import { opKeys, similarity } from "./similarity";
 
 export const CLUSTER_THRESHOLD = 0.45;
@@ -18,9 +18,9 @@ type Matrices = { total: number[][]; intent: number[][]; actions: number[][] };
 
 /** Semantic intent = blend of concept overlap (synonym-aware) and TF-IDF term overlap. */
 export function intentSimilarities(traces: WorkflowTrace[]): (i: number, j: number) => number {
-  const tfidf = buildTfIdf(traces.map((t) => t.intents));
+  const termSim = termSimilarities(traces.map((t) => t.intents));
   const conceptVectors = traces.map((t) => concepts(t.intents));
-  return (i, j) => 0.5 * cosine(conceptVectors[i]!, conceptVectors[j]!) + 0.5 * cosine(tfidf.vectors[i]!, tfidf.vectors[j]!);
+  return (i, j) => 0.5 * cosine(conceptVectors[i]!, conceptVectors[j]!) + 0.5 * termSim(i, j);
 }
 
 /** Pairwise similarity matrices. O(n^2), fine for hundreds of sessions. */
