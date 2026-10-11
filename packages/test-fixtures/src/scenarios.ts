@@ -332,6 +332,80 @@ export const EXPLAIN_CI: FixtureSession[] = [
   },
 ];
 
+/**
+ * The same performance-fix workflow requested four times with no words in common. Lexical matching
+ * cannot group these; meaning-based matching (sentence embeddings) should. Not in ALL_SESSIONS.
+ */
+export const SPEED_UP: FixtureSession[] = [
+  {
+    key: "perf-1",
+    source: "claude-code",
+    project: "acme-web",
+    daysAgo: 5,
+    prompt: "make the login page load faster, it takes about four seconds",
+    steps: [
+      { bash: "git status" },
+      { read: "src/pages/login.tsx" },
+      { grep: "useEffect" },
+      { edit: "src/pages/login.tsx" },
+      { bash: "pnpm build" },
+      { bash: "pnpm test" },
+      { bash: "git diff" },
+    ],
+    summary: "Two requests ran one after the other on mount; they now run in parallel and the page renders in under a second.",
+  },
+  {
+    key: "perf-2",
+    source: "codex",
+    project: "billing-api",
+    daysAgo: 4,
+    prompt: "the invoice list screen is really slow, can you speed it up?",
+    steps: [
+      { bash: "git status" },
+      { read: "src/invoices/list.ts" },
+      { grep: "findMany" },
+      { edit: "src/invoices/list.ts" },
+      { bash: "npm run build" },
+      { bash: "npm test" },
+      { bash: "git diff" },
+    ],
+    summary: "The list query loaded every line item per invoice; it now selects only the summary columns.",
+  },
+  {
+    key: "perf-3",
+    source: "claude-code",
+    project: "mobile-app",
+    daysAgo: 3,
+    prompt: "dashboard takes forever to render on older phones",
+    steps: [
+      { read: "src/screens/Dashboard.tsx" },
+      { grep: "useMemo" },
+      { edit: "src/screens/Dashboard.tsx" },
+      { bash: "pnpm typecheck" },
+      { bash: "pnpm test" },
+      { bash: "git diff" },
+    ],
+    summary: "The chart data was recomputed on every render; memoized it.",
+  },
+  {
+    key: "perf-4",
+    source: "claude-code",
+    project: "docs-site",
+    daysAgo: 2,
+    prompt: "search results show up with a long delay, please improve the performance",
+    steps: [
+      { bash: "git status" },
+      { read: "src/components/Search.tsx" },
+      { grep: "debounce" },
+      { edit: "src/components/Search.tsx" },
+      { bash: "pnpm build" },
+      { bash: "pnpm test" },
+      { bash: "git diff --stat" },
+    ],
+    summary: "The index was rebuilt on each keystroke; it is now built once and reused.",
+  },
+];
+
 export const ONE_OFFS: FixtureSession[] = [
   {
     key: "misc-dark-mode",

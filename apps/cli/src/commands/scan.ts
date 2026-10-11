@@ -5,6 +5,8 @@ import { type Suggestion, analyze, buildTrace, deduplicate } from "@reflex/analy
 import { displayPath } from "@reflex/safety";
 import { Store, paths } from "@reflex/storage";
 import { c, confirm, out, plural, rows, spinner, title, warn } from "../ui";
+import { modelBytes } from "@reflex/embeddings";
+import { type VectorResult, sessionVectors } from "../embeddings";
 
 /** Bounds parse time and the quadratic clustering step on very large histories. */
 const MAX_FILES_PER_SOURCE = 2000;
@@ -94,12 +96,22 @@ export async function scan(opts: ScanOptions): Promise<void> {
   const traces = sessions.map(buildTrace);
   const store = new Store();
   let suggestions: Suggestion[] = [];
+  let meaning: VectorResult = { status: "no-model" };
   try {
     store.saveScan(
       { startedAt: now.toISOString(), days: opts.days, mode, sources: perSource, files, sessions: traces.length, partial, unreadable, skippedRecords },
       traces,
     );
-    suggestions = analyze(traces).suggestions;
+    const embedSpin = spinner();
+    let embedding = false;
+    meaning = await sessionVectors(traces, store, {
+      onProgress: (n) => {
+        embedding = true;
+        embedSpin.start(`Comparing ${plural(n, "new session")} by meaning (local model)…`);
+      },
+    });
+    if (embedding) embedSpin.stop(meaning.status === "ok" ? "Compared by meaning" : "Meaning comparison unavailable");
+    suggestions = analyze(traces, meaning.status === "ok" ? { vectors: meaning.vectors } : {}).suggestions;
     store.saveSuggestions(store.latestScan()!.id, suggestions);
   } finally {
     store.close();
@@ -119,6 +131,8 @@ export async function scan(opts: ScanOptions): Promise<void> {
   if (partial) out(c.dim(`  ${plural(partial, "session")} partially recovered (${plural(skippedRecords, "malformed record")} skipped)`));
   if (unreadable) warn(`${plural(unreadable, "unreadable file")} skipped`);
   if (capped) warn(`${plural(capped, "older file")} skipped; Reflex reads the ${MAX_FILES_PER_SOURCE} most recent per source. Use a shorter --days window.`);
+  if (meaning.status === "ok") out(c.dim(`  requests compared by words and by meaning (local model; ${plural(meaning.embedded, "session")} newly embedded)`));
+  else if (meaning.status === "failed") warn(`Meaning comparison skipped (${meaning.error}); requests were compared by words only.`);
   out(`  ${c.green("0 bytes uploaded")} · transcripts were read locally; only redacted summaries were stored in ${displayPath(paths.db())}`);
   out();
   if (!traces.length) {
@@ -130,4 +144,5 @@ export async function scan(opts: ScanOptions): Promise<void> {
       ? `${plural(suggestions.length, "repeated workflow")} found. Next: ${c.cyan("reflex suggest")}`
       : `No repeated workflows yet. Details: ${c.cyan("reflex suggest")}`,
   );
+  if (meaning.status === "no-model") out(c.dim(`Tip: ${c.cyan("reflex model fetch")} also matches requests worded differently (optional, ${Math.round(modelBytes() / 1e6)} MB, runs locally).`));
 }

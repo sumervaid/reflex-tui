@@ -23,9 +23,10 @@ flowchart LR
 | `@reflex/adapters` | Claude Code, Codex and Cursor parsers: detection, permission prompt, bounded discovery, streaming parse |
 | `@reflex/analysis` | Command classification, traces, de-duplication, similarity, clustering, consensus steps, suggestions |
 | `@reflex/storage` | SQLite (`node:sqlite`) store in `REFLEX_HOME` (default `~/.reflex`) |
+| `@reflex/embeddings` | Optional sentence embeddings: pinned model download and verification, WordPiece tokenizer, onnxruntime-web (WebAssembly) inference |
 | `@reflex/skills` | SKILL.md generation, validation, diffs, install planning, fresh-task sandbox |
 | `@reflex/test-fixtures` | Synthetic transcripts in the real on-disk layouts, for tests only (not bundled) |
-| `apps/cli` | Commands and prompts (`commander`, `@clack/prompts`), bundled into one file with tsup |
+| `apps/cli` | Commands and prompts (`commander`, `@clack/prompts`), bundled with tsup; the build copies the onnxruntime-web WebAssembly runtime (14 MB) next to the bundle |
 
 Internal packages export TypeScript source; only the CLI is built.
 
@@ -71,8 +72,13 @@ Token usage, where recorded, is attached to the session as `{input, output, cach
 2. **De-duplicate.** Byte-identical copies (same fingerprint), resumed sessions (≥ 80% event overlap)
    and quick retries (same repo within 4 hours, similar intent and actions) count once.
 3. **Similarity.** Weighted: intent 0.40, action sequence 0.30, commands and tools 0.15, file
-   categories 0.10, repository 0.05. Intent blends TF-IDF with a small concept lexicon so
-   "GitHub Actions is red" and "CI is failing" match. Action similarity mixes exact sequence
+   categories 0.10, repository 0.05. Intent blends TF-IDF over stemmed terms (plus a bonus for
+   shared word pairs) with a small concept lexicon so "GitHub Actions is red" and "CI is failing"
+   match. With the optional model, each session's context document (redacted first request plus
+   file kinds; actions are left out because they have their own weight) is embedded, and intent is
+   the larger of the lexical score and the rescaled embedding cosine (`(cos - 0.2) / 0.8`).
+   Meaning can connect requests that share no words but never lowers a lexical match. On the
+   fixtures this raises same-vs-different pair separation (AUC) from 0.84 to 0.92. Action similarity mixes exact sequence
    (LCS, Jaccard) with coarse classes (inspect, change, verify).
 4. **Cluster.** Average-linkage agglomerative clustering, threshold 0.45.
 5. **Gates.** A cluster becomes a suggestion only with ≥ 3 independent sessions, intent cohesion
@@ -124,7 +130,12 @@ tests passing.
 
 `~/.reflex/reflex.db` (mode 0600, directory 0700): scans, redacted traces, suggestions and their
 status, generated skills (with their cost baseline) and installations. `PRAGMA user_version` gates
-schema changes; version 2 adds `skills.baseline_json` in place.
+schema changes; version 2 adds `skills.baseline_json` in place; version 3 adds `embeddings`
+(vectors keyed by a hash of model id and context document, pruned to the latest scan).
+
+The optional model lives in `~/.reflex/models/all-minilm-l6-v2-q8/` (23 MB, int8 ONNX). It is read
+only after its SHA-256 matches the pinned value, and is embedded one text at a time: the int8
+model quantizes per batch, so batching would make a session's vector depend on its neighbors.
 
 ## Configuration
 

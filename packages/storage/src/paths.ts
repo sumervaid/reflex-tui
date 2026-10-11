@@ -9,4 +9,5 @@ export const paths = {
   home: reflexHome,
   db: () => join(reflexHome(), "reflex.db"),
   skills: () => join(reflexHome(), "skills"),
+  models: () => join(reflexHome(), "models"),
 };

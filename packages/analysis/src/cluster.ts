@@ -1,4 +1,5 @@
 import type { WorkflowTrace } from "@reflex/core";
+import { type SessionVectors, dotProduct } from "./context";
 import { concepts, cosine, termSimilarities } from "./intents";
 import { opKeys, similarity } from "./similarity";
 
@@ -16,16 +17,38 @@ export type Cluster = {
 
 type Matrices = { total: number[][]; intent: number[][]; actions: number[][] };
 
-/** Semantic intent = blend of concept overlap (synonym-aware) and TF-IDF term overlap. */
-export function intentSimilarities(traces: WorkflowTrace[]): (i: number, j: number) => number {
+/**
+ * Embedding cosine at or below which two sessions count as unrelated in meaning. Sentences about
+ * coding share a domain, so unrelated requests still score above zero; rescaling from this floor
+ * puts embeddings on the same 0..1 footing as the lexical signals.
+ */
+export const EMBEDDING_FLOOR = 0.2;
+
+export function rescaleEmbedding(cos: number): number {
+  return Math.min(1, Math.max(0, (cos - EMBEDDING_FLOOR) / (1 - EMBEDDING_FLOOR)));
+}
+
+/**
+ * Semantic intent = blend of concept overlap (synonym-aware) and TF-IDF term overlap. With session
+ * vectors, intent is the stronger of that lexical match and the embedding match of the two
+ * sessions' context documents, so meaning can connect requests that share no words but can never
+ * pull apart requests that do. A session without a vector is compared lexically.
+ */
+export function intentSimilarities(traces: WorkflowTrace[], vectors?: SessionVectors): (i: number, j: number) => number {
   const termSim = termSimilarities(traces.map((t) => t.intents));
   const conceptVectors = traces.map((t) => concepts(t.intents));
-  return (i, j) => 0.5 * cosine(conceptVectors[i]!, conceptVectors[j]!) + 0.5 * termSim(i, j);
+  const embedded = traces.map((t) => vectors?.get(t.sessionId));
+  return (i, j) => {
+    const lexical = 0.5 * cosine(conceptVectors[i]!, conceptVectors[j]!) + 0.5 * termSim(i, j);
+    const a = embedded[i];
+    const b = embedded[j];
+    return a && b ? Math.max(lexical, rescaleEmbedding(dotProduct(a, b))) : lexical;
+  };
 }
 
 /** Pairwise similarity matrices. O(n^2), fine for hundreds of sessions. */
-export function similarityMatrices(traces: WorkflowTrace[]): Matrices {
-  const intentOf = intentSimilarities(traces);
+export function similarityMatrices(traces: WorkflowTrace[], vectors?: SessionVectors): Matrices {
+  const intentOf = intentSimilarities(traces, vectors);
   const keys = traces.map(opKeys);
   const n = traces.length;
   const make = () => Array.from({ length: n }, () => new Array<number>(n).fill(1));
@@ -61,8 +84,8 @@ function meanPairwise(matrix: number[][], members: number[]): number {
  * Average-linkage agglomerative clustering: repeatedly merge the two clusters whose members are
  * most similar on average, until no pair reaches the threshold. Deterministic for a given input.
  */
-export function clusterTraces(traces: WorkflowTrace[], threshold = CLUSTER_THRESHOLD): Cluster[] {
-  const sim = similarityMatrices(traces);
+export function clusterTraces(traces: WorkflowTrace[], threshold = CLUSTER_THRESHOLD, vectors?: SessionVectors): Cluster[] {
+  const sim = similarityMatrices(traces, vectors);
   const n = traces.length;
   const members: (number[] | null)[] = traces.map((_, i) => [i]);
   // link[i][j] = average similarity between clusters i and j (Lance-Williams update).

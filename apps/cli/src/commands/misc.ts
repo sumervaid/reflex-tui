@@ -7,6 +7,8 @@ import { analyze, deduplicate, isGenericTrace } from "@reflex/analysis";
 import { displayPath, excerpt, pathExists } from "@reflex/safety";
 import { Store, paths } from "@reflex/storage";
 import { detectTargets } from "@reflex/skills";
+import { MODEL, modelStatus } from "@reflex/embeddings";
+import { sessionVectors } from "../embeddings";
 import { c, confirm, ok, out, plural, rows, shortDate, title } from "../ui";
 
 export async function doctor(): Promise<void> {
@@ -19,7 +21,8 @@ export async function doctor(): Promise<void> {
     ["Node.js", `${process.versions.node} ${nodeMajor >= 22 ? c.green("ok") : c.red("needs >= 22.13")}`],
     ["SQLite", `built-in node:sqlite ${c.green("ok")}`],
     ["Reflex home", `${displayPath(home)} ${c.dim(homeMode)}`],
-    ["Network", "Reflex opens no network connections (enforced in-process)"],
+    ["Network", "Reflex opens no network connections (enforced in-process; only `reflex model fetch` downloads)"],
+    ["Meaning model", (await modelStatus(paths.models())).installed ? `${MODEL.label} ${c.green("installed")}` : c.dim("not installed (optional: reflex model fetch)")],
   ]);
   out();
   out("Transcript sources (detected by location; nothing is read)");
@@ -64,7 +67,8 @@ export async function stats(): Promise<void> {
     const scan = store.latestScan();
     if (!scan) throw new Error("No scan yet. Run `reflex scan --days 7` first.");
     const traces = store.traces();
-    const a = analyze(traces);
+    const meaning = await sessionVectors(traces, store, { cacheOnly: true });
+    const a = analyze(traces, meaning.status === "ok" ? { vectors: meaning.vectors } : {});
     const counts = store.statusCounts();
     const repos = new Set(traces.map((t) => t.projectHash).filter(Boolean));
     const approved = store.suggestions().filter((s) => s.status === "approved");
@@ -97,7 +101,7 @@ export async function reset(opts: { yes?: boolean }): Promise<void> {
     return;
   }
   out(`This deletes Reflex's own data in ${displayPath(home)}: the local database, generated skills and validation sandboxes.`);
-  out(c.dim("Skills you installed into Claude Code, Codex or Cursor are not touched."));
+  out(c.dim("Skills you installed into Claude Code, Codex or Cursor are not touched. The embedding model is kept (`reflex model remove`)."));
   if (!(await confirm("Delete Reflex data?", opts))) return;
   // Only remove what Reflex creates, never the whole directory: REFLEX_HOME may point anywhere.
   for (const child of ["reflex.db", "reflex.db-journal", "skills", "validation"]) {
