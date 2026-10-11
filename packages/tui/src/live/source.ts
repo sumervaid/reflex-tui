@@ -6,7 +6,9 @@ import { type ScanRecord, Store, reflexHome } from "@reflex/storage";
 import type { Attention, Day, Item, TuiData } from "../model";
 import { toCells } from "../render/text";
 import type { ActionResult, DataSource, RescanResult } from "../types";
+import { type CostFields, costFields, needsRescan, priceTraces } from "./costs";
 import { clockLabel, dayLabel, dayStart, rangeLabel, weekdayLabel } from "./labels";
+import { buildRouter } from "./router";
 import { type LiveSearch, buildSearch, resumeCommand } from "./search";
 import { TOOL_OF, errorText, skillItems, turnOff, turnOn } from "./skills";
 import { workflowItems } from "./workflows";
@@ -31,10 +33,10 @@ const HISTORY_ROOT: Record<SourceId, () => string> = {
 const unavailable = (message: string): ActionResult => ({ ok: false, message, tone: "dim" });
 
 /**
- * The TUI's data from Reflex's own store: the latest scan's sessions and token usage, generated
- * skills and pending suggestions, the workflows behind them and a search over every scanned
- * session. Everything Reflex does not record (money, limits, the router) is left out, so the views
- * show it as not measured.
+ * The TUI's data from Reflex's own store: the latest scan's sessions, token usage and its cost at
+ * API list prices, generated skills and pending suggestions, the workflows behind them, router
+ * suggestions and a search over every scanned session. Usage limits are not recorded, so the views
+ * show them as not measured.
  */
 export function createLiveSource(opts: LiveSourceOptions = {}): DataSource {
   const now = opts.now ?? (() => new Date());
@@ -53,7 +55,7 @@ export function createLiveSource(opts: LiveSourceOptions = {}): DataSource {
         return { ok: false, message: errorText(e), tone: "bad" };
       }
     },
-    setAutopilot: async () => unavailable("the router is not available yet"),
+    setAutopilot: async () => unavailable("autopilot is not available yet: the router only suggests models"),
     async rescan() {
       if (!opts.rescan || !hasScan()) return unavailable(NOT_SCANNED);
       try {
@@ -106,14 +108,31 @@ async function loadLive(now: Date): Promise<{ data: TuiData; search?: LiveSearch
     if (!scan) return { data };
     data.scannedAt = clockLabel(new Date(scan.startedAt));
     Object.assign(data, usage(scan, traces, now));
+    const priced = priceTraces(traces);
+    addCosts(data, costFields(priced, windowDays(scan, now), now));
+    data.router = buildRouter(priced, data.scannedAt, scan.days);
+    const stale = needsRescan(priced);
+    if (stale) data.attention.push({ tone: "warn", text: `press r to rescan: ${stale} ${stale === 1 ? "session was" : "sessions were"} stored before Reflex recorded models, so ${stale === 1 ? "it has" : "they have"} no cost yet`, view: "dashboard" });
     const skillOf = new Map(store.skills().map((k) => [k.suggestionSlug, k.name]));
     data.workflows = workflowItems(store.suggestions(), skillOf, skills, dayLabel(new Date(scan.startedAt)));
-    const search = buildSearch(traces);
+    const search = buildSearch(priced);
     data.search = search.index;
     return { data, search };
   } finally {
     store.close();
   }
+}
+
+/** Dollar figures at API list prices, for the sessions whose models Reflex can price. */
+function addCosts(data: TuiData, c: CostFields | undefined): void {
+  if (!c) return;
+  data.money = c.money;
+  data.days = data.days?.map((d, i) => ({ ...d, ...c.dayCost[i] }));
+  if (data.window) Object.assign(data.window, { usd: c.windowUsd, byModel: c.windowByModel, byProject: c.windowByProject });
+  if (data.yesterday) Object.assign(data.yesterday, c.yesterday);
+  data.tools = data.tools.map((r) => (c.toolUsd[r.tool] === undefined ? r : { ...r, usd: c.toolUsd[r.tool], allTimeUsd: c.toolUsd[r.tool] }));
+  data.topSessions = c.topSessions;
+  data.topPrompts = c.topPrompts;
 }
 
 /** The store keeps copies of a session found in two places; count each session once. */
@@ -146,14 +165,21 @@ const startedIn = (traces: WorkflowTrace[], from: Date, to: Date): WorkflowTrace
  * The scan window is the `days` x 24 hours before the scan. `days` has one entry per local day the
  * window touches (sessions by start time); `yesterday` is set only when the window covers all of it.
  */
+/** Local days of the scan window, ending yesterday: the views read the last entry as yesterday. */
+function windowDays(scan: ScanRecord, now: Date): Date[] {
+  const end = Math.min(new Date(scan.startedAt).getTime(), dayStart(now).getTime() - 1);
+  const out: Date[] = [];
+  for (let d = dayStart(new Date(new Date(scan.startedAt).getTime() - scan.days * DAY_MS)); d.getTime() <= end; d = dayStart(d, 1)) out.push(d);
+  return out;
+}
+
 function usage(scan: ScanRecord, traces: WorkflowTrace[], now: Date): Pick<TuiData, "days" | "window" | "yesterday"> {
   const end = new Date(scan.startedAt);
   const start = new Date(end.getTime() - scan.days * DAY_MS);
-  const days: Day[] = [];
-  for (let d = dayStart(start); d.getTime() <= end.getTime(); d = dayStart(d, 1)) {
+  const days: Day[] = windowDays(scan, now).map((d) => {
     const t = totals(startedIn(traces, d, dayStart(d, 1)));
-    days.push({ label: dayLabel(d), tokens: t.measured ? totalTokens(t.usage) : undefined });
-  }
+    return { label: dayLabel(d), tokens: t.measured ? totalTokens(t.usage) : undefined };
+  });
   const out: Pick<TuiData, "days" | "window" | "yesterday"> = { days };
   const all = totals(traces);
   if (all.measured) out.window = { days: scan.days, range: rangeLabel(start, end), sessions: scan.sessions, tokens: all.usage };

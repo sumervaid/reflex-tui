@@ -5,7 +5,7 @@ import type { DetectionResult, DiscoveryOptions, ParseResult, TranscriptAdapter,
 import { debug } from "@reflex/core";
 import { displayPath } from "@reflex/safety";
 import { readJsonl } from "./jsonl";
-import { SessionBuilder, clean, cutoffFor, isDirectory, listFiles, patchedFiles, toTranscriptFiles, tokens } from "./common";
+import { SessionBuilder, clean, cutoffFor, isDirectory, listFiles, modelName, patchedFiles, toTranscriptFiles, tokens } from "./common";
 
 /**
  * Codex CLI rollout files: one JSON object per line, `{ timestamp, type, payload }`, where type is
@@ -111,6 +111,7 @@ export class CodexAdapter implements TranscriptAdapter {
     let skippedRecords = 0;
     let sawResponseUserMessage = false;
     const eventUserMessages: Array<{ text: string; at?: string }> = [];
+    let model: string | undefined;
 
     try {
       for await (const line of readJsonl(file.path)) {
@@ -141,6 +142,7 @@ export class CodexAdapter implements TranscriptAdapter {
         if (kind === "turn_context") {
           const cwd = (body as { cwd?: unknown }).cwd;
           if (!b.cwd && typeof cwd === "string") b.cwd = cwd;
+          model = modelName((body as { model?: unknown }).model) ?? model;
           continue;
         }
 
@@ -158,6 +160,8 @@ export class CodexAdapter implements TranscriptAdapter {
             // OpenAI-style counts: input_tokens includes cached input, output_tokens includes reasoning.
             const cached = tokens(total.cached_input_tokens);
             b.usage = { input: Math.max(0, tokens(total.input_tokens) - cached), output: tokens(total.output_tokens), cacheRead: cached, cacheWrite: 0 };
+            // Totals are cumulative, so the whole session is attributed to the latest model it ran on.
+            if (model) b.usageByModel = { [model]: b.usage };
           }
           continue;
         }

@@ -36,7 +36,7 @@ const program = new Command();
 program
   .name("reflex")
   .description("Find workflows you keep re-teaching Claude Code, Codex and Cursor, and turn proven repeats into reusable skills. Everything runs locally.")
-  .version("0.2.0")
+  .version("0.3.0")
   .allowExcessArguments()
   .action(
     run(async () => {

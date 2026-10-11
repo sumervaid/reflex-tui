@@ -159,7 +159,9 @@ every load (at start, after a rescan and after each toggle).
 | `attention` | New suggestions to review, retired skills still installed |
 | `workflows` | Pending and approved suggestions with their evidence; `on` = the skill generated from it is installed. No `runAs`: a workflow installs as its skill |
 | `search` | Each stored trace's excerpt (turn 1) and display steps (turns 2..), keyed by the first 8 characters of the native session id |
-| `money`, `limits`, `plansFile`, `topPrompts`, `topSessions`, `router` | Not recorded, so absent |
+| `money`, `days[].usd`, `days[].byTool`, `window.usd`, `byModel`, `byProject`, `tools[].usd`, `topSessions`, `topPrompts` | Each trace's `usageByModel` at API list prices (`@reflex/core` `pricing.ts`); absent when nothing could be priced |
+| `router` | Priced sessions by kind of task and main model: average cost and corrections, failed tool calls and repeated commands per request |
+| `limits`, `plansFile` | Not recorded, so absent |
 
 Sessions found twice (the same session id in two places) count once in token sums. Cursor records
 no tokens, so a day or window with only Cursor sessions has no token value. More in

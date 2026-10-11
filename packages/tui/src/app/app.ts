@@ -122,8 +122,9 @@ export function runTui(opts: RunOptions): Promise<void> {
         error = spawnSync(c.cmd, c.args, { stdio: "inherit", cwd: c.cwd }).error;
       });
       term.invalidate();
-      if (error) toast({ ok: false, message: `could not start ${c.cmd}: ${error.message}`, tone: "bad" });
       await reload();
+      if (error) toast({ ok: false, message: `could not start ${c.cmd}: ${error.message}`, tone: "bad" });
+      else if (c.done) toast({ ok: true, message: c.done, tone: "ok" });
     };
 
     const run = (e: Effect): void => {

@@ -72,8 +72,8 @@ export type Money = {
   allTime: { usd: number; since: string };
   /** Calendar month to date (Morning "this month $246.40"). */
   month: { usd: number };
-  /** Daily budget in USD; days over it are yellow on the Tokens chart. */
-  dailyBudget: number;
+  /** Daily budget in USD; days over it are yellow on the Tokens chart. No line without one. */
+  dailyBudget?: number;
 };
 
 export type Day = {

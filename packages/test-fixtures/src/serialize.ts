@@ -46,6 +46,7 @@ export function toClaudeLines(session: FixtureSession, start: Date, sessionId: s
       message = {
         ...message,
         id: `msg_${sha256(uuid).slice(0, 20)}`,
+        model: "claude-sonnet-5-5",
         usage: { input_tokens: 40, output_tokens: 120, cache_read_input_tokens: 8000 + n * 400, cache_creation_input_tokens: 600 },
       };
     }

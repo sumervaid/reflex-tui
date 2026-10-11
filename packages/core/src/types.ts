@@ -65,6 +65,8 @@ export type NormalizedSession = {
   skippedRecords: number;
   /** Absent when the source does not record token usage (Cursor). */
   usage?: TokenUsage;
+  /** The same usage split by the model the source recorded for it. */
+  usageByModel?: Record<string, TokenUsage>;
 };
 
 export type DetectionResult = {
@@ -179,6 +181,12 @@ export type WorkflowTrace = {
   eventHashes: string[];
   sourceFile: string;
   usage?: TokenUsage;
+  /** Usage per model, for pricing. Optional in traces stored before it existed. */
+  usageByModel?: Record<string, TokenUsage>;
+  /** Requests the developer typed. Optional in traces stored before it existed. */
+  requests?: number;
+  /** Tool calls that failed. Optional in traces stored before it existed. */
+  toolErrors?: number;
   /** Shell, file and other tool calls. Optional in traces stored before it existed. */
   toolCalls?: number;
   /** Skill names the agent loaded (Skill tool call or reading a `skills/<name>/SKILL.md`). */

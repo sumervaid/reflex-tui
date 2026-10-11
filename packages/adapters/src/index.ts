@@ -5,7 +5,7 @@ import { CursorAdapter } from "./cursor";
 
 export { ClaudeCodeAdapter } from "./claude";
 export { CodexAdapter } from "./codex";
-export { CursorAdapter } from "./cursor";
+export { CursorAdapter, decodeWorkspace } from "./cursor";
 export { readJsonl } from "./jsonl";
 
 export type AdapterRoots = { claude?: string; codex?: string; cursor?: string };
