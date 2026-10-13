@@ -53,6 +53,7 @@ alias reflex="node $PWD/apps/cli/dist/reflex.js"
 | `run <request>` | Start Claude Code or Codex on the model the router picks for this kind of task. `--dry-run` shows the pick and why, `--tool`, `--model`, `--yes`. Asks first unless autopilot is on |
 | `route` | The router: picks per kind of task, settings, randomized trials and bench results. `autopilot on\|off`, `explore <percent>\|off [--protect <kind...>]` |
 | `bench <task>` | Run one task on several Claude Code models, each in a fresh copy of the current repository, scored by `--check "<command>"`. `--models`, `--setup`, `--runs`, `--timeout`, `--keep`, `--yes` |
+| `agents` | Sessions that launched agents (Cursor): how many, which kinds, and how many tool calls the agents made |
 | `stats` | Counts from local data |
 | `reset` | Delete Reflex's own data (not installed skills or the model) |
 | `model [status\|fetch\|remove]` | Optional local embedding model for matching requests by meaning (`fetch` downloads 23 MB) |
@@ -175,6 +176,13 @@ Threat model and mitigations: [docs/security.md](docs/security.md).
 | Claude Code | `~/.claude/projects/*/*.jsonl` | `~/.claude/skills/<name>/SKILL.md` | Parser tested on fixtures matching real files; skill use verified with `validate --run` |
 | Codex | `$CODEX_HOME/sessions/YYYY/MM/DD/rollout-*.jsonl` | `~/.codex/skills/<name>/SKILL.md` | Parser follows the Codex protocol types and is tested on fixtures; not yet run against real rollouts or a live Codex session |
 | Cursor | `~/.cursor/projects/*/agent-transcripts/*/*.jsonl` | `~/.cursor/skills/<name>/SKILL.md` | Parser tested on fixtures and on real agent transcripts. Cursor doesn't record tool results, so pass/fail outcomes aren't available for its sessions |
+
+**Agents a session launched.** When a Cursor chat launches agents (its `Task` / `Subagent` tool),
+Reflex records each one (kind, model, background or not, its short description) and reads the
+agents' transcripts (`<chat>/subagents/*.jsonl`). Their commands, files and tool calls count toward
+the chat's workflow; the message each agent was given is written by the parent agent, so it is
+never treated as your request. `reflex agents` lists the chats that launched the most, and
+`reflex sessions` notes the count. Claude Code's agents are not read yet.
 
 Override locations with `REFLEX_CLAUDE_DIR`, `REFLEX_CODEX_DIR`, `REFLEX_CURSOR_DIR`,
 `REFLEX_CLAUDE_SKILLS_DIR`, `REFLEX_CODEX_SKILLS_DIR`, `REFLEX_CURSOR_SKILLS_DIR` and `REFLEX_HOME`. `REFLEX_DEBUG=1` prints local counters (counts only).

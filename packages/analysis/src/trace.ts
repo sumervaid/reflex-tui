@@ -1,4 +1,4 @@
-import type { ActionCategory, CommandFingerprint, NormalizedSession, WorkflowTrace } from "@reflex/core";
+import type { ActionCategory, AgentSummary, CommandFingerprint, NormalizedSession, WorkflowTrace } from "@reflex/core";
 import { shortHash } from "@reflex/core";
 import { excerpt } from "@reflex/safety";
 import { type FileCategory, MODIFY_ACTIONS, VERIFY_ACTIONS, classifyCommand, fileAction, fileCategory } from "./classify";
@@ -117,6 +117,7 @@ export function buildTrace(session: NormalizedSession): WorkflowTrace {
     16,
   );
 
+  const agents = session.agents ? summarizeAgents(session) : undefined;
   const trace: WorkflowTrace = {
     sessionId: session.id,
     source: session.source,
@@ -138,6 +139,7 @@ export function buildTrace(session: NormalizedSession): WorkflowTrace {
     usage: session.usage,
     usageByModel: session.usageByModel,
     models: session.models,
+    agents,
     requests: session.requests.length,
     toolErrors: session.events.filter((e) => "isError" in e && e.isError === true).length,
     toolCalls,
@@ -147,6 +149,21 @@ export function buildTrace(session: NormalizedSession): WorkflowTrace {
   // Only a hash is kept: the longer request text used for embedding is never stored.
   trace.contextHash = contextHash(sessionContext(session, trace));
   return trace;
+}
+
+function summarizeAgents(session: NormalizedSession): AgentSummary {
+  const spawned = session.agents!.spawned;
+  const types: Record<string, number> = {};
+  for (const a of spawned) types[a.type] = (types[a.type] ?? 0) + 1;
+  return {
+    spawned: spawned.length,
+    types,
+    background: spawned.filter((a) => a.background).length,
+    models: [...new Set(spawned.flatMap((a) => (a.model ? [a.model] : [])))].sort(),
+    descriptions: spawned.map((a) => a.description).filter(Boolean).slice(0, 5),
+    transcripts: session.agents!.transcripts,
+    toolCalls: session.events.filter((e) => (e.kind === "shell" || e.kind === "file" || e.kind === "tool") && e.byAgent).length,
+  };
 }
 
 function outcomeOf(steps: Step[], summarized: boolean): WorkflowTrace["outcome"] {

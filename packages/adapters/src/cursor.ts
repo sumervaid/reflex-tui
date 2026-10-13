@@ -1,14 +1,14 @@
 import { existsSync, statSync } from "node:fs";
 import { lstat, readdir } from "node:fs/promises";
 import { homedir } from "node:os";
-import { basename, join } from "node:path";
+import { basename, dirname, join } from "node:path";
 import { z } from "zod";
-import type { DetectionResult, DiscoveryOptions, ParseResult, TranscriptAdapter, TranscriptFile, WorkflowTrace } from "@reflex/core";
+import type { DetectionResult, DiscoveryOptions, ParseResult, SessionEvent, SpawnedAgent, TranscriptAdapter, TranscriptFile, WorkflowTrace } from "@reflex/core";
 import { debug } from "@reflex/core";
-import { displayPath } from "@reflex/safety";
+import { displayPath, excerpt } from "@reflex/safety";
 import { CursorModelIndex, defaultCursorStateDb } from "./cursor-models";
 import { readJsonl } from "./jsonl";
-import { SessionBuilder, clean, cutoffFor, isDirectory, listFiles, patchedFiles, toTranscriptFiles } from "./common";
+import { MAX_EVENTS_PER_SESSION, SessionBuilder, clean, cutoffFor, isDirectory, listFiles, modelName, patchedFiles, toTranscriptFiles } from "./common";
 
 /**
  * Cursor agent transcripts: `<root>/<encoded-workspace>/agent-transcripts/<id>/<id>.jsonl`, one
@@ -45,6 +45,16 @@ const FILE_TOOLS: Record<string, "read" | "write" | "edit"> = {
 const TOOL_ALIASES: Record<string, string> = { rg: "Grep", SemanticSearch: "Grep", codebase_search: "Grep" };
 
 const SHELL_TOOLS = new Set(["Shell", "run_terminal_cmd"]);
+/** Tools a Cursor agent uses to launch another agent. */
+const SPAWN_TOOLS = new Set(["Task", "Subagent"]);
+const AGENT_TYPE = /^[A-Za-z0-9_-]{1,40}$/;
+/** Agent transcripts read per chat (one real chat launched 126). */
+const MAX_AGENT_TRANSCRIPTS = 300;
+
+/** A chat's agent transcripts: `<id>/subagents/*.jsonl`, regular files only. */
+async function agentTranscripts(chatFile: string): Promise<string[]> {
+  return listFiles(join(dirname(chatFile), "subagents"), ".jsonl", 0);
+}
 
 async function isFile(path: string): Promise<boolean> {
   try {
@@ -154,8 +164,26 @@ export class CursorAdapter implements TranscriptAdapter {
     return this.readsModels && trace.source === "cursor" && trace.models === undefined;
   }
 
+  /**
+   * A chat's identity includes its agent transcripts (`<id>/subagents/*.jsonl`): background agents
+   * keep writing after the chat file stops, so a change there must count as a change to the chat.
+   */
   async discover(options: DiscoveryOptions): Promise<TranscriptFile[]> {
-    return toTranscriptFiles(await this.transcriptPaths(), cutoffFor(options.days, options.now));
+    const files = await toTranscriptFiles(await this.transcriptPaths(), new Date(0));
+    const cutoff = cutoffFor(options.days, options.now);
+    const out: TranscriptFile[] = [];
+    for (const f of files) {
+      for (const agent of await toTranscriptFiles(await agentTranscripts(f.path), new Date(0))) {
+        f.sizeBytes += agent.sizeBytes;
+        if (agent.modifiedAt > f.modifiedAt) f.modifiedAt = agent.modifiedAt;
+        if (f.identity && agent.identity) {
+          f.identity.mtimeMs = Math.max(f.identity.mtimeMs, agent.identity.mtimeMs);
+          f.identity.ctimeMs = Math.max(f.identity.ctimeMs, agent.identity.ctimeMs);
+        }
+      }
+      if (f.modifiedAt >= cutoff) out.push(f);
+    }
+    return out;
   }
 
   async parse(file: TranscriptFile, options: DiscoveryOptions): Promise<ParseResult> {
@@ -163,54 +191,87 @@ export class CursorAdapter implements TranscriptAdapter {
     const b = new SessionBuilder(this.id, basename(file.path, ".jsonl").slice(0, 80), file);
     const workspaceDir = basename(join(file.path, "..", "..", ".."));
     b.cwd = decodeWorkspace(workspaceDir);
-    let totalRecords = 0;
-    let skippedRecords = 0;
+    const counts = { total: 0, skipped: 0 };
+    const spawned: SpawnedAgent[] = [];
     let at: string | undefined;
+    let firstSpawn: number | undefined;
 
     try {
-      for await (const line of readJsonl(file.path)) {
-        totalRecords++;
-        if (line.error) {
-          skippedRecords++;
-          continue;
+      await this.readBlocks(file.path, b, counts, (role, blk) => {
+        if (role === "user") {
+          if (blk.type === "text" && blk.text) at = this.addUserText(b, blk.text) ?? at;
+        } else if (blk.type === "text" && blk.text) {
+          b.push({ kind: "assistant", at, text: clean.assistant(blk.text) });
+        } else if (blk.type === "tool_use" && blk.name) {
+          this.pushTool(b, blk.name, blk.input ?? {}, at, spawned);
+          if (SPAWN_TOOLS.has(blk.name) && firstSpawn === undefined) firstSpawn = b.events.length;
         }
-        const parsed = CursorRecord.safeParse(line.value);
-        if (!parsed.success) {
-          skippedRecords++;
-          continue;
-        }
-        const rec = parsed.data;
-        if (rec.role !== "user" && rec.role !== "assistant") continue;
-        const content = rec.message?.content;
-        const blocks = typeof content === "string" ? [{ type: "text", text: content }] : (content ?? []);
-
-        for (const raw of blocks) {
-          const block = Block.safeParse(raw);
-          if (!block.success) {
-            b.skipped++;
-            continue;
-          }
-          const blk = block.data;
-          if (rec.role === "user") {
-            if (blk.type === "text" && blk.text) at = this.addUserText(b, blk.text) ?? at;
-          } else if (blk.type === "text" && blk.text) {
-            b.push({ kind: "assistant", at, text: clean.assistant(blk.text) });
-          } else if (blk.type === "tool_use" && blk.name) {
-            this.pushTool(b, blk.name, blk.input ?? {}, at);
-          }
-        }
-      }
+      });
     } catch (err) {
       debug("file unreadable", { adapter: this.id, code: (err as NodeJS.ErrnoException).code });
-      return { sessions: [], skippedRecords, totalRecords, unreadable: true, error: "unreadable" };
+      return { sessions: [], skippedRecords: counts.skipped, totalRecords: counts.total, unreadable: true, error: "unreadable" };
     }
+
+    // Agents' work joins the chat where the first agent was launched. Their opening message was
+    // written by the parent agent, not the developer, so it is never read as a request.
+    const delegated: SessionEvent[] = [];
+    let transcripts = 0;
+    for (const path of (await agentTranscripts(file.path)).slice(0, MAX_AGENT_TRANSCRIPTS)) {
+      const child = new SessionBuilder(this.id, b.nativeId, file);
+      try {
+        await this.readBlocks(path, child, counts, (role, blk) => {
+          if (role === "assistant" && blk.type === "tool_use" && blk.name) this.pushTool(child, blk.name, blk.input ?? {}, at);
+        });
+        transcripts++;
+      } catch {
+        continue;
+      }
+      for (const ev of child.events) if (ev.kind === "shell" || ev.kind === "file" || ev.kind === "tool") delegated.push({ ...ev, byAgent: true });
+    }
+    if (delegated.length) b.events.splice(firstSpawn ?? b.events.length, 0, ...delegated.slice(0, Math.max(0, MAX_EVENTS_PER_SESSION - b.events.length)));
 
     b.touch(file.modifiedAt.toISOString());
     const session = b.build();
+    if (spawned.length || transcripts) session.agents = { spawned, transcripts };
     if (this.models) session.models = this.models.modelsFor(b.nativeId);
+    const totalRecords = counts.total;
+    const skippedRecords = counts.skipped;
     const sessions = session.requests.length > 0 && (!session.endedAt || session.endedAt >= cutoff) ? [session] : [];
     debug("file parsed", { adapter: this.id, records: totalRecords, skipped: skippedRecords, sessions: sessions.length });
     return { sessions, skippedRecords, totalRecords, unreadable: false };
+  }
+
+  /** Streams a transcript's user and assistant content blocks; malformed lines and blocks are counted and skipped. */
+  private async readBlocks(
+    path: string,
+    b: SessionBuilder,
+    counts: { total: number; skipped: number },
+    onBlock: (role: "user" | "assistant", blk: z.infer<typeof Block>) => void,
+  ): Promise<void> {
+    for await (const line of readJsonl(path)) {
+      counts.total++;
+      if (line.error) {
+        counts.skipped++;
+        continue;
+      }
+      const parsed = CursorRecord.safeParse(line.value);
+      if (!parsed.success) {
+        counts.skipped++;
+        continue;
+      }
+      const rec = parsed.data;
+      if (rec.role !== "user" && rec.role !== "assistant") continue;
+      const content = rec.message?.content;
+      const blocks = typeof content === "string" ? [{ type: "text", text: content }] : (content ?? []);
+      for (const raw of blocks) {
+        const block = Block.safeParse(raw);
+        if (!block.success) {
+          b.skipped++;
+          continue;
+        }
+        onBlock(rec.role, block.data);
+      }
+    }
   }
 
   /** Adds the typed request(s) from one user message; returns its timestamp if Cursor recorded one. */
@@ -225,8 +286,17 @@ export class CursorAdapter implements TranscriptAdapter {
     return at;
   }
 
-  private pushTool(b: SessionBuilder, name: string, input: Record<string, unknown> | string, at: string | undefined): void {
+  private pushTool(b: SessionBuilder, name: string, input: Record<string, unknown> | string, at: string | undefined, spawned?: SpawnedAgent[]): void {
     const args = typeof input === "string" ? {} : input;
+    if (spawned && SPAWN_TOOLS.has(name) && spawned.length < MAX_AGENT_TRANSCRIPTS) {
+      const type = str(args.subagent_type);
+      spawned.push({
+        type: type && AGENT_TYPE.test(type) ? type : "agent",
+        model: modelName(args.model),
+        background: args.run_in_background === true,
+        description: excerpt(str(args.description) ?? "", 80),
+      });
+    }
     if (SHELL_TOOLS.has(name)) {
       const command = str(args.command);
       if (command) b.push({ kind: "shell", at, command: clean.command(command) });

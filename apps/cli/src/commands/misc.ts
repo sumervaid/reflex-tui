@@ -52,11 +52,55 @@ export async function sessions(): Promise<void> {
     const primary = new Set(instances.map((i) => i.primary.sessionId));
     title(`${plural(traces.length, "session")} from the last scan (${shortDate(scan.startedAt)}, ${scan.mode})`);
     for (const t of traces) {
-      const tag = !primary.has(t.sessionId) ? c.yellow(" duplicate") : isGenericTrace(t) ? c.dim(" generic") : "";
+      const launched = t.agents?.spawned ? c.dim(` · ${plural(t.agents.spawned, "agent")}`) : "";
+      const tag = (!primary.has(t.sessionId) ? c.yellow(" duplicate") : isGenericTrace(t) ? c.dim(" generic") : "") + launched;
       const model = t.models?.[0] ?? Object.entries(t.usageByModel ?? {}).sort((a, b) => totalTokens(b[1]) - totalTokens(a[1]))[0]?.[0] ?? "—";
       out(`  ${c.dim(shortDate(t.startedAt))}  ${SOURCE_LABELS[t.source].padEnd(11)} ${(t.projectName ?? "?").padEnd(14)} ${c.dim(model.slice(0, 18).padEnd(18))} ${excerpt(t.excerpt, 60)}${tag}`);
     }
     out();
+  } finally {
+    store.close();
+  }
+}
+
+const typeList = (types: Record<string, number>): string =>
+  Object.entries(types)
+    .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
+    .map(([t, n]) => (n > 1 ? `${t} ×${n}` : t))
+    .join(", ");
+
+/** Sessions that launched agents (Cursor `Task` / `Subagent`), the kinds, and how much work the agents did. */
+export async function agents(): Promise<void> {
+  const store = new Store();
+  try {
+    if (!store.latestScan()) throw new Error("No scan yet. Run `reflex scan --days 7` first.");
+    const traces = [...new Map(store.traces().map((t) => [t.sessionId, t])).values()];
+    const launched = traces
+      .filter((t) => t.agents && (t.agents.spawned || t.agents.transcripts))
+      .sort((a, b) => b.agents!.spawned - a.agents!.spawned || b.agents!.toolCalls - a.agents!.toolCalls);
+    if (!launched.length) {
+      out("No session in the last scan launched agents. Reflex reads Cursor's agents; Claude Code's are not read yet.");
+      return;
+    }
+    const types: Record<string, number> = {};
+    for (const t of launched) for (const [k, n] of Object.entries(t.agents!.types)) types[k] = (types[k] ?? 0) + n;
+    const sum = (f: (a: NonNullable<(typeof launched)[number]["agents"]>) => number) => launched.reduce((s, t) => s + f(t.agents!), 0);
+    title(`${plural(launched.length, "session")} launched agents`);
+    rows([
+      ["Launched", `${plural(sum((a) => a.spawned), "agent")}${Object.keys(types).length ? ` · ${typeList(types)}` : ""}`],
+      ["In background", String(sum((a) => a.background))],
+      ["Their work", `${plural(sum((a) => a.toolCalls), "tool call")} in ${plural(sum((a) => a.transcripts), "agent transcript")} ${c.dim("(counted in each session's workflow)")}`],
+    ]);
+    out();
+    for (const t of launched.slice(0, 20)) {
+      const a = t.agents!;
+      const what = a.spawned ? `${plural(a.spawned, "agent")} (${typeList(a.types)})` : plural(a.transcripts, "agent transcript");
+      out(`  ${c.dim(shortDate(t.startedAt))}  ${(t.projectName ?? "?").padEnd(16)} ${what.padEnd(34)} ${c.dim(plural(a.toolCalls, "tool call").padEnd(14))} ${excerpt(t.excerpt, 50)}`);
+      for (const d of a.descriptions.slice(0, 3)) out(c.dim(`      → ${d}`));
+    }
+    if (launched.length > 20) out(c.dim(`  … and ${launched.length - 20} more`));
+    out();
+    out(c.dim("Descriptions were written by the agent that launched them, not by you. Claude Code's agents are not read yet."));
   } finally {
     store.close();
   }

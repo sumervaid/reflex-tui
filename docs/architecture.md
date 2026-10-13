@@ -48,7 +48,13 @@ skip bad lines, cap line size and events per session).
   {content: [text | tool_use]}}` lines plus `turn_ended` markers. The developer's request is the
   `<user_query>` block; session time comes from Cursor's `<timestamp>` tag. Tools map onto the same
   events (`Shell`, `Read`/`ReadFile`, `StrReplace`, `Write`, `ApplyPatch`, `Grep`/`rg`/`Glob`).
-  Subagent transcripts and background-task notifications are skipped. The workspace path is decoded
+  Background-task notifications are skipped. Agents a chat launched (`Task` / `Subagent` tool calls:
+  `subagent_type`, `model`, `run_in_background`, `description`) are recorded on the session, and
+  their transcripts (`<id>/subagents/*.jsonl`, up to 300) are read for tool calls only: their
+  user messages (the parent agent's prompt) and assistant text are dropped. Those events, marked
+  `byAgent`, are inserted after the first launch, since Cursor records no times or tool results that
+  would place each agent. A chat's file identity folds in its agent transcripts (summed size,
+  latest mtime and ctime), so a background agent finishing later re-reads the chat. The workspace path is decoded
   by checking which folders exist (metadata only). Cursor records no tool results, so its sessions
   never count as "recovered from a failure". Tested on fixtures and parsed cleanly on real history.
 
