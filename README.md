@@ -176,7 +176,13 @@ Threat model and mitigations: [docs/security.md](docs/security.md).
 | Codex | `$CODEX_HOME/sessions/YYYY/MM/DD/rollout-*.jsonl` | `~/.codex/skills/<name>/SKILL.md` | Parser follows the Codex protocol types and is tested on fixtures; not yet run against real rollouts or a live Codex session |
 | Cursor | `~/.cursor/projects/*/agent-transcripts/*/*.jsonl` | `~/.cursor/skills/<name>/SKILL.md` | Parser tested on fixtures and on real agent transcripts. Cursor doesn't record tool results, so pass/fail outcomes aren't available for its sessions |
 
-Override locations with `REFLEX_CLAUDE_DIR`, `REFLEX_CODEX_DIR`, `REFLEX_CURSOR_DIR`,
+**Conductor.** Conductor runs its own Claude Code and Codex, which save sessions to `~/.claude` and
+`~/.codex` like any other session, so Reflex reads them with those sources. A session whose folder is
+a Conductor workspace (`~/conductor/workspaces/<repo>/<workspace>`) counts toward `<repo>`, not
+toward each workspace, and `reflex sessions` marks it "via Conductor". `reflex doctor` shows whether
+the workspace folder exists. Cursor and OpenCode sessions run through Conductor are not read yet.
+
+Override locations with `REFLEX_CLAUDE_DIR`, `REFLEX_CODEX_DIR`, `REFLEX_CURSOR_DIR`, `REFLEX_CONDUCTOR_DIR`,
 `REFLEX_CLAUDE_SKILLS_DIR`, `REFLEX_CODEX_SKILLS_DIR`, `REFLEX_CURSOR_SKILLS_DIR` and `REFLEX_HOME`. `REFLEX_DEBUG=1` prints local counters (counts only).
 
 ## Walkthrough

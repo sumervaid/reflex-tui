@@ -52,6 +52,12 @@ skip bad lines, cap line size and events per session).
   by checking which folders exist (metadata only). Cursor records no tool results, so its sessions
   never count as "recovered from a failure". Tested on fixtures and parsed cleanly on real history.
 
+- Conductor: not a separate source. Its bundled Claude Code and Codex write to `~/.claude` and
+  `~/.codex`. `SessionBuilder.build` recognizes a working folder under
+  `<...>/conductor/workspaces/<repo>/<workspace>` (each workspace is a git worktree): the project is
+  `<repo>`, hashed from the `<repo>` folder so every workspace of it is one repository, and the
+  session gets `harness: {name: "conductor", workspace}`.
+
 All text is truncated and redacted inside the adapter, before anything else sees it.
 
 Token usage, where recorded, is attached to the session as `{input, output, cacheRead, cacheWrite}`:
