@@ -25,7 +25,7 @@ export function renderRouter(w: number, h: number, data: TuiData, ui: UiState): 
     S(" AUTOPILOT ", "hi", { bold: true, b: on ? COLOR.autopilot : COLOR.sel }),
     S("  "),
     S(on ? "ON" : "OFF", on ? "ok" : "dim", BOLD),
-    S(on ? "   Claude Code picks the model for each prompt you send" : "   suggestions only, you pick the model yourself", "fg"),
+    S(on ? "   reflex run starts each task on the pick" : "   reflex run shows the pick and asks first", "fg"),
     S("   space turns " + (on ? "off" : "on"), "dim"),
   ]);
   L.push([

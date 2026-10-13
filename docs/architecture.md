@@ -143,6 +143,37 @@ bug none of the historical sessions saw, installs the skill project-locally, and
 non-persistent Claude Code session with restricted tools to show the skill being invoked and the
 tests passing.
 
+## Router
+
+`@reflex/analysis` `routing.ts` is shared by the CLI and the TUI.
+
+- **Evidence.** `routingTable` groups priced Claude Code and Codex sessions (once per session id) by
+  `taskKind` (from the actions the agent took) and by tool and main model (the one that cost the
+  most). Per arm: sessions, average cost at list prices and `friction` (corrections, failed tool
+  calls and immediately repeated commands per request). `pickArm` takes the cheapest arm with
+  `ROUTE_MIN_SUPPORT` (3) sessions within `ROUTE_MARGIN` (0.05) of the lowest friction; fewer than two
+  such arms is LEARNING, which keeps the most used one.
+- **Classifying a new request.** Task kinds come from actions, which don't exist yet when a request
+  is typed, so `classifyRequest` lets the 7 most similar past sessions vote, weighted by intent
+  similarity (the same blend clustering uses, by meaning when the model is installed and the
+  request is embedded). With no session above 0.2, a guess from the request's words through the
+  concept lexicon; otherwise unknown.
+- **Choosing.** `chooseRoute` restricts arms to tools on PATH (or `--tool`). With exploration on and
+  the kind not protected, a coin with the configured probability decides whether this run tries the
+  model used least on this kind among models already used with the pick's tool. Every run where the
+  coin was flipped is marked `randomized`; `trials` compares only those, so explored and picked runs
+  saw the same mix of tasks.
+- **Outcomes.** `reflex run` stores a `RouteRun` (no request text). Claude Code runs carry the
+  `--session-id` Reflex generated; `linkRuns` matches Codex runs to the first Codex session in the
+  same folder that started within 10 minutes. A later `reflex scan` provides the cost and friction.
+  When the agent exits, an optional one-key answer ("did it get the job done?", Enter skips) is
+  stored as the run's `outcome`; `trials` counts answers and successes per arm. `typicalCost`
+  (average cost per session on a model across kinds, matching an alias like `sonnet` to the most
+  used full id) gives the cost hint in `reflex run` and bench's estimate.
+- **Bench.** `reflex bench` stores a `BenchResult` per run (pass, cost from the result event's usage
+  at list prices, falling back to Claude Code's own estimate, turns, time). Runs of one task share a
+  batch. The model order rotates per round. `benchSummary` ranks models by pass rate, then cost.
+
 ## Terminal UI
 
 `reflex tui` runs `@reflex/tui` on a live data source. The views never read the store: they draw
@@ -165,7 +196,7 @@ every load (at start, after a rescan and after each toggle).
 | `workflows` | Pending and approved suggestions with their evidence; `on` = the skill generated from it is installed. No `runAs`: a workflow installs as its skill |
 | `search` | Each stored trace's excerpt (turn 1) and display steps (turns 2..), keyed by the first 8 characters of the native session id |
 | `money`, `days[].usd`, `days[].byTool`, `window.usd`, `byModel`, `byProject`, `tools[].usd`, `topSessions`, `topPrompts` | Each trace's `usageByModel` at API list prices (`@reflex/core` `pricing.ts`); absent when nothing could be priced |
-| `router` | Priced sessions by kind of task and main model: average cost and corrections, failed tool calls and repeated commands per request |
+| `router` | Priced sessions by kind of task and main model: average cost and corrections, failed tool calls and repeated commands per request. `autopilot` is the router setting `reflex run` reads |
 | `limits`, `plansFile` | Not recorded, so absent |
 
 Sessions found twice (the same session id in two places) count once in token sums. Cursor records
@@ -178,7 +209,8 @@ no tokens, so a day or window with only Cursor sessions has no token value. More
 status, generated skills (with their cost baseline) and installations. `PRAGMA user_version` gates
 schema changes; version 2 adds `skills.baseline_json` in place; version 3 adds `embeddings`
 (vectors keyed by a hash of model id and context document, kept for every cached trace so changing
-`--days` never re-embeds); version 4 replaces the per-scan `sessions` table with a transcript cache. The
+`--days` never re-embeds); version 4 replaces the per-scan `sessions` table with a transcript cache.
+`route_runs` and `bench_results` (JSON rows) and the `router` entry in `settings` are created in place. The
 1,000-character request text is embedded during `scan` and never stored; each stored trace keeps
 only `contextHash`, so `suggest` and `stats` can find its vector without the text.
 

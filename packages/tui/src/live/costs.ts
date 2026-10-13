@@ -1,3 +1,4 @@
+import { taskKind } from "@reflex/analysis";
 import { type Cost, type WorkflowTrace, addCost, costOf } from "@reflex/core";
 import type { Bar, Day, Money, PromptRow, SessionRow, TokenWindow } from "../model";
 import { toCells } from "../render/text";
@@ -20,18 +21,7 @@ export function priceTraces(traces: WorkflowTrace[]): Priced[] {
 /** Traces stored before Reflex recorded usage per model: they have tokens but no models to price. */
 export const needsRescan = (priced: Priced[]): number => priced.filter((p) => p.t.usage && !p.t.usageByModel).length;
 
-/** What kind of task a session was, from what the agent did. Used by Tokens and the Router. */
-export function taskKind(t: WorkflowTrace): { key: string; name: string } {
-  const a = new Set(t.actionSequence);
-  const modified = [...a].some((x) => x.startsWith("modify-"));
-  if (a.has("inspect-pr") || a.has("submit-review")) return { key: "review", name: "Code review" };
-  if (a.has("inspect-ci") || a.has("modify-ci")) return { key: "ci", name: "CI and builds" };
-  if (modified && t.outcome.recoveredFromFailure) return { key: "debug", name: "Debugging" };
-  if (modified && (a.has("modify-tests") || a.has("run-tests"))) return { key: "feature", name: "Features and tests" };
-  if (modified) return { key: "edit", name: "Edits" };
-  if (a.has("research")) return { key: "research", name: "Research" };
-  return { key: "explore", name: "Questions and exploration" };
-}
+export { taskKind };
 
 const sum = (xs: Priced[]): number => xs.reduce((a, p) => a + (p.cost?.usd ?? 0), 0);
 const between = (xs: Priced[], from: Date, to: Date): Priced[] => xs.filter((p) => p.at >= from.getTime() && p.at < to.getTime());

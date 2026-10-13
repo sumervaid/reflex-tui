@@ -50,6 +50,9 @@ alias reflex="node $PWD/apps/cli/dist/reflex.js"
 | `impact [name]` | Tokens and tool calls per run before the skill vs. runs that loaded it, plus the skill's own size |
 | `tui` | Full-screen terminal UI over the last scan: sessions, tokens, skills to review. `space` installs or removes a skill. Needs an interactive terminal |
 | `memory` | What new agent sessions remember: corrections you gave in at least 2 independent sessions. `on` writes a marked block into `~/.claude/CLAUDE.md` and `~/.codex/AGENTS.md` (refreshed after every scan), `off` removes it, plus `forget`, `remember` and `add` |
+| `run <request>` | Start Claude Code or Codex on the model the router picks for this kind of task. `--dry-run` shows the pick and why, `--tool`, `--model`, `--yes`. Asks first unless autopilot is on |
+| `route` | The router: picks per kind of task, settings, randomized trials and bench results. `autopilot on\|off`, `explore <percent>\|off [--protect <kind...>]` |
+| `bench <task>` | Run one task on several Claude Code models, each in a fresh copy of the current repository, scored by `--check "<command>"`. `--models`, `--setup`, `--runs`, `--timeout`, `--keep`, `--yes` |
 | `stats` | Counts from local data |
 | `reset` | Delete Reflex's own data (not installed skills or the model) |
 | `model [status\|fetch\|remove]` | Optional local embedding model for matching requests by meaning (`fetch` downloads 23 MB) |
@@ -110,6 +113,44 @@ both sides have at least 3 runs, and never predicts savings in advance.
   other work in the same session counts too.
 - Cursor doesn't record tokens. Cursor runs count tool calls only.
 - The skill's own cost is shown as an estimate from its file size (4 characters per token).
+
+## Routing tasks to models
+
+The router groups your priced Claude Code and Codex sessions by kind of task (review, CI, debugging,
+features and tests, edits, research, questions) and compares the models you used on each: average
+cost at API list prices and how often the session needed fixing (your corrections, failed tool calls
+and repeated commands, per request). The pick is the cheapest model with at least 3 sessions that
+needed fixing about as rarely as the most reliable one; with less evidence the kind is LEARNING.
+
+```bash
+reflex run --dry-run "the CI job is failing on main, fix it"   # the pick and why
+reflex run "the CI job is failing on main, fix it"             # starts claude/codex on it (asks first)
+reflex route                                                   # picks, trials, bench results
+```
+
+`reflex run` decides before any work happens: your most similar past sessions vote on the kind of
+task (by meaning too, with the optional model), then it starts the agent with `--model`. One model
+per session, so prompt caching is unaffected. Nothing sits between you and the agent. Your request
+goes to the agent as typed and is never stored; Reflex keeps the kind, tool, model and time of the
+run so a later scan can find the session it started. Next to the pick it shows what a session on
+that model usually costs you. When the agent exits it asks one optional question, "Did it get the
+job done?" (Enter skips, `--no-ask` turns it off); the answer is stored with the run and is the
+strongest evidence the trials have.
+
+Past sessions alone can't say whether a cheaper model would have done as well, because you choose
+models by how hard the task looks. Two ways to get fair evidence:
+
+- **Exploration** (`reflex route explore 10`, off by default): on about 10% of runs, chosen at
+  random, `reflex run` tries the model you have used least on that kind of task among the ones you
+  already use with that tool. `reflex route` compares explored and picked runs from the same coin
+  flips. `--protect review ci` keeps kinds of task out of it.
+- **Bench** (`reflex bench "<task>" --models sonnet opus --check "pnpm test" --setup "pnpm install"`):
+  the same task on each model, each in a fresh clone of the current repository's last commit,
+  scored by your check command. Non-persistent Claude Code sessions with project settings only, so
+  bench runs never show up in your history. Each run uses your Claude account; before you confirm,
+  bench estimates the cost from your average session on each model.
+
+Cursor isn't routed: it records no tokens to compare, and its editor takes no model from outside.
 
 ## Privacy and security
 

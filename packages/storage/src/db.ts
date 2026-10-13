@@ -2,7 +2,7 @@ import { chmodSync, existsSync, lstatSync, mkdirSync } from "node:fs";
 import { DatabaseSync } from "node:sqlite";
 import { z } from "zod";
 import type { SourceId, WorkflowTrace } from "@reflex/core";
-import type { AnalysisStats, Suggestion, WorkflowCost } from "@reflex/analysis";
+import { type AnalysisStats, type BenchResult, DEFAULT_ROUTER_SETTINGS, MAX_EXPLORE, type RouteRun, type RouterSettings, type Suggestion, type WorkflowCost } from "@reflex/analysis";
 import { paths } from "./paths";
 
 export type SuggestionStatus = "pending" | "approved" | "rejected";
@@ -180,6 +180,14 @@ CREATE TABLE IF NOT EXISTS installations (
   installed_at TEXT NOT NULL,
   content_hash TEXT NOT NULL
 );
+CREATE TABLE IF NOT EXISTS route_runs (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  run_json TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS bench_results (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  result_json TEXT NOT NULL
+);
 `;
 
 const TraceShape = z
@@ -187,6 +195,10 @@ const TraceShape = z
   .passthrough();
 const BaselineShape = z.object({ runs: z.number(), runsWithTokens: z.number() }).passthrough();
 const SuggestionShape = z.object({ slug: z.string(), title: z.string(), steps: z.array(z.unknown()), evidence: z.array(z.unknown()) }).passthrough();
+const Source = z.enum(["claude-code", "codex", "cursor"]);
+const RouterSettingsShape = z.object({ autopilot: z.boolean(), explore: z.number(), protect: z.array(z.string()) }).partial();
+const RouteRunShape = z.object({ at: z.string(), source: Source, mode: z.enum(["pick", "learning", "explore", "default", "manual"]), randomized: z.boolean(), outcome: z.enum(["done", "not-done"]).optional() }).passthrough();
+const BenchResultShape = z.object({ at: z.string(), batch: z.string(), source: Source, model: z.string(), pass: z.boolean(), durationMs: z.number(), timedOut: z.boolean() }).passthrough();
 
 function parseJson<T>(raw: string, shape: z.ZodType, what: string): T {
   const result = shape.safeParse(JSON.parse(raw));
@@ -551,5 +563,52 @@ export class Store {
 
   setMemoryState(state: MemoryState): void {
     this.db.prepare("INSERT INTO settings (key, value) VALUES ('memory', ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value").run(JSON.stringify(state));
+  }
+
+  routerSettings(): RouterSettings {
+    const row = this.db.prepare("SELECT value FROM settings WHERE key = 'router'").get() as { value: string } | undefined;
+    const parsed = RouterSettingsShape.safeParse(row ? safeJson(row.value) : {});
+    return parsed.success ? { ...DEFAULT_ROUTER_SETTINGS, ...parsed.data } : { ...DEFAULT_ROUTER_SETTINGS };
+  }
+
+  setRouterSettings(s: RouterSettings): void {
+    const value = JSON.stringify({ autopilot: s.autopilot, explore: Math.min(MAX_EXPLORE, Math.max(0, s.explore)), protect: s.protect });
+    this.db.prepare("INSERT INTO settings (key, value) VALUES ('router', ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value").run(value);
+  }
+
+  /** Store a `reflex run`; returns its id for `setRouteRunOutcome`. */
+  saveRouteRun(run: RouteRun): number {
+    return Number(this.db.prepare("INSERT INTO route_runs (run_json) VALUES (?)").run(JSON.stringify(run)).lastInsertRowid);
+  }
+
+  setRouteRunOutcome(id: number, outcome: NonNullable<RouteRun["outcome"]>): void {
+    const row = this.db.prepare("SELECT run_json FROM route_runs WHERE id = ?").get(id) as { run_json: string } | undefined;
+    if (!row) return;
+    const run = parseJson<RouteRun>(row.run_json, RouteRunShape, "routed run");
+    this.db.prepare("UPDATE route_runs SET run_json = ? WHERE id = ?").run(JSON.stringify({ ...run, outcome }), id);
+  }
+
+  /** Every `reflex run`, oldest first. */
+  routeRuns(): RouteRun[] {
+    const rows = this.db.prepare("SELECT run_json FROM route_runs ORDER BY id").all() as Array<{ run_json: string }>;
+    return rows.map((r) => parseJson<RouteRun>(r.run_json, RouteRunShape, "routed run"));
+  }
+
+  saveBenchResult(result: BenchResult): void {
+    this.db.prepare("INSERT INTO bench_results (result_json) VALUES (?)").run(JSON.stringify(result));
+  }
+
+  /** Every `reflex bench` result, oldest first. */
+  benchResults(): BenchResult[] {
+    const rows = this.db.prepare("SELECT result_json FROM bench_results ORDER BY id").all() as Array<{ result_json: string }>;
+    return rows.map((r) => parseJson<BenchResult>(r.result_json, BenchResultShape, "bench result"));
+  }
+}
+
+function safeJson(raw: string): unknown {
+  try {
+    return JSON.parse(raw);
+  } catch {
+    return {};
   }
 }

@@ -27,7 +27,7 @@ shows full names and summaries; below that it is a narrow rail.
 | `2` | Tokens | The scan window: token identity (fresh input, cache writes, cache reads, output), cache hit rate, sessions per tool, tokens per day |
 | `3` | Skills | Generated skills and pending suggestions, with the SKILL.md in a scrollable preview |
 | `4` | Workflows | Every repeated workflow the last analysis found (rejected ones left out), with its evidence: sessions, repositories and tools, confidence, median tokens, tool calls and duration, each step with how many sessions had it, recurring corrections, uncertainty and the sessions themselves. `space` approves or installs its skill, or removes it |
-| `5` | Router | Suggestions only. Sessions with a priced model, grouped by kind of task (from what the agent did: review, CI, debugging, features and tests, edits, research, questions). For each model: sessions, average cost and how often it needed fixing (your corrections, failed tool calls and immediately repeated commands, per request). The pick is the cheapest model with 3+ sessions within 0.05 of the most reliable; with fewer sessions the verdict is LEARNING. Autopilot is not available |
+| `5` | Router | Suggestions only. Sessions with a priced model, grouped by kind of task (from what the agent did: review, CI, debugging, features and tests, edits, research, questions). For each model: sessions, average cost and how often it needed fixing (your corrections, failed tool calls and immediately repeated commands, per request). The pick is the cheapest model with 3+ sessions within 0.05 of the most reliable; with fewer sessions the verdict is LEARNING. `space` turns autopilot on or off: on, `reflex run` starts on the pick without asking |
 | `6` | Search | Each scanned session's redacted opening request (`you`, turn 1) and its normalized steps (`ai`, turns 2..), with the session's cost and request count. `tab` filters by tool; enter resumes a Codex session with `codex resume <id>`, a Claude Code session with `claude --resume <id>` in the folder it ran in, and opens a Cursor chat's workspace with `cursor <folder>` (or the Cursor app on macOS); the chat is in Cursor's agent history |
 
 ## Keys
@@ -91,7 +91,7 @@ heading and `not measured yet`; a missing value inside a block shows `—`.
 | Budget | no | no budget setting, so no budget line |
 | Usage limits and pace | not measured | no plans file |
 | Workflows: support, steps, evidence, installed | yes | `suggestions` (pending and approved), their skills' installation records; a workflow installs as its skill, so it has no `runAs` and is not counted again as an installed workflow |
-| Router | yes | priced sessions by kind of task and main model (the one that cost the most); see the Router row above. Autopilot: no |
+| Router | yes | priced sessions by kind of task and main model (the one that cost the most); see the Router row above. Autopilot: the `reflex run` setting (`reflex route autopilot`) |
 | Search | yes | stored traces: `excerpt` and `displaySteps`, each session once. Raw transcripts are not stored, so later prompts and replies are not searchable |
 | Resume | Claude Code, Codex, Cursor (workspace) | native session id from the trace; Claude's folder from the `cwd` in the first 256 KB of its transcript (no symlinks); a Cursor chat's workspace from the folder its transcript sits in |
 

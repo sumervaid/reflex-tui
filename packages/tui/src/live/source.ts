@@ -55,7 +55,19 @@ export function createLiveSource(opts: LiveSourceOptions = {}): DataSource {
         return { ok: false, message: errorText(e), tone: "bad" };
       }
     },
-    setAutopilot: async () => unavailable("autopilot is not available yet: the router only suggests models"),
+    async setAutopilot(on) {
+      const store = new Store();
+      try {
+        store.setRouterSettings({ ...store.routerSettings(), autopilot: on });
+        return on
+          ? { ok: true, message: "autopilot on · reflex run starts on the pick", tone: "ok" }
+          : { ok: true, message: "autopilot off · reflex run asks first", tone: "dim" };
+      } catch (e) {
+        return { ok: false, message: errorText(e), tone: "bad" };
+      } finally {
+        store.close();
+      }
+    },
     async setMemory(on) {
       const store = new Store();
       try {
@@ -129,7 +141,7 @@ async function loadLive(now: Date): Promise<{ data: TuiData; search?: LiveSearch
     Object.assign(data, usage(scan, traces, now));
     const priced = priceTraces(traces);
     addCosts(data, costFields(priced, windowDays(scan, now), now));
-    data.router = buildRouter(priced, data.scannedAt, scan.days);
+    data.router = buildRouter(priced, data.scannedAt, scan.days, store.routerSettings().autopilot);
     const stale = needsRescan(priced);
     if (stale) data.attention.push({ tone: "warn", text: `press r to rescan: ${stale} ${stale === 1 ? "session was" : "sessions were"} stored before Reflex recorded models, so ${stale === 1 ? "it has" : "they have"} no cost yet`, view: "dashboard" });
     const skillOf = new Map(store.skills().map((k) => [k.suggestionSlug, k.name]));

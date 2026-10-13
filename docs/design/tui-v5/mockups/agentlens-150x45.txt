@@ -236,7 +236,7 @@
 === [5] Router  150x45 ===
  ◆ agentlens   router   [5]                                                                                                  scanned 08:02   08:14:07 
  LENSES                                                                                                                                               
- local only · 1,284 sessions    AUTOPILOT   ON   Claude Code picks the model for each prompt you send   space turns off                               
+ local only · 1,284 sessions    AUTOPILOT   ON   reflex run starts each task on the pick   space turns off                                            
                                built automatically from 1,284 sessions in your history · 8 kinds of task found · rebuilt 08:02                        
   0  Dashboard                                                                                                                                        
      opus 83% · today $12.40   a month of savings                              how it decides                                                         

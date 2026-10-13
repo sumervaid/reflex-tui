@@ -5,3 +5,4 @@ export * from "./install";
 export * from "./sandbox";
 export * from "./approve";
 export * from "./memory";
+export * from "./bench";

@@ -183,7 +183,10 @@ describe("reflex tui on fixture history", () => {
       expect(t.evidence.every((e) => e.usd > 0 && e.friction >= 0)).toBe(true);
     }
     expect(r.tasks.reduce((a, t) => a + t.sessions, 0)).toBe(r.sessions);
-    expect(await source.setAutopilot(true)).toEqual({ ok: false, message: "autopilot is not available yet: the router only suggests models", tone: "dim" });
+    expect(await source.setAutopilot(true)).toEqual({ ok: true, message: "autopilot on · reflex run starts on the pick", tone: "ok" });
+    expect((await source.load()).router!.autopilot).toBe(true);
+    expect(await source.setAutopilot(false)).toEqual({ ok: true, message: "autopilot off · reflex run asks first", tone: "dim" });
+    expect((await source.load()).router!.autopilot).toBe(false);
   });
 
   it("lists every workflow the scan found, with the evidence behind its skill", async () => {
@@ -303,7 +306,6 @@ describe("reflex tui on fixture history", () => {
   });
 
   it("answers unavailable features plainly", async () => {
-    expect(await source.setAutopilot(true)).toEqual({ ok: false, message: "autopilot is not available yet: the router only suggests models", tone: "dim" });
     expect(await source.rescan()).toEqual({ ok: false, message: NOT_SCANNED, tone: "dim" });
     const rescan = vi.fn(async () => ({ ok: true, message: "rescanned: 1 sessions, 0 new", tone: "ok" as const }));
     expect((await createLiveSource({ rescan }).rescan()).message).toBe("rescanned: 1 sessions, 0 new");

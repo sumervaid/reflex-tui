@@ -19,6 +19,7 @@ import { doctor, reset, sessions, stats } from "./commands/misc";
 import { memoryAdd, memoryForget, memoryOff, memoryOn, memoryRemember, memoryStatus } from "./commands/memory";
 import { modelFetch, modelRemove, modelStatusCommand } from "./commands/model";
 import { impact } from "./commands/impact";
+import { bench, routeAutopilot, routeExplore, routeStatus, runRouted } from "./commands/route";
 import { tui } from "./commands/tui";
 
 function run<A extends unknown[]>(fn: (...args: A) => Promise<void>) {
@@ -37,7 +38,7 @@ const program = new Command();
 program
   .name("reflex")
   .description("Find workflows you keep re-teaching Claude Code, Codex and Cursor, and turn proven repeats into reusable skills. Everything runs locally.")
-  .version("0.3.3")
+  .version("0.4.0")
   .allowExcessArguments()
   .action(
     run(async () => {
@@ -127,6 +128,37 @@ memory.command("off").description("remove Reflex's block from those files").acti
 memory.command("forget <entry>").description("stop telling agents an entry (number or text)").action(run(memoryForget));
 memory.command("remember <entry>").description("bring a forgotten entry back").action(run(memoryRemember));
 memory.command("add <text...>").description("add your own entry").action(run(memoryAdd));
+
+program
+  .command("run <request...>")
+  .description("start Claude Code or Codex on the model the router picks for this kind of task (asks first unless autopilot is on)")
+  .addOption(new Option("--tool <tool>", "only this tool").choices(["claude-code", "codex"]))
+  .option("--model <model>", "use this model instead of the pick")
+  .option("--dry-run", "show the pick and why, start nothing")
+  .option("-y, --yes", "start without asking")
+  .option("--no-ask", "don't ask whether it got the job done when the agent exits")
+  .action(run(async (words: string[], o: { tool?: SourceId; model?: string; dryRun?: boolean; yes?: boolean; ask?: boolean }) => runRouted(words, o)));
+
+const route = program.command("route").description("the model router: picks per kind of task, exploration and bench results");
+route.command("status", { isDefault: true }).description("show picks, settings, randomized trials and bench results").action(run(routeStatus));
+route.command("autopilot <state>").description("on: reflex run starts on the pick without asking; off: it asks").action(run(routeAutopilot));
+route
+  .command("explore <percent>")
+  .description("try another model you use on this share of reflex runs, chosen at random (off to stop)")
+  .option("--protect <kind...>", "kinds of task never explored: review, ci, debug, feature, edit, research, explore")
+  .action(run(async (value: string, o: { protect?: string[] }) => routeExplore(value, o)));
+
+program
+  .command("bench <task...>")
+  .description("run one task on several Claude Code models, each in a fresh copy of this repository, scored by your check command")
+  .requiredOption("--models <model...>", "models to compare, e.g. sonnet opus")
+  .requiredOption("--check <command>", "command that passes (exit 0) when the task is done, e.g. \"pnpm test\"")
+  .option("--setup <command>", "command to prepare each copy, e.g. \"pnpm install --frozen-lockfile\"")
+  .option("--runs <n>", "runs per model", "1")
+  .option("--timeout <minutes>", "time limit per run", "20")
+  .option("--keep", "keep the copies for inspection")
+  .option("-y, --yes", "start without asking")
+  .action(run(async (words: string[], o: Parameters<typeof bench>[1]) => bench(words, o)));
 
 program.command("stats").description("defensible counts from local data").action(run(stats));
 program

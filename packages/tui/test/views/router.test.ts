@@ -59,7 +59,7 @@ describe("router view", () => {
     const t = text(out.lines);
     expect(t).toContain("rebuilt now…");
     expect(out.lines[0]![0]).toMatchObject({ t: " AUTOPILOT ", b: COLOR.sel });
-    expect(t).toContain("OFF   suggestions only, you pick the model yourself   space turns on");
+    expect(t).toContain("OFF   reflex run shows the pick and asks first   space turns on");
     expect(t).toContain("WHY HAIKU-4-5 FOR REFACTORING");
     expect(text([out.lines[11]!])).toContain("▸ Refactoring");
   });

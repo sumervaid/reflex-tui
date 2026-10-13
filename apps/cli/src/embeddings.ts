@@ -26,6 +26,28 @@ export function embeddingKey(contextHashValue: string): string {
 const keyOf = (t: WorkflowTrace) => embeddingKey(t.contextHash ?? contextHash(contextDocument(t)));
 
 /**
+ * A new request's vector plus the stored session vectors, when the model is installed, so a request
+ * can be matched to past sessions by meaning. Undefined (match by words) otherwise or on failure.
+ */
+export async function requestVectors(
+  document: string,
+  traces: WorkflowTrace[],
+  store: Store,
+): Promise<{ vectors: SessionVectors; requestVector: Float32Array } | undefined> {
+  const status = await modelStatus(paths.models());
+  if (!status.installed) return undefined;
+  try {
+    const cached = await sessionVectors(traces, store, { cacheOnly: true });
+    if (cached.status !== "ok" || !cached.vectors.size) return undefined;
+    const embedder = await loadEmbedder(status.dir, { wasmDir: bundledWasmDir() });
+    const [requestVector] = await embedder.embed([document]);
+    return requestVector ? { vectors: cached.vectors, requestVector } : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+/**
  * When the model is installed: which sessions have no vector yet. `scan` re-reads the files of
  * those sessions (and only those) to get their text, since the text itself is never stored.
  */

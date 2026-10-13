@@ -281,7 +281,7 @@ function itemsTab(kind){return(w,h,st)=>{
 const PLAIN={debug:'Debugging',refactor:'Refactoring','test-write':'Writing tests',migrate:'Migrations',review:'Code review',docs:'Writing docs',infra:'Infrastructure',explain:'Explaining code'};
 function router(w,h,st){
   const narrow=w<140,on=st.hook,L=[];
-  L.push([S(' AUTOPILOT ','hi',{bold:true,b:on?'#005f00':'#3a3a3a'}),S('  '),S(on?'ON':'OFF',on?'ok':'dim',B),S(on?'   Claude Code picks the model for each prompt you send':'   suggestions only, you pick the model yourself','fg'),S('   space turns '+(on?'off':'on'),'dim')]);
+  L.push([S(' AUTOPILOT ','hi',{bold:true,b:on?'#005f00':'#3a3a3a'}),S('  '),S(on?'ON':'OFF',on?'ok':'dim',B),S(on?'   reflex run starts each task on the pick':'   reflex run shows the pick and asks first','fg'),S('   space turns '+(on?'off':'on'),'dim')]);
   L.push([S('built automatically from ','dim'),S(fmt(st.total)+' sessions','fg'),S(' in your history · ','dim'),S(ROUTER.length+' kinds of task','fg'),S(' found · rebuilt '+(st.scanning?'now…':st.scanTime)+(narrow?'':', and again on every rescan'),'dim')]);
   L.push([]);
   const sw=ROUTER.filter(r=>r.rec!==r.most).length,bs=big('$'+Math.round(TOTAL_SAVE));
