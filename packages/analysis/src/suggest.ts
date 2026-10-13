@@ -102,6 +102,14 @@ export type Suggestion = {
   constraints?: Constraint[];
 };
 
+/** A repeated workflow most of whose sessions already loaded skills you have: not suggested again. */
+export type CoveredWorkflow = {
+  title: string;
+  instances: number;
+  /** Your skills those sessions loaded, most used first. */
+  skills: Array<{ name: string; sessions: number }>;
+};
+
 export type AnalysisStats = {
   traces: number;
   dedup: DedupStats;
@@ -109,11 +117,19 @@ export type AnalysisStats = {
   candidates: number;
   clusters: number;
   recurrent: number;
+  /** Repeated workflows your own skills already handle. Optional in analyses saved before it existed. */
+  covered?: CoveredWorkflow[];
 };
 
 export type Analysis = { suggestions: Suggestion[]; stats: AnalysisStats };
 
-function consensusSteps(instances: WorkflowInstance[]): ConsensusStep[] {
+/** A workflow counts as covered when at least this share of its sessions loaded one of your skills. */
+const COVERED_SHARE = 0.5;
+
+/** Skill names a session loaded, without plugin prefixes ("tools:review-pr" -> "review-pr"). */
+const loadedSkills = (t: WorkflowTrace): string[] => (t.skillsUsed ?? []).map((s) => s.replace(/^.*:/, ""));
+
+export function consensusSteps(instances: WorkflowInstance[]): ConsensusStep[] {
   const n = instances.length;
   const positions = new Map<StepKind, number[]>();
   const commandHits = new Map<StepKind, Map<string, Set<string>>>();
@@ -266,6 +282,8 @@ function evidenceFor(inst: WorkflowInstance, slug: string): Evidence {
 export type AnalyzeOptions = {
   /** Sentence vectors of session context documents (see `contextDocument`). Optional. */
   vectors?: SessionVectors;
+  /** Skills Reflex generated: loading one of these does not make a workflow "covered by your skills". */
+  ownSkills?: ReadonlySet<string>;
 };
 
 export function analyze(traces: WorkflowTrace[], opts: AnalyzeOptions = {}): Analysis {
@@ -275,6 +293,7 @@ export function analyze(traces: WorkflowTrace[], opts: AnalyzeOptions = {}): Ana
   debug("clusters formed", { candidates: candidates.length, clusters: clusters.length });
 
   const suggestions: Suggestion[] = [];
+  const covered: CoveredWorkflow[] = [];
   const usedSlugs = new Set<string>();
   for (const cluster of clusters) {
     if (cluster.members.length < MIN_INSTANCES) continue;
@@ -294,6 +313,22 @@ export function analyze(traces: WorkflowTrace[], opts: AnalyzeOptions = {}): Ana
 
     const fallbackTerms = terms.slice(0, 3);
     const baseSlug = family?.slug ?? toSlug(fallbackTerms.join(" ") || steps.map((s) => s.kind).slice(0, 2).join(" "));
+
+    // Your own skills already run this workflow: improve those instead of adding a duplicate.
+    const yours = (g: WorkflowInstance) =>
+      [...new Set([g.primary, ...g.merged].flatMap(loadedSkills))].filter((s) => s !== baseSlug && !opts.ownSkills?.has(s));
+    const withYours = group.filter((g) => yours(g).length);
+    if (withYours.length >= COVERED_SHARE * group.length) {
+      const counts = new Map<string, number>();
+      for (const g of withYours) for (const s of yours(g)) counts.set(s, (counts.get(s) ?? 0) + 1);
+      covered.push({
+        title: family?.title ?? `Repeated workflow: ${fallbackTerms.join(", ") || baseSlug}`,
+        instances: group.length,
+        skills: [...counts].map(([name, sessions]) => ({ name, sessions })).sort((a, b) => b.sessions - a.sessions || a.name.localeCompare(b.name)),
+      });
+      continue;
+    }
+
     let slug = baseSlug;
     for (let k = 2; usedSlugs.has(slug); k++) slug = `${baseSlug}-${k}`;
     usedSlugs.add(slug);
@@ -361,6 +396,7 @@ export function analyze(traces: WorkflowTrace[], opts: AnalyzeOptions = {}): Ana
     candidates: candidates.length,
     clusters: clusters.length,
     recurrent: suggestions.length,
+    covered,
   };
   debug("suggestions produced", { count: suggestions.length });
   return { suggestions, stats };

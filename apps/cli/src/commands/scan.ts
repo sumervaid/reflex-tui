@@ -1,7 +1,7 @@
 import type { SourceId, TranscriptAdapter } from "@reflex/core";
 import { debug } from "@reflex/core";
 import { ClaudeCodeAdapter, CodexAdapter, CursorAdapter } from "@reflex/adapters";
-import { type Suggestion, analyze, deduplicate } from "@reflex/analysis";
+import { type CoveredWorkflow, type Suggestion, analyze, deduplicate } from "@reflex/analysis";
 import { displayPath } from "@reflex/safety";
 import { type MemorySync, syncMemory } from "@reflex/skills";
 import { Store, paths } from "@reflex/storage";
@@ -9,7 +9,7 @@ import { c, confirm, out, plural, rows, spinner, title, warn } from "../ui";
 import { modelBytes } from "@reflex/embeddings";
 import { type VectorResult, sessionVectors, vectorNeeds } from "../embeddings";
 import { MAX_FILES_PER_SOURCE, collect, currentKeys } from "../collect";
-import { analysisKey, summarize } from "../analysis";
+import { analysisKey, ownSkills, summarize } from "../analysis";
 
 export type ScanOptions = {
   days: number;
@@ -76,6 +76,7 @@ export async function scan(opts: ScanOptions): Promise<void> {
   const now = new Date();
   const store = new Store();
   let suggestions: Suggestion[] = [];
+  let covered: CoveredWorkflow[] = [];
   let memoryResult: MemorySync | undefined;
   let meaning: VectorResult = { status: "no-model" };
   let collected;
@@ -116,11 +117,13 @@ export async function scan(opts: ScanOptions): Promise<void> {
       },
     });
     if (embedding) embedSpin.stop(meaning.status === "ok" ? "Compared by meaning" : "Meaning comparison unavailable");
-    const analysis = analyze(traces, meaning.status === "ok" ? { vectors: meaning.vectors } : {});
+    const own = ownSkills(store);
+    const analysis = analyze(traces, { ...(meaning.status === "ok" ? { vectors: meaning.vectors } : {}), ownSkills: own });
     suggestions = analysis.suggestions;
+    covered = analysis.stats.covered ?? [];
     const scanId = store.latestScan()!.id;
     store.saveSuggestions(scanId, suggestions);
-    store.saveAnalysis(scanId, analysisKey(meaning.status === "ok"), summarize(analysis, traces));
+    store.saveAnalysis(scanId, analysisKey(meaning.status === "ok", own), summarize(analysis, traces));
     memoryResult = await syncMemory(store);
   } finally {
     store.close();
@@ -162,5 +165,9 @@ export async function scan(opts: ScanOptions): Promise<void> {
       ? `${plural(suggestions.length, "repeated workflow")} found. Next: ${c.cyan("reflex suggest")}`
       : `No repeated workflows yet. Details: ${c.cyan("reflex suggest")}`,
   );
+  for (const w of covered) {
+    const names = w.skills.slice(0, 3).map((s) => s.name);
+    out(c.dim(`Already handled by your skills (${names.join(", ")}): ${w.title.toLowerCase()} · ${c.cyan(`reflex improve ${names[0]}`)}`));
+  }
   if (meaning.status === "no-model") out(c.dim(`Tip: ${c.cyan("reflex model fetch")} also matches requests worded differently (optional, ${Math.round(modelBytes() / 1e6)} MB, runs locally).`));
 }

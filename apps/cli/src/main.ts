@@ -19,6 +19,7 @@ import { doctor, reset, sessions, stats } from "./commands/misc";
 import { memoryAdd, memoryForget, memoryOff, memoryOn, memoryRemember, memoryStatus } from "./commands/memory";
 import { modelFetch, modelRemove, modelStatusCommand } from "./commands/model";
 import { impact } from "./commands/impact";
+import { improve } from "./commands/improve";
 import { bench, routeAutopilot, routeExplore, routeStatus, runRouted } from "./commands/route";
 import { tui } from "./commands/tui";
 
@@ -116,6 +117,12 @@ model
   .action(run(modelFetch));
 model.command("remove").description("delete the downloaded model").option("-y, --yes", "remove without prompting").action(run(modelRemove));
 
+program
+  .command("improve [skill]")
+  .description("compare a skill you already have with the sessions that loaded it, and propose an edit (asks before reading or writing)")
+  .option("--file <path>", "the skill's SKILL.md, when it isn't in ~/.claude, ~/.codex or ~/.cursor skills")
+  .option("-y, --yes", "read the skill and apply the change without prompting")
+  .action(run(async (skill: string | undefined, o: { file?: string; yes?: boolean }) => improve(skill, o)));
 program.command("impact [skill]").description("compare a workflow's tokens and tool calls before and after its skill").action(run(impact));
 const memory = program.command("memory").description("what new agent sessions remember: corrections you gave in more than one session");
 memory.command("status", { isDefault: true }).description("list memory entries and where they are written").action(run(memoryStatus));

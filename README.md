@@ -53,6 +53,7 @@ alias reflex="node $PWD/apps/cli/dist/reflex.js"
 | `run <request>` | Start Claude Code or Codex on the model the router picks for this kind of task. `--dry-run` shows the pick and why, `--tool`, `--model`, `--yes`. Asks first unless autopilot is on |
 | `route` | The router: picks per kind of task, settings, randomized trials and bench results. `autopilot on\|off`, `explore <percent>\|off [--protect <kind...>]` |
 | `bench <task>` | Run one task on several Claude Code models, each in a fresh copy of the current repository, scored by `--check "<command>"`. `--models`, `--setup`, `--runs`, `--timeout`, `--keep`, `--yes` |
+| `improve [skill]` | For skills you already have: lists them with the sessions that loaded each; with a name, compares the skill with those sessions and proposes an edit (asks before reading the skill and before changing it; keeps a backup). `--file`, `--yes` |
 | `stats` | Counts from local data |
 | `reset` | Delete Reflex's own data (not installed skills or the model) |
 | `model [status\|fetch\|remove]` | Optional local embedding model for matching requests by meaning (`fetch` downloads 23 MB) |
@@ -100,6 +101,20 @@ happened, with example commands that recurred and passed a safety filter. Correc
 follow-up messages ("don't change the CI workflow") become constraints when the same correction
 appears in at least 2 sessions; only the words those sessions share are kept. No transcript excerpts.
 Details: [docs/architecture.md](docs/architecture.md).
+
+## Skills you already have
+
+If most sessions of a repeated workflow already loaded skills you wrote, Reflex does not suggest a
+new skill for it; `reflex scan` says which of your skills handle it instead.
+
+`reflex improve <skill>` compares one of your skills with the sessions that loaded it (at least 2):
+how often they ended with a passing check, how often you corrected the agent, steps most of them
+took that the skill doesn't mention, steps the skill names that rarely happened, and corrections
+you repeated that the skill doesn't say. It proposes a marked "Learned from your sessions" section,
+shows the diff and saves it under `~/.reflex/proposals`. Your file changes only if you confirm; the
+previous version goes to `~/.reflex/backups`. Running it again replaces that section rather than
+adding another. A session counts as using a skill when the agent called it (Claude Code's `Skill`
+tool) or read its `SKILL.md`.
 
 ## Measuring a skill
 

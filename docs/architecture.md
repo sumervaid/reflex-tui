@@ -143,6 +143,23 @@ bug none of the historical sessions saw, installs the skill project-locally, and
 non-persistent Claude Code session with restricted tools to show the skill being invoked and the
 tests passing.
 
+## Skills you already have
+
+- **Covered workflows.** In `analyze`, before a cluster becomes a suggestion: if at least half of its
+  instances loaded a skill that is neither the suggestion's own name nor one Reflex generated
+  (`ownSkills`, from the store), the cluster is recorded in `stats.covered` with those skills and
+  not suggested. Reflex-generated skills are excluded so an approved workflow never disappears
+  from its own suggestion. The set of generated skills is part of `analysisKey`.
+- **`reviewSkill`** (`@reflex/analysis` `improve.ts`) takes the independent instances that loaded the
+  skill and compares their consensus steps with the skill text through a loose per-step keyword
+  table (`MENTIONS`). Steps every session does (read or search code, run a command, survey the
+  repository) are never reported. Missing: consensus steps the text doesn't name. Rarely taken:
+  steps the text names that under 25% of instances took. Constraints: `recurringCorrections` over
+  those instances, through `isSafeConstraint`, minus ones whose words the skill already contains.
+- **The proposal** (`@reflex/skills` `improve.ts`) is a section between
+  `<!-- reflex:learned:start -->` and `<!-- reflex:learned:end -->`, appended or replaced in
+  place; the rest of the file is kept byte for byte.
+
 ## Router
 
 `@reflex/analysis` `routing.ts` is shared by the CLI and the TUI.
