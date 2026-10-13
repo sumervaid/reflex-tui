@@ -138,6 +138,11 @@ export async function scan(opts: ScanOptions): Promise<void> {
     stats.retries && plural(stats.retries, "retry", "retries"),
   ].filter(Boolean);
   if (folded.length) out(c.dim(`  counted once: ${folded.join(", ")}`));
+  const conductor = traces.filter((t) => t.harness?.name === "conductor");
+  if (conductor.length) {
+    const workspaces = new Set(conductor.map((t) => `${t.projectHash}/${t.harness!.workspace}`)).size;
+    out(c.dim(`  ${plural(conductor.length, "session")} ran in ${plural(workspaces, "Conductor workspace")}, grouped by repository`));
+  }
   if (partial) out(c.dim(`  ${plural(partial, "session")} partially recovered (${plural(skippedRecords, "malformed record")} skipped)`));
   if (unreadable) warn(`${plural(unreadable, "unreadable file")} skipped`);
   if (kept) out(c.dim(`  ${plural(kept, "session")} kept from transcripts that have since been deleted`));

@@ -155,4 +155,19 @@ describe("ClaudeCodeAdapter", () => {
     const d = await new ClaudeCodeAdapter(join(root, "nope")).detect();
     expect(d.found).toBe(false);
   });
+
+  it("groups Conductor workspaces under their repository and records the workspace", async () => {
+    const ws = (name: string) => `/Users/jordan/conductor/workspaces/checkout-api/${name}`;
+    await writeSession("w1", [user("fix the flaky retry test", { sessionId: "w1", cwd: ws("warsaw-v2") })]);
+    await writeSession("w2", [user("add a timeout to the payments client", { sessionId: "w2", cwd: `${ws("lisbon")}/packages/payments` })]);
+    await writeSession("plain", [user("rename the config loader", { sessionId: "plain" })]);
+    const sessions = (await parseOnly(new ClaudeCodeAdapter(root))).flatMap((r) => r.sessions);
+    const by = (id: string) => sessions.find((s) => s.sourceRef.nativeId === id)!;
+    expect(by("w1").project?.name).toBe("checkout-api");
+    expect(by("w1").harness).toEqual({ name: "conductor", workspace: "warsaw-v2" });
+    expect(by("w2").harness).toEqual({ name: "conductor", workspace: "lisbon" });
+    expect(by("w2").project).toEqual(by("w1").project);
+    expect(by("plain").project?.name).toBe("app");
+    expect(by("plain").harness).toBeUndefined();
+  });
 });
