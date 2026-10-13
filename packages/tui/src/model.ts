@@ -69,7 +69,8 @@ export type ToolLimits = {
 };
 
 export type Money = {
-  today: { usd: number; sessions: number };
+  /** `unpriced`: sessions today with no recorded tokens (Cursor), not in `usd`. */
+  today: { usd?: number; sessions: number; unpriced?: number };
   /** All history; `since` is the first day, "14 Mar". */
   allTime: { usd: number; since: string };
   /** Calendar month to date (Morning "this month $246.40"). */
