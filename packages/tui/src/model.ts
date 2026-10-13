@@ -199,6 +199,19 @@ export type RouterTask = {
   best: number;
   /** Yesterday's pick, when it differs from today's. */
   previous?: string;
+  /** The sessions behind this row, newest first (live data only). */
+  recent?: RouterSession[];
+};
+
+export type RouterSession = {
+  /** "12 Oct". */
+  date: string;
+  project: string;
+  model: string;
+  usd: number;
+  friction: number;
+  /** Redacted opening request. */
+  prompt: string;
 };
 
 export type Router = {

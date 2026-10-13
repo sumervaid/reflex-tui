@@ -64,6 +64,25 @@ describe("router view", () => {
     expect(text([out.lines[11]!])).toContain("▸ Refactoring");
   });
 
+  it("lists the sessions behind the selected row, and says when no model has enough sessions", () => {
+    const { w } = viewRegion(150, 45);
+    const data = designData();
+    const t0 = data.router!.tasks[0]!;
+    t0.evidence = [{ model: "claude-opus-5-5", sessions: 2, usd: 13.78, friction: 31.4 }];
+    t0.rec = t0.most = "claude-opus-5-5";
+    t0.recent = [
+      { date: "12 Oct", project: "reflex-tui", model: "claude-opus-5-5", usd: 20.1, friction: 40, prompt: "the scan never exits after results" },
+      { date: "11 Oct", project: "hedging", model: "claude-opus-5-5", usd: 7.46, friction: 22.8, prompt: "why is this order stuck" },
+    ];
+    const out = renderRouter(w, 80, data, { ...designUi("router"), sel: { skills: 0, workflows: 0, router: 0, search: 0 } });
+    const t = text(out.lines);
+    expect(t).toContain(`no model has ${data.router!.minSupport} sessions of this yet · the pick is the one you used most`);
+    expect(t).toContain("SESSIONS BEHIND " + t0.name.toUpperCase());
+    expect(t).toMatch(/12 Oct\s+reflex-tui\s+claude-opus-5-5\s+\$20\.10\s+400\.0 fixes\/10\s+the scan never exits after results/);
+    expect(t).toContain("hedging");
+    for (const l of out.lines) expect(llen(l)).toBeLessThanOrEqual(w);
+  });
+
   it("collapses an empty task list to its heading and the dim line", () => {
     const { w, h } = viewRegion(120, 40);
     const data = designData();

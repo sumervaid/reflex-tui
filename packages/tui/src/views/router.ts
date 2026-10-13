@@ -112,8 +112,11 @@ export function renderRouter(w: number, h: number, data: TuiData, ui: UiState): 
         bg,
       ),
     );
+    const enough = r.evidence.filter((e) => e.sessions >= R.minSupport).length;
     const why = learn
-      ? "only " + r.most + " has enough sessions so far · try another model on this kind of task to compare"
+      ? enough
+        ? "only " + r.most + " has enough sessions so far · try another model on this kind of task to compare"
+        : "no model has " + R.minSupport + " sessions of this yet · the pick is the one you used most"
       : ch
         ? "just as reliable as " + r.most + (pct === null ? "" : ", " + pct + "% cheaper")
         : r.most + " is already the cheapest reliable choice";
@@ -155,6 +158,21 @@ export function renderRouter(w: number, h: number, data: TuiData, ui: UiState): 
       ]);
     });
     L.push([]);
+    if (T.recent?.length) {
+      L.push([S("SESSIONS BEHIND " + T.name.toUpperCase(), "hi", BOLD), S("   newest first · / searches them, enter reopens one", "dim")]);
+      for (const s of T.recent) {
+        const head: Line = [
+          S("  "),
+          S(tr(s.date, 8), "dim"),
+          S(tr(s.project, 16), "fg"),
+          S(tr(s.model, 18), "dim"),
+          S(rp(usd(s.usd), 8) + "   ", "fg"),
+          S(tr((s.friction * 10).toFixed(1) + " fixes/10", 17), "dim"),
+        ];
+        L.push(fit([...head, S(s.prompt, "fg")], w));
+      }
+      L.push([]);
+    }
   }
   L.push([
     S("rules ", "dim"),

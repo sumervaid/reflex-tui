@@ -2,8 +2,11 @@ import { ROUTE_MARGIN as MARGIN, ROUTE_MIN_SUPPORT as MIN_SUPPORT, friction as t
 import type { ModelEvidence, Router, RouterTask } from "../model";
 import { toCells } from "../render/text";
 import { type Priced, taskKind } from "./costs";
+import { dayLabel } from "./labels";
 
 const friction = (p: Priced): number => traceFriction(p.t);
+/** Sessions listed under the selected row. */
+const RECENT = 5;
 
 /** The model that cost the most in a session: the one it mostly ran on. */
 const mainModel = (p: Priced): string | undefined => Object.entries(p.byModel).sort((a, b) => b[1] - a[1])[0]?.[0];
@@ -45,7 +48,18 @@ export function buildRouter(priced: Priced[], rebuiltAt: string, windowDays: num
       monthlySaving += (save * most.sessions * 30) / Math.max(1, windowDays);
       movedSessions += most.sessions;
     }
-    tasks.push({ key, name, evidence, rec: rec.model, most: most.model, mostSessions: most.sessions, save, sessions: rs.length, best });
+    const recent = [...rs]
+      .sort((a, b) => b.p.at - a.p.at)
+      .slice(0, RECENT)
+      .map((r) => ({
+        date: r.p.at ? dayLabel(new Date(r.p.at)) : "—",
+        project: toCells(r.p.t.projectName ?? "—"),
+        model: toCells(r.model),
+        usd: r.p.cost!.usd,
+        friction: friction(r.p),
+        prompt: toCells(r.p.t.excerpt),
+      }));
+    tasks.push({ key, name, evidence, rec: rec.model, most: most.model, mostSessions: most.sessions, save, sessions: rs.length, best, recent });
   }
   tasks.sort((a, b) => b.sessions - a.sessions);
   return {
