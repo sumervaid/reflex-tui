@@ -13,22 +13,34 @@ export const LEARNED_END = "<!-- reflex:learned:end -->";
 
 /**
  * The section Reflex proposes adding to a skill you wrote, or undefined when there is nothing to
- * add. Only Reflex's own step wording, recurring commands that passed the safety filter, and
- * constraints built from corrections you repeated: never text from the sessions themselves.
+ * add. By default only what makes the same work faster: commands that worked for steps the skill
+ * already names. With `behavior`, also missing steps and repeated corrections, which can change
+ * what the agent does. Only Reflex's own step wording, recurring commands that passed the safety
+ * filter, and constraints built from corrections you repeated: never text from the sessions.
  */
-export function learnedSection(review: SkillReview, now = new Date()): string | undefined {
-  if (!review.missing.length && !review.constraints.length) return undefined;
-  const lines = [LEARNED_START, "## Learned from your sessions", "", `From ${review.sessions} sessions that loaded this skill (Reflex, ${now.toISOString().slice(0, 10)}).`];
-  if (review.missing.length) {
+export function learnedSection(review: SkillReview, opts: { behavior?: boolean; now?: Date } = {}): string | undefined {
+  const missing = opts.behavior ? review.missing : [];
+  const constraints = opts.behavior ? review.constraints : [];
+  if (!review.commands.length && !missing.length && !constraints.length) return undefined;
+  const day = (opts.now ?? new Date()).toISOString().slice(0, 10);
+  const lines = [LEARNED_START, "## Learned from your sessions", "", `From ${review.sessions} sessions that loaded this skill (Reflex, ${day}).`];
+  if (review.protected.length) {
+    lines.push(`Nothing here changes what this skill produces: keep the output exactly as ${review.protected.map((p) => `"${p}"`).join(", ")} specifies.`);
+  }
+  if (review.commands.length) {
+    lines.push("", "Commands that worked for steps above, so they need not be worked out again:", "");
+    for (const s of review.commands) lines.push(`- ${s.label}: ${s.examples.map((e) => `\`${e}\``).join(", ")}`);
+  }
+  if (missing.length) {
     lines.push("", "Steps your agents took in most of them that this skill does not mention:", "");
-    review.missing.forEach((s, i) => {
+    missing.forEach((s, i) => {
       lines.push(`${i + 1}. ${s.instruction}`);
       if (s.examples.length) lines.push(`   Commands seen: ${s.examples.map((e) => `\`${e}\``).join(", ")}`);
     });
   }
-  if (review.constraints.length) {
+  if (constraints.length) {
     lines.push("", "Corrections you gave in more than one of them:", "");
-    for (const c of review.constraints) lines.push(`- ${c.text} (${c.sessions} sessions)`);
+    for (const c of constraints) lines.push(`- ${c.text} (${c.sessions} sessions)`);
   }
   lines.push(LEARNED_END);
   const section = redact(lines.join("\n"));

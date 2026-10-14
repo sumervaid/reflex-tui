@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { WorkflowTrace } from "@reflex/core";
 import { analyze } from "../src/suggest";
-import { reviewSkill } from "../src/improve";
+import { FIXED_START, outputShape, protectedSections, reviewSkill } from "../src/improve";
 import { deduplicate } from "../src/dedup";
 import { fixtureTraces } from "./helpers";
 
@@ -45,5 +45,41 @@ describe("reviewSkill", () => {
 
     const one = await withSkills((_, i) => (i === 0 ? ["rca"] : []));
     expect(reviewSkill("rca", SKILL, one)).toMatchObject({ sessions: 1, missing: [], rarelyTaken: [], constraints: [] });
+  });
+
+  it("offers commands for steps the skill already names, and never a summary step when the output is fixed", async () => {
+    const traces = await withSkills(() => ["rca"]);
+    const named = `${SKILL}\nRun the tests.\nInspect the failing CI job.`;
+    const r = reviewSkill("rca", named, traces);
+    expect(r.commands.map((s) => s.kind)).toEqual(expect.arrayContaining(["inspect-ci"]));
+    expect(r.commands.every((s) => s.examples.length > 0)).toBe(true);
+    expect(r.protected).toEqual([]);
+    const fixed = reviewSkill("rca", `${named}\n\n## Output format\n\n- Root cause`, traces);
+    expect(fixed.protected).toEqual(["Output format"]);
+    expect(fixed.missing.map((s) => s.kind)).not.toContain("summarize");
+  });
+});
+
+describe("protectedSections", () => {
+  it("finds output headings and fixed markers", () => {
+    expect(protectedSections("# RCA\n## Steps\n## Response template\n### Report\n")).toEqual(["Response template", "Report"]);
+    expect(protectedSections(`# x\n${FIXED_START}\nkeep\n<!-- reflex:fixed:end -->`)).toEqual(["sections marked fixed"]);
+  });
+});
+
+describe("outputShape", () => {
+  it("is the same for answers in one format with different values", () => {
+    const a = "## Root cause: retries at 12:04\n\nThe config was a string.\n\n- step one\n- step two\n\n| file | change |\n|---|---|\n| a.ts | x |\n| b.ts | y |\n\n**Verified**: yes";
+    const b = "## Root cause: timeout at 09:31\n\nA flaky network call.\n\n- only step\n\n| file | change |\n|---|---|\n| c.ts | z |\n\n**Verified**: no";
+    expect(outputShape(a)).toEqual(outputShape(b));
+    expect(outputShape(a)).toEqual(["h2:root cause", "list", "table:2", "table:row", "label:verified"]);
+  });
+
+  it("differs when the format changes", () => {
+    const a = "## Root cause\n\n- x";
+    expect(outputShape(`${a}\n\n## Extra section\n\n- y`)).not.toEqual(outputShape(a));
+    expect(outputShape("1. x\n2. y")).not.toEqual(outputShape(a));
+    expect(outputShape('{"cause":"x","fix":"y"}')).toEqual(["json:object", "key:cause", "key:fix"]);
+    expect(outputShape('{"cause":"z","fix":"w"}')).toEqual(outputShape('{"fix":"y","cause":"x"}'));
   });
 });

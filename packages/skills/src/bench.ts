@@ -1,7 +1,8 @@
 import { spawn, spawnSync } from "node:child_process";
-import { rm } from "node:fs/promises";
+import { mkdir, rm } from "node:fs/promises";
+import { join } from "node:path";
 import { type TokenUsage } from "@reflex/core";
-import { assertInside } from "@reflex/safety";
+import { assertInside, writeNewFile } from "@reflex/safety";
 
 /** The top folder of the git repository `dir` is in, or undefined. */
 export function repoRoot(dir: string): string | undefined {
@@ -41,11 +42,18 @@ export function runUserCommand(dir: string, command: string, timeoutMs: number):
   return spawnSync(command, { cwd: dir, shell: true, stdio: "ignore", timeout: timeoutMs }).status === 0;
 }
 
+/** Put a skill into a bench copy project-locally (`.claude/skills/<name>/SKILL.md`), so only that copy loads it. */
+export async function installInCopy(dir: string, name: string, content: string): Promise<void> {
+  const skillDir = assertInside(dir, join(dir, ".claude", "skills", name));
+  await mkdir(skillDir, { recursive: true });
+  await writeNewFile(join(skillDir, "SKILL.md"), content);
+}
+
 /** A check command simple enough to allow as a Bash prefix for the agent (letters, paths, flags). */
 const SIMPLE_COMMAND = /^[\w@./:=,+-]+( [\w@./:=,+-]+)*$/;
 
 export function benchTools(check: string): { tools: string[]; agentCanRunCheck: boolean } {
-  const tools = ["Read", "Edit", "Write", "Glob", "Grep", "Bash(git status:*)", "Bash(git diff:*)", "Bash(git log:*)", "Bash(ls:*)"];
+  const tools = ["Skill", "Read", "Edit", "Write", "Glob", "Grep", "Bash(git status:*)", "Bash(git diff:*)", "Bash(git log:*)", "Bash(ls:*)"];
   const simple = SIMPLE_COMMAND.test(check.trim());
   if (simple) tools.push(`Bash(${check.trim()}:*)`);
   return { tools, agentCanRunCheck: simple };
@@ -60,6 +68,8 @@ export type BenchAgentRun = {
   reportedUsd?: number;
   turns?: number;
   isError?: boolean;
+  /** The agent's final answer, held in memory only (to compare its shape); never stored. */
+  finalText?: string;
 };
 
 const num = (v: unknown): number | undefined => (typeof v === "number" && Number.isFinite(v) ? v : undefined);
@@ -69,12 +79,11 @@ const num = (v: unknown): number | undefined => (typeof v === "number" && Number
  * no MCP servers, edits accepted, Bash limited to read-only git, `ls` and the check command. Only
  * the final result event is read (usage, turns, cost); nothing the agent writes is kept.
  */
-export function runClaudeBench(dir: string, task: string, model: string, tools: string[], timeoutMs: number): Promise<BenchAgentRun> {
+export function runClaudeBench(dir: string, task: string, model: string | undefined, tools: string[], timeoutMs: number): Promise<BenchAgentRun> {
   const args = [
     "-p",
     task,
-    "--model",
-    model,
+    ...(model ? ["--model", model] : []),
     "--output-format",
     "stream-json",
     "--verbose",
@@ -111,6 +120,7 @@ export function runClaudeBench(dir: string, task: string, model: string, tools: 
         run.usage = { input, output, cacheWrite: num(u.cache_creation_input_tokens) ?? 0, cacheRead: num(u.cache_read_input_tokens) ?? 0 };
       }
       run.reportedUsd = num(msg.total_cost_usd);
+      if (typeof msg.result === "string") run.finalText = msg.result.slice(0, 50_000);
       run.turns = num(msg.num_turns);
       run.isError = typeof msg.is_error === "boolean" ? msg.is_error : undefined;
     };

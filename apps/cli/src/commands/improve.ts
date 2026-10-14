@@ -1,11 +1,31 @@
+import { randomUUID } from "node:crypto";
+import { existsSync } from "node:fs";
 import { lstat, readdir } from "node:fs/promises";
-import { join, resolve } from "node:path";
-import { MIN_REVIEW_SESSIONS, type SkillReview, reviewSkill, usedSkill } from "@reflex/analysis";
+import { delimiter, join, resolve } from "node:path";
+import { MIN_REVIEW_SESSIONS, type SkillReview, outputShape, reviewSkill, usedSkill } from "@reflex/analysis";
 import { sha256 } from "@reflex/core";
 import { assertInside, displayPath, ensureDir, replaceOwnedFile } from "@reflex/safety";
-import { OWN_SKILL_NAME, applyLearned, applyToOwnSkill, detectTargets, learnedSection, lineDiff, readOwnSkill } from "@reflex/skills";
-import { Store, paths } from "@reflex/storage";
-import { c, confirm, fileBlock, ok, out, pct, plural, rows, title, warn } from "../ui";
+import {
+  OWN_SKILL_NAME,
+  applyLearned,
+  applyToOwnSkill,
+  benchTools,
+  cloneRepo,
+  detectTargets,
+  headCommit,
+  installInCopy,
+  learnedSection,
+  lineDiff,
+  readOwnSkill,
+  removeCopy,
+  repoRoot,
+  runClaudeBench,
+  runUserCommand,
+} from "@reflex/skills";
+import { type SkillChange, Store, paths } from "@reflex/storage";
+import { c, confirm, fileBlock, ok, out, pct, plural, rows, shortDate, spinner, title, warn } from "../ui";
+
+const onPath = (cmd: string): boolean => (process.env.PATH ?? "").split(delimiter).some((d) => d && existsSync(join(d, cmd)));
 import { describeCost } from "./impact";
 
 type Found = { name: string; path: string; target: string };
@@ -56,29 +76,129 @@ async function listSkills(store: Store): Promise<void> {
   out(c.dim(`  reflex improve <name> compares a skill with the sessions that loaded it (needs ${MIN_REVIEW_SESSIONS}+).`));
 }
 
-function renderReview(r: SkillReview): void {
+const money = (n?: number) => (n === undefined ? "—" : `$${n.toFixed(2)}`);
+
+function renderReview(r: SkillReview, behavior: boolean): void {
   rows([
     ["Sessions", `${plural(r.sessions, "session")} loaded it · ${pct(r.verifiedRate)} ended with a passing check`],
     ["Corrections", r.corrected ? `you corrected the agent in ${plural(r.corrected, "session")}` : c.dim("none")],
     ["Failed tool calls", `${r.toolErrorsPerSession.toFixed(1)} per session`],
     ["Cost", describeCost(r.cost)],
+    ["Output", r.protected.length ? `fixed by ${r.protected.map((p) => `"${p}"`).join(", ")}: never changed` : c.dim("no output section found; mark one with <!-- reflex:fixed:start --> … end")],
   ]);
   out();
-  out(c.bold("Steps most of these sessions took that the skill doesn't mention"));
+  out(c.bold("Faster: commands that worked for steps the skill already has"));
+  if (!r.commands.length) out(c.dim("  none"));
+  for (const s of r.commands) out(`  + ${s.label}: ${s.examples.map((e) => `\`${e}\``).join(", ")}`);
+  out();
+  out(c.bold("Cheaper: the model these sessions needed"));
+  if (!r.model) out(c.dim("  no cheaper model was as reliable on these sessions (or too few to compare)"));
+  else
+    out(
+      `  ${r.model.pick.model} was about as reliable as ${r.model.most.model} here and ${money(r.model.save)} cheaper a session ${c.dim(`(${r.model.pick.sessions} vs ${r.model.most.sessions} sessions) · reflex run uses the pick; the skill file is not changed for this`)}`,
+    );
+  out();
+  const tag = behavior ? "" : c.dim(" (not proposed; --behavior adds them)");
+  out(c.bold("Changes what the agent does: steps most sessions took that the skill doesn't mention") + tag);
   if (!r.missing.length) out(c.dim("  none"));
-  for (const s of r.missing) out(`  + ${s.label} ${c.dim(`(${pct(s.support)} of sessions${s.examples.length ? `; ${s.examples.map((e) => `\`${e}\``).join(", ")}` : ""})`)}`);
+  for (const s of r.missing) out(`  ${behavior ? "+" : "·"} ${s.label} ${c.dim(`(${pct(s.support)} of sessions)`)}`);
   out();
-  out(c.bold("Steps the skill mentions that rarely happened"));
-  if (!r.rarelyTaken.length) out(c.dim("  none"));
-  for (const s of r.rarelyTaken) out(`  ? ${s.label} ${c.dim(`(${pct(s.share)} of sessions; keep it if it is a conditional step)`)}`);
-  out();
-  out(c.bold("Corrections you repeated that the skill doesn't say"));
+  out(c.bold("Changes what the agent does: corrections you repeated that the skill doesn't say") + tag);
   if (!r.constraints.length) out(c.dim("  none"));
-  for (const k of r.constraints) out(`  + ${k.text} ${c.dim(`(${k.sessions} sessions)`)}`);
+  for (const k of r.constraints) out(`  ${behavior ? "+" : "·"} ${k.text} ${c.dim(`(${k.sessions} sessions)`)}`);
+  out();
+  out(c.bold("Steps the skill names that rarely happened") + c.dim(" (reported only; Reflex never removes a step)"));
+  if (!r.rarelyTaken.length) out(c.dim("  none"));
+  for (const s of r.rarelyTaken) out(`  ? ${s.label} ${c.dim(`(${pct(s.share)} of sessions)`)}`);
   out();
 }
 
-export type ImproveOptions = { file?: string; yes?: boolean };
+type Verify = NonNullable<SkillChange["verify"]> & { firstDiff?: { before: string[]; after: string[] } };
+
+/**
+ * Run the same task with the current and the proposed skill, each in a fresh copy of this
+ * repository, and compare the shape of the final answers (headings, tables, lists, labels, JSON
+ * keys). Values may differ; the format may not. Answers are compared in memory and never stored.
+ */
+async function verifyOutput(name: string, current: string, next: string, opts: ImproveOptions): Promise<Verify | undefined> {
+  const task = opts.verify!.trim();
+  const root = repoRoot(process.cwd());
+  if (!root) throw new Error("--verify runs the task in fresh copies of this repository; run it inside a git repository.");
+  if (!onPath("claude")) throw new Error("The `claude` CLI was not found on PATH.");
+  const runs = Number(opts.runs ?? "1");
+  const minutes = Number(opts.timeout ?? "20");
+  if (!Number.isInteger(runs) || runs < 1 || runs > 5) throw new Error("--runs must be 1 to 5.");
+  if (!Number.isFinite(minutes) || minutes < 1 || minutes > 120) throw new Error("--timeout is minutes per run, 1 to 120.");
+  out(c.dim(`  The check runs "${task}" ${plural(runs, "time")} with each version: ${plural(runs * 2, "non-persistent Claude Code session")} on your account, project settings only,`));
+  out(c.dim(`  in fresh copies of ${displayPath(root)} at ${headCommit(root) ?? "HEAD"} under ~/.reflex/bench (deleted afterwards). Answers are compared in memory, never saved.`));
+  if (!(await confirm(`Run the before/after check?`, opts))) return undefined;
+  const benchRoot = join(paths.home(), "bench");
+  await ensureDir(paths.home(), 0o700);
+  await ensureDir(benchRoot, 0o700);
+  const { tools } = benchTools("");
+  const prompt = `Use the ${name} skill. ${task}`;
+  const result: Verify = { runs, sameShape: true, beforeMs: 0, afterMs: 0 };
+  const sums = { before: [] as number[], after: [] as number[] };
+  for (let i = 0; i < runs; i++) {
+    const shapes: Record<"before" | "after", string[]> = { before: [], after: [] };
+    for (const side of ["before", "after"] as const) {
+      const dir = join(benchRoot, `improve-${name}-${side}-${randomUUID().slice(0, 8)}`);
+      cloneRepo(root, dir);
+      const spin = spinner();
+      try {
+        if (opts.setup && !runUserCommand(dir, opts.setup, minutes * 60_000)) throw new Error(`The setup command failed in a fresh copy: \`${opts.setup}\`.`);
+        await installInCopy(dir, name, side === "before" ? current : next);
+        spin.start(`${side === "before" ? "current" : "proposed"} skill · run ${i + 1} of ${runs}…`);
+        const r = await runClaudeBench(dir, prompt, undefined, tools, minutes * 60_000);
+        spin.stop(`${side === "before" ? "current" : "proposed"} skill · run ${i + 1}: ${r.timedOut ? "timed out" : `${Math.round(r.durationMs / 1000)}s`}${r.reportedUsd !== undefined ? ` · ${money(r.reportedUsd)}` : ""}`);
+        if (r.timedOut || r.finalText === undefined) throw new Error("A check run did not finish with an answer; nothing was compared.");
+        shapes[side] = outputShape(r.finalText);
+        result[side === "before" ? "beforeMs" : "afterMs"] += r.durationMs / runs;
+        if (r.reportedUsd !== undefined) sums[side].push(r.reportedUsd);
+      } finally {
+        await removeCopy(benchRoot, dir);
+      }
+    }
+    if (shapes.before.join("\n") !== shapes.after.join("\n")) {
+      result.sameShape = false;
+      result.firstDiff ??= { before: shapes.before, after: shapes.after };
+    }
+  }
+  const avg = (xs: number[]) => (xs.length ? xs.reduce((a, b) => a + b, 0) / xs.length : undefined);
+  result.beforeUsd = avg(sums.before);
+  result.afterUsd = avg(sums.after);
+  return result;
+}
+
+/** `reflex improve <skill> --history`: proposals attached to this skill. */
+function renderHistory(store: Store, name: string): void {
+  const changes = store.skillChanges(name);
+  title(`${name}: changes Reflex proposed`);
+  if (!changes.length) {
+    out(c.dim("  none yet"));
+    return;
+  }
+  for (const ch of changes) {
+    const what = [ch.proposed.commands && plural(ch.proposed.commands, "command hint"), ch.proposed.steps && plural(ch.proposed.steps, "step"), ch.proposed.constraints && plural(ch.proposed.constraints, "constraint")].filter(Boolean).join(", ");
+    const check = ch.verify ? (ch.verify.sameShape ? c.green("same output format") : c.red("output format changed")) + c.dim(` · ${money(ch.verify.beforeUsd)} → ${money(ch.verify.afterUsd)}`) : c.dim("not checked");
+    out(`  ${shortDate(ch.at)}  ${(ch.applied ? c.green("applied") : c.dim("not applied")).padEnd(20)} ${what || "—"} · ${check}${ch.backup ? c.dim(` · backup ${ch.backup}`) : ""}`);
+  }
+}
+
+export type ImproveOptions = {
+  file?: string;
+  yes?: boolean;
+  /** Also propose steps and corrections, which change what the agent does. */
+  behavior?: boolean;
+  /** A task to run with the current and the proposed skill to check the output keeps its format. */
+  verify?: string;
+  runs?: string;
+  setup?: string;
+  timeout?: string;
+  /** Apply even though the check found a different output format. */
+  force?: boolean;
+  history?: boolean;
+};
 
 /** `reflex improve [skill]`: compare a skill you have with the sessions that loaded it, and propose an edit. */
 export async function improve(name: string | undefined, opts: ImproveOptions): Promise<void> {
@@ -87,6 +207,7 @@ export async function improve(name: string | undefined, opts: ImproveOptions): P
     if (!store.latestScan()) throw new Error("No scan yet. Run `reflex scan` first.");
     if (!name) return await listSkills(store);
     if (!OWN_SKILL_NAME.test(name)) throw new Error("That is not a skill name.");
+    if (opts.history) return renderHistory(store, name);
 
     const copies = opts.file ? [{ name, path: resolve(opts.file), target: "file" }] : (await skillFiles()).filter((f) => f.name === name);
     if (!copies.length) throw new Error(`No skill "${name}" in your skill folders. Pass its file with --file <path>/SKILL.md.`);
@@ -103,11 +224,16 @@ export async function improve(name: string | undefined, opts: ImproveOptions): P
 
     const content = await readOwnSkill(target.path);
     const review = reviewSkill(name, content, traces);
+    const behavior = opts.behavior === true;
     out();
-    renderReview(review);
-    const section = learnedSection(review);
+    renderReview(review, behavior);
+    const section = learnedSection(review, { behavior });
     if (!section) {
-      ok(`Nothing to add: ${name} already covers what these sessions did.`);
+      ok(
+        behavior || (!review.missing.length && !review.constraints.length)
+          ? `Nothing to add: ${name} already covers what these sessions did.`
+          : `Nothing to add that keeps ${name} doing exactly what it does. --behavior proposes the steps and corrections above.`,
+      );
       return;
     }
     const next = applyLearned(content, section);
@@ -121,10 +247,46 @@ export async function improve(name: string | undefined, opts: ImproveOptions): P
     fileBlock(displayPath(target.path), lineDiff(content, next));
     out(c.dim(`  Saved as ${displayPath(proposal)}. Only the marked "Learned from your sessions" section is new; the rest is unchanged.`));
     out();
+    const changeId = store.saveSkillChange({
+      skill: name,
+      path: displayPath(target.path),
+      at: new Date().toISOString(),
+      beforeHash: sha256(content),
+      afterHash: sha256(next),
+      behavior,
+      proposed: { commands: review.commands.length, steps: behavior ? review.missing.length : 0, constraints: behavior ? review.constraints.length : 0 },
+      applied: false,
+    });
+
+    if (opts.verify) {
+      const v = await verifyOutput(name, content, next, opts);
+      if (!v) return;
+      const { firstDiff, ...verify } = v;
+      store.updateSkillChange(changeId, { verify });
+      out();
+      rows([
+        ["Output format", v.sameShape ? c.green(`same in ${plural(v.runs, "run")}`) : c.red("different")],
+        ["Cost per run", `${money(v.beforeUsd)} → ${money(v.afterUsd)}`],
+        ["Time per run", `${Math.round(v.beforeMs / 1000)}s → ${Math.round(v.afterMs / 1000)}s`],
+      ]);
+      if (firstDiff) {
+        out(c.dim("  Structure of the answers (headings, tables, lists, labels; no content):"));
+        fileBlock("current → proposed", lineDiff(firstDiff.before.join("\n"), firstDiff.after.join("\n")));
+      }
+      out();
+      if (!v.sameShape && !opts.force) {
+        warn("Not applied: with the proposed change the answer came back in a different format. --force applies it anyway.");
+        return;
+      }
+    } else {
+      out(c.dim(`  Not checked. --verify "<a task this skill handles>" runs it with both versions and applies only if the answer keeps its format.`));
+    }
+
     if (store.installations(name).some((i) => resolve(i.path) === resolve(target.path)))
       warn("Reflex installed this copy; after the change it counts as edited, so `reflex install`/remove will leave it alone.");
     if (!(await confirm(`Apply it to ${displayPath(target.path)}? The current file is backed up first.`, opts))) return;
     const backup = await applyToOwnSkill(target.path, sha256(content), next, join(paths.home(), "backups"), name);
+    store.updateSkillChange(changeId, { applied: true, backup: displayPath(backup) });
     ok(`Updated ${displayPath(target.path)}. Backup: ${displayPath(backup)}`);
   } finally {
     store.close();

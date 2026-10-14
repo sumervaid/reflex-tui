@@ -107,14 +107,36 @@ Details: [docs/architecture.md](docs/architecture.md).
 If most sessions of a repeated workflow already loaded skills you wrote, Reflex does not suggest a
 new skill for it; `reflex scan` says which of your skills handle it instead.
 
-`reflex improve <skill>` compares one of your skills with the sessions that loaded it (at least 2):
-how often they ended with a passing check, how often you corrected the agent, steps most of them
-took that the skill doesn't mention, steps the skill names that rarely happened, and corrections
-you repeated that the skill doesn't say. It proposes a marked "Learned from your sessions" section,
-shows the diff and saves it under `~/.reflex/proposals`. Your file changes only if you confirm; the
-previous version goes to `~/.reflex/backups`. Running it again replaces that section rather than
-adding another. A session counts as using a skill when the agent called it (Claude Code's `Skill`
-tool) or read its `SKILL.md`.
+`reflex improve <skill>` compares one of your skills with the sessions that loaded it (at least 2).
+The rule is that a skill keeps producing the same thing; improving it means getting there faster
+or cheaper.
+
+- **What it never touches.** Your text is never edited: Reflex only appends a marked "Learned from
+  your sessions" section (replaced on the next run, never duplicated). Sections whose heading names
+  the output (`Output format`, `Response`, `Template`, `Report`, …) and anything between
+  `<!-- reflex:fixed:start -->` and `<!-- reflex:fixed:end -->` are treated as the output contract:
+  the appended section says to keep them exactly, and nothing proposed may write a summary or
+  correct the format.
+- **Proposed by default: faster.** Commands that worked in those sessions for steps your skill
+  already names, so the agent doesn't work them out again.
+- **Shown, not written: cheaper.** If a cheaper model was about as reliable on those sessions,
+  `reflex improve` says so; `reflex run` uses it. The skill file isn't changed for that.
+- **Opt-in with `--behavior`: changes what the agent does.** Steps most sessions took that the
+  skill doesn't mention, and corrections you repeated. Steps the skill names that rarely happened
+  are reported; Reflex never removes a step.
+- **Checked before it's applied.** `--verify "<a task this skill handles>"` runs that task with the
+  current and the proposed skill, each in a fresh copy of the current repository (non-persistent
+  Claude Code sessions on your account), and compares the shape of the two answers: headings,
+  tables, lists, labels, JSON keys. Values such as times and names may differ; the format may not.
+  If it changed, the edit is not applied (`--force` overrides). Answers are compared in memory and
+  never saved.
+- **Recorded.** Every proposal is attached to the skill in Reflex's database: fingerprints before
+  and after, what was proposed, the check result, whether you applied it and where the backup is.
+  `reflex improve <skill> --history` lists them. Your file changes only if you confirm; the previous
+  version goes to `~/.reflex/backups`.
+
+A session counts as using a skill when the agent called it (Claude Code's `Skill` tool) or read
+its `SKILL.md`.
 
 ## Measuring a skill
 
