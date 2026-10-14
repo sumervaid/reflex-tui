@@ -154,6 +154,8 @@ describe("reflex improve", () => {
     expect(updated.split(LEARNED_START)).toHaveLength(2);
     expect(updated).toContain("Inspect the failing CI run");
     expect(updated).toMatch(/lockfile/);
+    // What the first run added is proposed again, not dropped because the old section mentions it.
+    expect(updated).toContain("`pnpm test`");
     const history = await capture(() => improve("rca", { history: true }));
     expect(history.match(/applied/g)?.length).toBeGreaterThanOrEqual(2);
     expect(history).toContain("not checked");

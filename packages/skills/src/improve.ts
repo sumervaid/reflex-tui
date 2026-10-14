@@ -1,5 +1,5 @@
 import { constants } from "node:fs";
-import { lstat, open } from "node:fs/promises";
+import { access, lstat, open } from "node:fs/promises";
 import { basename, dirname, join } from "node:path";
 import type { SkillReview } from "@reflex/analysis";
 import { sha256 } from "@reflex/core";
@@ -61,6 +61,17 @@ export function applyLearned(content: string, section: string): string {
   return content.replace(/\n*$/, "\n\n") + section + "\n";
 }
 
+/**
+ * `content` without Reflex's learned section, so a review compares only the text you wrote and a
+ * re-run proposes again what an earlier run added. Unchanged when the markers are not one clean pair.
+ */
+export function withoutLearned(content: string): string {
+  const start = content.indexOf(LEARNED_START);
+  const end = content.indexOf(LEARNED_END);
+  if (start < 0 || end < start || content.indexOf(LEARNED_START, start + 1) >= 0 || content.indexOf(LEARNED_END, end + 1) >= 0) return content;
+  return content.slice(0, start) + content.slice(end + LEARNED_END.length);
+}
+
 /** Read a skill file you wrote: a regular file, never through a symlink. */
 export async function readOwnSkill(path: string): Promise<string> {
   if (basename(path) !== "SKILL.md" || (await isSymlink(path)) || (await isSymlink(dirname(path)))) throw new Error("Reflex only reads a regular SKILL.md, not through a symlink.");
@@ -80,10 +91,15 @@ export async function applyToOwnSkill(path: string, readHash: string, next: stri
   if (!OWN_SKILL_NAME.test(name)) throw new Error("Not a skill name Reflex will use in a file name.");
   const current = await readOwnSkill(path);
   if (sha256(current) !== readHash) throw new Error("The skill changed since Reflex read it; run `reflex improve` again.");
-  if (!(await lstat(path)).isFile()) throw new Error("Not a regular file.");
+  const stat = await lstat(path);
+  if (!stat.isFile()) throw new Error("Not a regular file.");
+  // A file you made read-only stays yours to change: the replace below would otherwise succeed.
+  await access(path, constants.W_OK).catch(() => {
+    throw new Error("You can't write to this skill file, so Reflex won't change it.");
+  });
   await ensureDir(backupDir, 0o700);
   const backup = join(backupDir, `${name}-${now.toISOString().replace(/[:.]/g, "-")}.md`);
   await writeNewFile(backup, current, 0o600);
-  await replaceOwnedFile(path, next, 0o644);
+  await replaceOwnedFile(path, next, stat.mode & 0o777);
   return backup;
 }

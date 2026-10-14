@@ -19,6 +19,7 @@ import {
   repoRoot,
   runClaudeBench,
   runUserCommand,
+  withoutLearned,
 } from "@reflex/skills";
 import { type SkillChange, Store, paths } from "@reflex/storage";
 import { type Found, skillFiles } from "../skills";
@@ -204,7 +205,7 @@ export async function improve(name: string | undefined, opts: ImproveOptions): P
     if (!(await confirm(`Read your skill ${displayPath(target.path)} to compare it with the ${plural(loaded, "session")} that loaded it?`, opts))) return;
 
     const content = await readOwnSkill(target.path);
-    const review = reviewSkill(name, content, traces);
+    const review = reviewSkill(name, withoutLearned(content), traces);
     const behavior = opts.behavior === true;
     out();
     renderReview(review, behavior);
