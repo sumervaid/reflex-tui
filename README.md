@@ -54,6 +54,7 @@ alias reflex="node $PWD/apps/cli/dist/reflex.js"
 | `route` | The router: picks per kind of task, settings, randomized trials and bench results. `autopilot on\|off`, `explore <percent>\|off [--protect <kind...>]` |
 | `bench <task>` | Run one task on several Claude Code models, each in a fresh copy of the current repository, scored by `--check "<command>"`. `--models`, `--setup`, `--runs`, `--timeout`, `--keep`, `--yes` |
 | `improve [skill]` | For skills you already have: lists them with the sessions that loaded each; with a name, compares the skill with those sessions and proposes an edit (asks before reading the skill and before changing it; keeps a backup). `--file`, `--yes` |
+| `agents` | Sessions that launched agents (Cursor): how many, which kinds, and how many tool calls the agents made |
 | `stats` | Counts from local data |
 | `reset` | Delete Reflex's own data (not installed skills or the model) |
 | `model [status\|fetch\|use\|remove]` | Optional local embedding model for matching requests by meaning. `fetch` downloads bge-m3 (multilingual, 587 MB); `fetch --light` the English-only all-MiniLM-L6-v2 (23 MB); `use <name>` switches between installed ones |
@@ -247,6 +248,13 @@ Threat model and mitigations: [docs/security.md](docs/security.md).
 | Claude Code | `~/.claude/projects/*/*.jsonl` | `~/.claude/skills/<name>/SKILL.md` | Parser tested on fixtures matching real files; skill use verified with `validate --run` |
 | Codex | `$CODEX_HOME/sessions/YYYY/MM/DD/rollout-*.jsonl` | `~/.codex/skills/<name>/SKILL.md` | Parser follows the Codex protocol types and is tested on fixtures; not yet run against real rollouts or a live Codex session |
 | Cursor | `~/.cursor/projects/*/agent-transcripts/*/*.jsonl` | `~/.cursor/skills/<name>/SKILL.md` | Parser tested on fixtures and on real agent transcripts. Cursor doesn't record tool results, so pass/fail outcomes aren't available for its sessions |
+
+**Agents a session launched.** When a Cursor chat launches agents (its `Task` / `Subagent` tool),
+Reflex records each one (kind, model, background or not, its short description) and reads the
+agents' transcripts (`<chat>/subagents/*.jsonl`). Their commands, files and tool calls count toward
+the chat's workflow; the message each agent was given is written by the parent agent, so it is
+never treated as your request. `reflex agents` lists the chats that launched the most, and
+`reflex sessions` notes the count. Claude Code's agents are not read yet.
 
 **Conductor.** Conductor runs its own Claude Code and Codex, which save sessions to `~/.claude` and
 `~/.codex` like any other session, so Reflex reads them with those sources. A session whose folder is
