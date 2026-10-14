@@ -128,6 +128,7 @@ program
   .option("--timeout <minutes>", "time limit per --verify run", "20")
   .option("--force", "apply even if --verify found a different output format")
   .option("--history", "list the changes Reflex proposed for this skill")
+  .option("--dry-run", "show the review, the proposal and the check, but never change the skill")
   .option("-y, --yes", "read the skill and apply the change without prompting")
   .action(run(async (skill: string | undefined, o: Parameters<typeof improve>[1]) => improve(skill, o)));
 program.command("impact [skill]").description("compare a workflow's tokens and tool calls before and after its skill").action(run(impact));

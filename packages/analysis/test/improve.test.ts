@@ -21,6 +21,14 @@ describe("workflows your own skills already handle", () => {
     expect(stats.covered![0]!.instances).toBe(6);
   });
 
+  it("ignore general skills loaded in most sessions, like house rules", async () => {
+    const traces = (await fixtureTraces()).map((t) => ({ ...t, skillsUsed: ["house-rules"] }));
+    const { suggestions, stats } = analyze(traces);
+    expect(suggestions.map((s) => s.slug)).toContain("fix-ci");
+    expect(stats.covered).toEqual([]);
+    expect(stats.generalSkills).toEqual(["house-rules"]);
+  });
+
   it("still suggest when few sessions used your skills, or the skills are Reflex's own", async () => {
     expect(analyze(await withSkills((_, i) => (i === 0 ? ["rca"] : []))).suggestions.map((s) => s.slug)).toContain("fix-ci");
     const own = await withSkills(() => ["ci-fixer"]);
@@ -62,7 +70,8 @@ describe("reviewSkill", () => {
 
 describe("protectedSections", () => {
   it("finds output headings and fixed markers", () => {
-    expect(protectedSections("# RCA\n## Steps\n## Response template\n### Report\n")).toEqual(["Response template", "Report"]);
+    expect(protectedSections("# RCA\n## Steps\n## Response template\n### Report\n## 7. Plain English Output\n")).toEqual(["Response template", "Report", "7. Plain English Output"]);
+    expect(protectedSections("## 2.5. Hard checks the orchestrator runs (always cite results)\n## Reporting bugs to the vendor\n")).toEqual([]);
     expect(protectedSections(`# x\n${FIXED_START}\nkeep\n<!-- reflex:fixed:end -->`)).toEqual(["sections marked fixed"]);
   });
 });

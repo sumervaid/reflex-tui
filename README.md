@@ -105,7 +105,11 @@ Details: [docs/architecture.md](docs/architecture.md).
 ## Skills you already have
 
 If most sessions of a repeated workflow already loaded skills you wrote, Reflex does not suggest a
-new skill for it; `reflex scan` says which of your skills handle it instead.
+new skill for it; `reflex scan` says which of your skills handle it instead. Only skills specific to
+that workflow count (loaded at least twice as often there as in your other sessions), so general
+guidance you load everywhere never hides a suggestion. Skill folders that are symlinks into a
+skills repo are followed: Reflex reads and edits the real `SKILL.md`, so changes show up in that
+repo's `git status`. `--dry-run` shows the review, the proposal and the check without writing.
 
 `reflex improve <skill>` compares one of your skills with the sessions that loaded it (at least 2).
 The rule is that a skill keeps producing the same thing; improving it means getting there faster

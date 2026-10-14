@@ -47,8 +47,18 @@ const GENERIC: ReadonlySet<StepKind> = new Set(["inspect-code", "search-code", "
 
 const mentions = (text: string, kind: StepKind): boolean => MENTIONS[kind]?.test(text) ?? false;
 
-/** Headings that define what the skill produces. */
-const OUTPUT_HEADING = /\b(output|format|response|reply|template|report|result|deliverable)s?\b/i;
+/**
+ * Headings that define what the skill produces: they name the output ("Output format", "Plain
+ * English Output", "Response template"), or open with a word for it ("Report", "Format"). A
+ * heading that merely contains "results" or "report" somewhere is not one.
+ */
+const OUTPUT_HEADING = /\boutputs?\b|\b(response|reply|answer|report) (format|template|shape|structure)\b|^(\d+(\.\d+)*[.)]?\s*)?(format|template|response|reply|report|deliverables?)\b/i;
+/** Words too vague to make a rule on their own ("don't explicitly say"). */
+const VAGUE = new Set(["say", "said", "tell", "explicitly", "just", "really", "actually", "it", "that", "this", "thing", "things", "stuff", "do", "make", "way", "like", "again", "also", "more", "less", "very", "so"]);
+/** Commands that change state are not hints for a step that only looks. */
+const WRITES = /\bgit (add|commit|checkout|switch|stash|merge|rebase|apply|cherry-pick|tag)\b/;
+/** At most this many rarely-taken steps are reported. */
+const MAX_RARELY = 4;
 export const FIXED_START = "<!-- reflex:fixed:start -->";
 export const FIXED_END = "<!-- reflex:fixed:end -->";
 /** Words of a correction that would change what the skill produces rather than how it gets there. */
@@ -142,7 +152,7 @@ export function reviewSkill(skill: string, content: string, traces: WorkflowTrac
   const steps = consensusSteps(instances).filter((s) => !GENERIC.has(s.kind) && MENTIONS[s.kind]);
   const commands = steps
     .filter((s) => mentions(text, s.kind))
-    .map((s) => ({ ...s, examples: s.examples.filter((e) => !text.includes(e.toLowerCase())) }))
+    .map((s) => ({ ...s, examples: s.examples.filter((e) => !text.includes(e.toLowerCase()) && !(s.kind.startsWith("inspect-") && WRITES.test(e))) }))
     .filter((s) => s.examples.length);
   // A skill that fixes its output must not gain a step that writes one.
   const missing = steps.filter((s) => !mentions(text, s.kind) && !(fixed.length && s.kind === "summarize"));
@@ -151,10 +161,13 @@ export function reviewSkill(skill: string, content: string, traces: WorkflowTrac
     runs.filter((t) => (kind === "apply-fix" ? t.actionSequence.some((a) => a.startsWith("modify-")) : t.actionSequence.includes(kind as never))).length / n;
   const rarelyTaken = (Object.keys(MENTIONS) as StepKind[])
     .filter((k) => !GENERIC.has(k) && !k.startsWith("modify-") && k !== "summarize" && mentions(text, k) && share(k) < STALE_BELOW)
-    .map((k) => ({ kind: k, label: STEP_TEXT[k].label, share: share(k) }));
+    .map((k) => ({ kind: k, label: STEP_TEXT[k].label, share: share(k) }))
+    .sort((a, b) => a.share - b.share)
+    .slice(0, MAX_RARELY);
 
   const constraints = recurringCorrections(runs.map((t) => t.corrections ?? []))
     .filter(isSafeConstraint)
+    .filter((c) => c.text.toLowerCase().replace(/[^a-z\s-]/g, "").split(/\s+/).some((w) => w.length > 2 && !VAGUE.has(w) && !/^(don't|dont|never|always|avoid|use|prefer|run|keep)$/.test(w)))
     .filter((c) => !(fixed.length && OUTPUT_WORDS.test(c.text)))
     .filter((c) => !c.text.toLowerCase().split(/\s+/).every((w) => w.length < 3 || text.includes(w)))
     .slice(0, MAX_CONSTRAINTS);

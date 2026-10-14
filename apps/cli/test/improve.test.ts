@@ -118,6 +118,13 @@ describe("reflex improve", () => {
     expect(await readFile(skillFile(), "utf8")).toBe(SKILL);
   });
 
+  it("--dry-run reads and proposes but never writes", async () => {
+    const text = await capture(() => improve("rca", { yes: true, dryRun: true }));
+    expect(text).toContain("Proposed change");
+    expect(text).toContain("Dry run");
+    expect(await readFile(skillFile(), "utf8")).toBe(SKILL);
+  });
+
   it("by default proposes only what keeps the skill doing the same thing, and keeps its output section", async () => {
     const text = await capture(() => improve("rca", { yes: true }));
     expect(text).toMatch(/3 sessions loaded it/);

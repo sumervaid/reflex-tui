@@ -147,8 +147,10 @@ tests passing.
 
 - **Covered workflows.** In `analyze`, before a cluster becomes a suggestion: if at least half of its
   instances loaded a skill that is neither the suggestion's own name nor one Reflex generated
-  (`ownSkills`, from the store), the cluster is recorded in `stats.covered` with those skills and
-  not suggested. Reflex-generated skills are excluded so an approved workflow never disappears
+  (`ownSkills`, from the store) and is specific to the cluster (its load rate inside is at least
+  `SPECIFIC_LIFT` = 2 times its rate in all other instances), the cluster is recorded in
+  `stats.covered` with those skills and not suggested. Skills that fail the lift test are listed in
+  `stats.generalSkills`. Reflex-generated skills are excluded so an approved workflow never disappears
   from its own suggestion. The set of generated skills is part of `analysisKey`.
 - **`reviewSkill`** (`@reflex/analysis` `improve.ts`) takes the independent instances that loaded the
   skill and compares their consensus steps with the skill text through a loose per-step keyword
