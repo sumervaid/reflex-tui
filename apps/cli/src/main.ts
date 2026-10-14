@@ -19,6 +19,7 @@ import { agents, doctor, reset, sessions, stats } from "./commands/misc";
 import { memoryAdd, memoryForget, memoryOff, memoryOn, memoryRemember, memoryStatus } from "./commands/memory";
 import { modelFetch, modelRemove, modelStatusCommand, modelUse } from "./commands/model";
 import { impact } from "./commands/impact";
+import { improve } from "./commands/improve";
 import { bench, routeAutopilot, routeExplore, routeStatus, runRouted } from "./commands/route";
 import { tui } from "./commands/tui";
 
@@ -128,6 +129,20 @@ model
   .option("-y, --yes", "remove without prompting")
   .action(run(modelRemove));
 
+program
+  .command("improve [skill]")
+  .description("compare a skill you already have with the sessions that loaded it, and propose an edit (asks before reading or writing)")
+  .option("--file <path>", "the skill's SKILL.md, when it isn't in ~/.claude, ~/.codex or ~/.cursor skills")
+  .option("--behavior", "also propose missing steps and repeated corrections (these change what the agent does)")
+  .option("--verify <task>", "run this task with the current and the proposed skill; apply only if the answer keeps its format")
+  .option("--runs <n>", "runs per version for --verify", "1")
+  .option("--setup <command>", "command to prepare each copy for --verify, e.g. \"pnpm install\"")
+  .option("--timeout <minutes>", "time limit per --verify run", "20")
+  .option("--force", "apply even if --verify found a different output format")
+  .option("--history", "list the changes Reflex proposed for this skill")
+  .option("--dry-run", "show the review, the proposal and the check, but never change the skill")
+  .option("-y, --yes", "read the skill and apply the change without prompting")
+  .action(run(async (skill: string | undefined, o: Parameters<typeof improve>[1]) => improve(skill, o)));
 program.command("impact [skill]").description("compare a workflow's tokens and tool calls before and after its skill").action(run(impact));
 const memory = program.command("memory").description("what new agent sessions remember: corrections you gave in more than one session");
 memory.command("status", { isDefault: true }).description("list memory entries and where they are written").action(run(memoryStatus));

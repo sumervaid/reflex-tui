@@ -98,6 +98,24 @@ export type MemoryEntry = {
 
 export type MemoryState = { enabled: boolean };
 
+/** One `reflex improve` proposal for a skill you have, and what happened to it. Never the skill's text. */
+export type SkillChange = {
+  skill: string;
+  /** Display path of the file. */
+  path: string;
+  at: string;
+  beforeHash: string;
+  afterHash: string;
+  /** Whether behavior changes (missing steps, corrections) were included, or only faster ones. */
+  behavior: boolean;
+  proposed: { commands: number; steps: number; constraints: number };
+  /** The before/after run of the same task, when one was made. */
+  verify?: { runs: number; sameShape: boolean; beforeUsd?: number; afterUsd?: number; beforeMs: number; afterMs: number };
+  applied: boolean;
+  /** Display path of the copy kept before applying. */
+  backup?: string;
+};
+
 const SCHEMA_VERSION = 4;
 
 const SCHEMA = `
@@ -180,6 +198,11 @@ CREATE TABLE IF NOT EXISTS installations (
   installed_at TEXT NOT NULL,
   content_hash TEXT NOT NULL
 );
+CREATE TABLE IF NOT EXISTS skill_changes (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  skill TEXT NOT NULL,
+  change_json TEXT NOT NULL
+);
 CREATE TABLE IF NOT EXISTS route_runs (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   run_json TEXT NOT NULL
@@ -196,6 +219,7 @@ const TraceShape = z
 const BaselineShape = z.object({ runs: z.number(), runsWithTokens: z.number() }).passthrough();
 const SuggestionShape = z.object({ slug: z.string(), title: z.string(), steps: z.array(z.unknown()), evidence: z.array(z.unknown()) }).passthrough();
 const Source = z.enum(["claude-code", "codex", "cursor"]);
+const SkillChangeShape = z.object({ skill: z.string(), at: z.string(), beforeHash: z.string(), afterHash: z.string(), applied: z.boolean() }).passthrough();
 const RouterSettingsShape = z.object({ autopilot: z.boolean(), explore: z.number(), protect: z.array(z.string()) }).partial();
 const RouteRunShape = z.object({ at: z.string(), source: Source, mode: z.enum(["pick", "learning", "explore", "default", "manual"]), randomized: z.boolean(), outcome: z.enum(["done", "not-done"]).optional() }).passthrough();
 const BenchResultShape = z.object({ at: z.string(), batch: z.string(), source: Source, model: z.string(), pass: z.boolean(), durationMs: z.number(), timedOut: z.boolean() }).passthrough();
@@ -593,6 +617,24 @@ export class Store {
   routeRuns(): RouteRun[] {
     const rows = this.db.prepare("SELECT run_json FROM route_runs ORDER BY id").all() as Array<{ run_json: string }>;
     return rows.map((r) => parseJson<RouteRun>(r.run_json, RouteRunShape, "routed run"));
+  }
+
+  /** Record a proposal for one of your skills; returns its id so the outcome can be added. */
+  saveSkillChange(change: SkillChange): number {
+    return Number(this.db.prepare("INSERT INTO skill_changes (skill, change_json) VALUES (?, ?)").run(change.skill, JSON.stringify(change)).lastInsertRowid);
+  }
+
+  updateSkillChange(id: number, patch: Partial<SkillChange>): void {
+    const row = this.db.prepare("SELECT change_json FROM skill_changes WHERE id = ?").get(id) as { change_json: string } | undefined;
+    if (!row) return;
+    const change = parseJson<SkillChange>(row.change_json, SkillChangeShape, "skill change");
+    this.db.prepare("UPDATE skill_changes SET change_json = ? WHERE id = ?").run(JSON.stringify({ ...change, ...patch }), id);
+  }
+
+  /** Proposals for a skill, oldest first. */
+  skillChanges(skill: string): SkillChange[] {
+    const rows = this.db.prepare("SELECT change_json FROM skill_changes WHERE skill = ? ORDER BY id").all(skill) as Array<{ change_json: string }>;
+    return rows.map((r) => parseJson<SkillChange>(r.change_json, SkillChangeShape, "skill change"));
   }
 
   saveBenchResult(result: BenchResult): void {

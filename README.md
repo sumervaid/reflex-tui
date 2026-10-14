@@ -53,6 +53,7 @@ alias reflex="node $PWD/apps/cli/dist/reflex.js"
 | `run <request>` | Start Claude Code or Codex on the model the router picks for this kind of task. `--dry-run` shows the pick and why, `--tool`, `--model`, `--yes`. Asks first unless autopilot is on |
 | `route` | The router: picks per kind of task, settings, randomized trials and bench results. `autopilot on\|off`, `explore <percent>\|off [--protect <kind...>]` |
 | `bench <task>` | Run one task on several Claude Code models, each in a fresh copy of the current repository, scored by `--check "<command>"`. `--models`, `--setup`, `--runs`, `--timeout`, `--keep`, `--yes` |
+| `improve [skill]` | For skills you already have: lists them with the sessions that loaded each; with a name, compares the skill with those sessions and proposes an edit (asks before reading the skill and before changing it; keeps a backup). `--file`, `--yes` |
 | `agents` | Sessions that launched agents (Cursor): how many, which kinds, and how many tool calls the agents made |
 | `stats` | Counts from local data |
 | `reset` | Delete Reflex's own data (not installed skills or the model) |
@@ -131,6 +132,46 @@ on machines with under 8 GB of memory or fewer than 4 cores. Each scan spends at
 `--embed-minutes` (default 5) embedding, newest sessions first, and the next scan continues; a
 machine without memory for the model skips it with a warning. Vectors are cached per model, so
 `reflex model use <name>` switches without re-embedding what either model already did.
+
+## Skills you already have
+
+If most sessions of a repeated workflow already loaded skills you wrote, Reflex does not suggest a
+new skill for it; `reflex scan` says which of your skills handle it instead. Only skills specific to
+that workflow count (loaded at least twice as often there as in your other sessions), so general
+guidance you load everywhere never hides a suggestion. Skill folders that are symlinks into a
+skills repo are followed: Reflex reads and edits the real `SKILL.md`, so changes show up in that
+repo's `git status`. `--dry-run` shows the review, the proposal and the check without writing.
+
+`reflex improve <skill>` compares one of your skills with the sessions that loaded it (at least 2).
+The rule is that a skill keeps producing the same thing; improving it means getting there faster
+or cheaper.
+
+- **What it never touches.** Your text is never edited: Reflex only appends a marked "Learned from
+  your sessions" section (replaced on the next run, never duplicated). Sections whose heading names
+  the output (`Output format`, `Response`, `Template`, `Report`, …) and anything between
+  `<!-- reflex:fixed:start -->` and `<!-- reflex:fixed:end -->` are treated as the output contract:
+  the appended section says to keep them exactly, and nothing proposed may write a summary or
+  correct the format.
+- **Proposed by default: faster.** Commands that worked in those sessions for steps your skill
+  already names, so the agent doesn't work them out again.
+- **Shown, not written: cheaper.** If a cheaper model was about as reliable on those sessions,
+  `reflex improve` says so; `reflex run` uses it. The skill file isn't changed for that.
+- **Opt-in with `--behavior`: changes what the agent does.** Steps most sessions took that the
+  skill doesn't mention, and corrections you repeated. Steps the skill names that rarely happened
+  are reported; Reflex never removes a step.
+- **Checked before it's applied.** `--verify "<a task this skill handles>"` runs that task with the
+  current and the proposed skill, each in a fresh copy of the current repository (non-persistent
+  Claude Code sessions on your account), and compares the shape of the two answers: headings,
+  tables, lists, labels, JSON keys. Values such as times and names may differ; the format may not.
+  If it changed, the edit is not applied (`--force` overrides). Answers are compared in memory and
+  never saved.
+- **Recorded.** Every proposal is attached to the skill in Reflex's database: fingerprints before
+  and after, what was proposed, the check result, whether you applied it and where the backup is.
+  `reflex improve <skill> --history` lists them. Your file changes only if you confirm; the previous
+  version goes to `~/.reflex/backups`.
+
+A session counts as using a skill when the agent called it (Claude Code's `Skill` tool) or read
+its `SKILL.md`.
 
 ## Measuring a skill
 

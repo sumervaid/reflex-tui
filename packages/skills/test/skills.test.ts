@@ -10,6 +10,7 @@ import { MAX_SKILL_LINES, generateSkill, renameSkill } from "../src/generate";
 import { checkSkill, parseFrontmatter } from "../src/validate";
 import { install, planInstall, storeGenerated, type InstallTarget } from "../src/install";
 import { createFixCiSandbox, sandboxTestsPass } from "../src/sandbox";
+import { LEARNED_END, LEARNED_START, applyLearned } from "../src/improve";
 import { lineDiff } from "../src/diff";
 
 const NOW = new Date("2026-10-11T12:00:00Z");
@@ -142,5 +143,21 @@ describe("fresh-task sandbox", () => {
     expect(await readFile(sb.skillPath, "utf8")).toBe(skill.content);
     await writeFile(join(sb.dir, "config/default.json"), JSON.stringify({ retries: 3, timeoutMs: 5000 }));
     expect(sandboxTestsPass(sb.dir)).toBe(true);
+  });
+});
+
+describe("applyLearned", () => {
+  const section = `${LEARNED_START}\n## Learned from your sessions\n- x\n${LEARNED_END}`;
+
+  it("adds the section once and replaces it on the next run", () => {
+    const once = applyLearned("# Skill\n\nSteps.\n", section);
+    expect(applyLearned(once, section.replace("- x", "- y"))).toBe(once.replace("- x", "- y"));
+  });
+
+  it("refuses when the markers were edited, rather than swallowing your text", () => {
+    const once = applyLearned("# Skill\n", section);
+    expect(() => applyLearned(`${once.replace(LEARNED_END, "")}\nMy notes\n`, section)).toThrow(/markers/);
+    expect(() => applyLearned(`${once}\n${section}\n`, section)).toThrow(/markers/);
+    expect(() => applyLearned(`# Skill\n${LEARNED_END}\nMy notes\n${LEARNED_START}\n`, section)).toThrow(/markers/);
   });
 });

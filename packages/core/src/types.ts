@@ -172,6 +172,8 @@ export type CommandFingerprint = {
   /** Command with arguments generalized, e.g. `git diff <file>`. */
   normalized: string;
   action: ActionCategory;
+  /** The command failed (the tool result was an error). Absent in traces saved before it existed. */
+  failed?: boolean;
 };
 
 export type OutcomeSignal = {

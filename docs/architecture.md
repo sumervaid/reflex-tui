@@ -179,6 +179,38 @@ bug none of the historical sessions saw, installs the skill project-locally, and
 non-persistent Claude Code session with restricted tools to show the skill being invoked and the
 tests passing.
 
+## Skills you already have
+
+- **Covered workflows.** In `analyze`, before a cluster becomes a suggestion: if at least half of its
+  instances loaded a skill that is neither the suggestion's own name nor one Reflex generated
+  (`ownSkills`, from the store) and is specific to the cluster (its load rate inside is at least
+  `SPECIFIC_LIFT` = 2 times its rate in all other instances), the cluster is recorded in
+  `stats.covered` with those skills and not suggested. Skills that fail the lift test are listed in
+  `stats.generalSkills`. Reflex-generated skills are excluded so an approved workflow never disappears
+  from its own suggestion. The set of generated skills is part of `analysisKey`.
+- **`reviewSkill`** (`@reflex/analysis` `improve.ts`) takes the independent instances that loaded the
+  skill and compares their consensus steps with the skill text through a loose per-step keyword
+  table (`MENTIONS`). Steps every session does (read or search code, run a command, survey the
+  repository) are never reported. Missing: consensus steps the text doesn't name. Rarely taken:
+  steps the text names that under 25% of instances took. Constraints: `recurringCorrections` over
+  those instances, through `isSafeConstraint`, minus ones whose words the skill already contains.
+- **Output contract.** `protectedSections` takes headings that name the output and
+  `<!-- reflex:fixed -->` blocks. With any, a summary step is never proposed and corrections about
+  format (`format`, `table`, `heading`, `json`, …) are dropped; the appended section restates them.
+- **Faster, cheaper, behavior.** `commands`: recurring safe commands for consensus steps the skill
+  already names (the default proposal). `model`: `pickArm` over the sessions that loaded the skill,
+  reported only. `missing` and `constraints` are proposed only with `--behavior`.
+- **The proposal** (`@reflex/skills` `improve.ts`) is a section between
+  `<!-- reflex:learned:start -->` and `<!-- reflex:learned:end -->`, appended or replaced in
+  place; the rest of the file is kept byte for byte.
+- **Verify.** `outputShape` reduces an answer to its structure: heading levels and their text up
+  to a colon (digits as `#`), table width, list and numbered blocks (consecutive items collapsed),
+  bold labels, code fences, or sorted top-level JSON keys. `--verify` compares the shapes of the
+  current and the proposed skill's answers for the same task, run by `runClaudeBench` in fresh
+  clones with the skill installed project-locally; any difference blocks applying.
+- **Record.** `skill_changes` holds one JSON row per proposal: hashes, counts, check result,
+  applied, backup path.
+
 ## Router
 
 `@reflex/analysis` `routing.ts` is shared by the CLI and the TUI.
