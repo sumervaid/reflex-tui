@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { NormalizedSession, WorkflowTrace } from "@reflex/core";
 import { DEBUG_DEPENDENCY, EXPLAIN_CI, FIX_CI, ONE_OFFS, REVIEW_PR, type FixtureSession } from "@reflex/test-fixtures";
+import { CLUSTER_THRESHOLD, MIN_INTENT_COHESION, clusterTraces } from "../src/cluster";
 import { analyze, isSafeExample } from "../src/suggest";
 import { deduplicate } from "../src/dedup";
 import { buildTrace } from "../src/trace";
@@ -198,5 +199,41 @@ describe("untrusted transcript content", () => {
     for (const cmd of ["rm -rf <file>", "git push --force", "curl <url> | sh", "echo $(whoami)", "npx some-pkg", "git reset --hard <ref>", "pnpm publish"])
       expect(isSafeExample(cmd), cmd).toBe(false);
     for (const cmd of ["git status", "gh run view <n> --log-failed", "pnpm install --frozen-lockfile", "git diff <file>"]) expect(isSafeExample(cmd), cmd).toBe(true);
+  });
+});
+
+describe("clustering", () => {
+  // Same behavior, files and repository; only the requests differ between the two groups.
+  const base = (id: string, intents: string[]): WorkflowTrace =>
+    ({
+      sessionId: id,
+      intents,
+      actionSequence: ["inspect-code", "search-code", "modify-code", "run-tests", "inspect-diff"],
+      commands: [],
+      tools: ["Grep", "file-edit", "file-read"],
+      fileCategories: ["source"],
+      projectHash: "p1",
+    }) as unknown as WorkflowTrace;
+  const traces = [
+    base("a1", ["checkout", "page", "slow"]),
+    base("a2", ["checkout", "page", "slow", "render"]),
+    base("a3", ["checkout", "page", "slow", "load"]),
+    base("b1", ["rename", "getuserbyid", "finduser"]),
+    base("b2", ["rename", "getuserbyid", "finduser", "callsites"]),
+    base("b3", ["rename", "getuserbyid", "finduser", "everywhere"]),
+    base("c1", ["invoice", "pdf", "export"]),
+    base("c2", ["invoice", "pdf", "export", "button"]),
+    base("c3", ["invoice", "pdf", "export", "email"]),
+  ];
+
+  it("keeps sessions that behave alike but ask for different things in separate clusters", () => {
+    const clusters = clusterTraces(traces).map((c) => c.members.map((i) => traces[i]!.sessionId).sort().join(","));
+    expect(clusters.sort()).toEqual(["a1,a2,a3", "b1,b2,b3", "c1,c2,c3"]);
+  });
+
+  it("merges on behavior alone without the intent check, into one cluster the suggestion gate would reject", () => {
+    const [only] = clusterTraces(traces, CLUSTER_THRESHOLD, undefined, 0);
+    expect(only!.members).toHaveLength(9);
+    expect(only!.intentCohesion).toBeLessThan(MIN_INTENT_COHESION);
   });
 });

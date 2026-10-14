@@ -2,7 +2,8 @@ import { existsSync } from "node:fs";
 import { createRequire } from "node:module";
 import { dirname, join } from "node:path";
 import { pathToFileURL } from "node:url";
-import { MODEL, readVerified } from "./model";
+import { embeddingThreads } from "./machine";
+import { type ModelSpec, readVerified } from "./model";
 import { WordPieceTokenizer } from "./tokenizer";
 
 export type Embedder = {
@@ -28,22 +29,39 @@ function defaultWasmDir(): string {
   }
 }
 
+/** Token ids for one text, cut to the model's input limit with its closing special token kept. */
+type Encode = (text: string) => number[];
+
+async function tokenizerFor(dir: string, model: ModelSpec): Promise<Encode> {
+  if (model.tokenizer === "wordpiece") {
+    const tokenizer = new WordPieceTokenizer((await readVerified(dir, "vocab.txt", model)).toString("utf8"));
+    return (text) => tokenizer.encode(text, model.maxTokens);
+  }
+  const { Tokenizer } = await import("@huggingface/tokenizers");
+  const [json, config] = await Promise.all([readVerified(dir, "tokenizer.json", model), readVerified(dir, "tokenizer_config.json", model)]);
+  const tokenizer = new Tokenizer(JSON.parse(json.toString("utf8")), JSON.parse(config.toString("utf8")));
+  return (text) => {
+    const ids: number[] = tokenizer.encode(text).ids;
+    return ids.length > model.maxTokens ? [...ids.slice(0, model.maxTokens - 1), ids[ids.length - 1]!] : ids;
+  };
+}
+
 /**
- * Load the verified model and run it with the WebAssembly backend: no native modules, a single
- * thread, and no network (the model and runtime are read from local files only).
+ * Load a verified model and run it with the WebAssembly backend: no native modules, up to four
+ * threads (see embeddingThreads), and no network (the model and runtime are read from local files only).
  */
-export async function loadEmbedder(modelDir: string, opts: { wasmDir?: string } = {}): Promise<Embedder> {
+export async function loadEmbedder(modelDir: string, model: ModelSpec, opts: { wasmDir?: string; threads?: number } = {}): Promise<Embedder> {
   const wasmDir = opts.wasmDir ?? defaultWasmDir();
   for (const f of WASM_FILES) if (!existsSync(join(wasmDir, f))) throw new Error(`Embedding runtime file ${f} is missing from ${wasmDir}.`);
-  const [modelBytes, vocab] = await Promise.all([readVerified(modelDir, "model_quantized.onnx"), readVerified(modelDir, "vocab.txt")]);
+  const [modelBytes, encode] = await Promise.all([readVerified(modelDir, "model_quantized.onnx", model), tokenizerFor(modelDir, model)]);
 
   const ort = await import("onnxruntime-web");
-  ort.env.wasm.numThreads = 1;
+  ort.env.wasm.numThreads = opts.threads ?? embeddingThreads();
   ort.env.wasm.wasmPaths = pathToFileURL(join(wasmDir, "/")).href;
   ort.env.logLevel = "error";
   const session = await ort.InferenceSession.create(modelBytes, { executionProviders: ["wasm"] });
-  const tokenizer = new WordPieceTokenizer(vocab.toString("utf8"));
   const needsTypes = session.inputNames.includes("token_type_ids");
+  const output = session.outputNames.includes("last_hidden_state") ? "last_hidden_state" : session.outputNames[0]!;
 
   async function batch(ids: number[][]): Promise<Float32Array[]> {
     const width = Math.max(...ids.map((x) => x.length));
@@ -62,13 +80,14 @@ export async function loadEmbedder(modelDir: string, opts: { wasmDir?: string } 
       attention_mask: new ort.Tensor("int64", mask, shape),
     };
     if (needsTypes) feeds.token_type_ids = new ort.Tensor("int64", new BigInt64Array(n), shape);
-    const out = (await session.run(feeds))[session.outputNames[0]!]!;
+    const out = (await session.run(feeds))[output]!;
     const hidden = out.data as Float32Array;
     const dim = out.dims[2]!;
-    // Mean-pool over real tokens, then L2-normalize (sentence-transformers pooling for this model).
+    // Pool token states into one vector (mean over real tokens, or the first token), then L2-normalize.
     return ids.map((row, b) => {
       const v = new Float32Array(dim);
-      for (let t = 0; t < row.length; t++) {
+      const tokens = model.pooling === "cls" ? 1 : row.length;
+      for (let t = 0; t < tokens; t++) {
         const off = (b * width + t) * dim;
         for (let k = 0; k < dim; k++) v[k]! += hidden[off + k]!;
       }
@@ -81,15 +100,13 @@ export async function loadEmbedder(modelDir: string, opts: { wasmDir?: string } 
   }
 
   return {
-    model: MODEL.id,
+    model: model.id,
     async embed(texts) {
-      const encoded = texts.map((t) => tokenizer.encode(t, MODEL.maxTokens));
-      const order = encoded.map((_, i) => i);
+      const encoded = texts.map(encode);
       const result = new Array<Float32Array>(texts.length);
-      for (let i = 0; i < order.length; i += BATCH) {
-        const idx = order.slice(i, i + BATCH);
-        const vectors = await batch(idx.map((j) => encoded[j]!));
-        idx.forEach((j, k) => (result[j] = vectors[k]!));
+      for (let i = 0; i < encoded.length; i += BATCH) {
+        const vectors = await batch(encoded.slice(i, i + BATCH));
+        vectors.forEach((v, k) => (result[i + k] = v));
       }
       return result;
     },

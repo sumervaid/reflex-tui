@@ -12,6 +12,7 @@
     "typecheck": "tsc -p tsconfig.json"
   },
   "dependencies": {
+    "@huggingface/tokenizers": "0.2.0",
     "@reflex/core": "workspace:*",
     "@reflex/safety": "workspace:*",
     "onnxruntime-web": "1.29.0"

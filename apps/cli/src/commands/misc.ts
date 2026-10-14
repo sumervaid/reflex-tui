@@ -8,7 +8,7 @@ import { deduplicate, isGenericTrace } from "@reflex/analysis";
 import { displayPath, excerpt, pathExists } from "@reflex/safety";
 import { Store, paths } from "@reflex/storage";
 import { detectTargets, removeMemory } from "@reflex/skills";
-import { MODEL, modelStatus } from "@reflex/embeddings";
+import { activeModel } from "@reflex/embeddings";
 import { latestAnalysis } from "../analysis";
 import { c, confirm, ok, out, plural, rows, shortDate, title } from "../ui";
 
@@ -37,7 +37,7 @@ export async function doctor(): Promise<void> {
     ["SQLite", `built-in node:sqlite ${c.green("ok")}`],
     ["Reflex home", `${displayPath(home)} ${c.dim(homeMode)}`],
     ["Network", "Reflex opens no network connections (enforced in-process; only `reflex model fetch` downloads)"],
-    ["Meaning model", (await modelStatus(paths.models())).installed ? `${MODEL.label} ${c.green("installed")}` : c.dim("not installed (optional: reflex model fetch)")],
+    ["Meaning model", await activeModel(paths.models()).then((m) => (m ? `${m.label} ${c.green("installed")}` : c.dim("not installed (optional: reflex model fetch)")))],
   ]);
   out();
   out("Transcript sources (detected by location; nothing is read)");
