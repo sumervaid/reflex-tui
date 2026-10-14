@@ -24,6 +24,8 @@ export const needsRescan = (priced: Priced[]): number => priced.filter((p) => p.
 export { taskKind };
 
 const sum = (xs: Priced[]): number => xs.reduce((a, p) => a + (p.cost?.usd ?? 0), 0);
+/** A day's cost, or undefined when it had sessions but none recorded tokens (Cursor only): unknown, not $0. */
+const daySum = (xs: Priced[]): number | undefined => (xs.length && !xs.some((p) => p.cost) ? undefined : sum(xs));
 const between = (xs: Priced[], from: Date, to: Date): Priced[] => xs.filter((p) => p.at >= from.getTime() && p.at < to.getTime());
 
 function bars(xs: Priced[], key: (p: Priced) => Array<[string, number]>): Bar[] {
@@ -63,7 +65,7 @@ export function costFields(priced: Priced[], dayStarts: Date[], now: Date): Cost
   const today = between(priced, dayStart(now), dayStart(now, 1));
   const first = Math.min(...priced.filter((p) => p.at).map((p) => p.at));
   const money: Money = {
-    today: { usd: sum(today), sessions: today.length },
+    today: { usd: daySum(today), sessions: today.length, unpriced: today.filter((p) => !p.cost).length },
     allTime: { usd: total.usd, since: dayLabel(new Date(first)) },
     month: { usd: sum(between(priced, new Date(now.getFullYear(), now.getMonth(), 1), dayStart(now, 1))) },
   };
@@ -71,7 +73,7 @@ export function costFields(priced: Priced[], dayStarts: Date[], now: Date): Cost
     const xs = between(priced, d, dayStart(d, 1));
     const tools: Partial<Record<ToolId, number>> = {};
     for (const b of byTool(xs)) tools[b.name as ToolId] = b.usd;
-    return { usd: sum(xs), byTool: tools };
+    return { usd: daySum(xs), byTool: tools };
   });
   const y = between(priced, dayStart(now, -1), dayStart(now));
   const toolUsd: Partial<Record<ToolId, number>> = {};
