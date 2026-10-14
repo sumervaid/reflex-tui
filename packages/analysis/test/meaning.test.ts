@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vitest";
 import type { WorkflowTrace } from "@reflex/core";
 import { ALL_SESSIONS, LONG_PREAMBLE, SPEED_UP } from "@reflex/test-fixtures";
-import { centerOnReference, loadEmbedder } from "@reflex/embeddings";
+import { MINILM, centerOnReference, loadEmbedder, modelDir as modelPath } from "@reflex/embeddings";
+import { existsSync } from "node:fs";
 import { intentSimilarities } from "../src/cluster";
 import { CONTEXT_CHARS, contextDocument, contextHash, dotProduct, requestWords, sessionContext } from "../src/context";
 import { intentTerms } from "../src/intents";
@@ -121,14 +122,16 @@ describe("meaning-based intent", () => {
   });
 });
 
-const modelDir = process.env.REFLEX_TEST_MODEL_DIR;
+// Needs the real model: set REFLEX_TEST_MODELS to a models folder holding it (e.g. ~/.reflex/models).
+const root = process.env.REFLEX_TEST_MODELS;
+const modelDir = root && existsSync(modelPath(root, MINILM)) ? modelPath(root, MINILM) : undefined;
 
 describe.skipIf(!modelDir)("meaning-based detection (real model)", () => {
   it("adds the reworded workflow and keeps the existing ones", async () => {
-    const embedder = await loadEmbedder(modelDir!);
+    const embedder = await loadEmbedder(modelDir!, MINILM);
     const all = await fixtureTraces([...ALL_SESSIONS, ...SPEED_UP]);
     const v = await embedder.embed(all.map((t) => contextDocument(t)));
-    const vectors = new Map(all.map((t, i) => [t.sessionId, centerOnReference(v[i]!)]));
+    const vectors = new Map(all.map((t, i) => [t.sessionId, centerOnReference(v[i]!, MINILM)]));
     const lexical = summary(all);
     const withMeaning = summary(all, vectors);
     for (const s of lexical) expect(withMeaning).toContain(s);
@@ -140,7 +143,7 @@ describe.skipIf(!modelDir)("meaning-based detection (real model)", () => {
 
 describe.skipIf(!modelDir)("long requests (real model)", () => {
   it("tells tasks apart that only differ after a shared opening", async () => {
-    const embedder = await loadEmbedder(modelDir!);
+    const embedder = await loadEmbedder(modelDir!, MINILM);
     const sessions = await fixtureSessions(LONG_PREAMBLE);
     const traces = sessions.map(buildTrace);
     const task = (i: number) => (/^pre-rename/.test(LONG_PREAMBLE.find((f) => sessions[i]!.requests[0]!.text.endsWith(f.prompt.slice(-20)))!.key) ? "rename" : "perf");

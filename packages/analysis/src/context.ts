@@ -2,8 +2,16 @@ import type { NormalizedSession, WorkflowTrace } from "@reflex/core";
 import { sha256 } from "@reflex/core";
 import { excerpt } from "@reflex/safety";
 
-/** Sentence vectors keyed by session id. Unit length, so a dot product is the cosine. */
-export type SessionVectors = ReadonlyMap<string, ArrayLike<number>>;
+/**
+ * Sentence vectors keyed by session id. Unit length, so a dot product is the cosine. `floor` is the
+ * producing model's cosine for unrelated text (see rescaleEmbedding); EMBEDDING_FLOOR when absent.
+ */
+export type SessionVectors = ReadonlyMap<string, ArrayLike<number>> & { readonly floor?: number };
+
+/** Vectors that carry their model's floor. */
+export function withFloor(vectors: Map<string, ArrayLike<number>>, floor: number): SessionVectors {
+  return Object.assign(vectors, { floor });
+}
 
 /**
  * Request characters given to the embedding model: all the adapters keep. The model reads as many

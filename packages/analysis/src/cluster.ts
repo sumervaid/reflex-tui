@@ -29,15 +29,16 @@ export type Cluster = {
 type Matrices = { total: number[][]; intent: number[][]; actions: number[][] };
 
 /**
- * Embedding cosine at or below which two sessions count as unrelated in meaning. Session vectors
- * are centered on the model's reference mean (see centerOnReference in @reflex/embeddings), which
- * removes the direction every coding request shares, so unrelated requests land near zero.
- * Rescaling from this floor puts embeddings on the same 0..1 footing as the lexical signals.
+ * Embedding cosine at or below which two sessions count as unrelated in meaning, when the vectors do
+ * not carry their model's own (SessionVectors.floor). Session vectors are centered on the model's
+ * reference mean (see centerOnReference in @reflex/embeddings), which removes the direction every
+ * coding request shares, so unrelated requests land near zero. Rescaling from this floor puts
+ * embeddings on the same 0..1 footing as the lexical signals.
  */
 export const EMBEDDING_FLOOR = 0.05;
 
-export function rescaleEmbedding(cos: number): number {
-  return Math.min(1, Math.max(0, (cos - EMBEDDING_FLOOR) / (1 - EMBEDDING_FLOOR)));
+export function rescaleEmbedding(cos: number, floor = EMBEDDING_FLOOR): number {
+  return Math.min(1, Math.max(0, (cos - floor) / (1 - floor)));
 }
 
 /**
@@ -54,7 +55,7 @@ export function intentSimilarities(traces: WorkflowTrace[], vectors?: SessionVec
     const lexical = 0.5 * cosine(conceptVectors[i]!, conceptVectors[j]!) + 0.5 * termSim(i, j);
     const a = embedded[i];
     const b = embedded[j];
-    return a && b ? Math.max(lexical, rescaleEmbedding(dotProduct(a, b))) : lexical;
+    return a && b ? Math.max(lexical, rescaleEmbedding(dotProduct(a, b), vectors?.floor)) : lexical;
   };
 }
 
