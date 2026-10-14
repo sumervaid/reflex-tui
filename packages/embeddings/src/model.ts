@@ -79,6 +79,8 @@ export const BGE_M3: ModelSpec = {
   pooling: "cls",
   tokenizer: "huggingface",
   reads: "all",
+  // Swept 0-0.25 with merge limits 0.30-0.45 on the English and English+Korean sets: 0.05 with the
+  // default merge limit (0.35) was best on both (cluster F1 0.707 / 0.747); 0.10 close; 0.20 fell to 0.51.
   floor: 0.05,
   peakMemoryMB: 2800,
   secondsPerSession: 2.85,
