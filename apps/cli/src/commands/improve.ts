@@ -1,6 +1,5 @@
 import { randomUUID } from "node:crypto";
 import { existsSync } from "node:fs";
-import { lstat, readdir, realpath } from "node:fs/promises";
 import { delimiter, join, resolve } from "node:path";
 import { MIN_REVIEW_SESSIONS, type SkillReview, outputShape, reviewSkill, usedSkill } from "@reflex/analysis";
 import { sha256 } from "@reflex/core";
@@ -11,7 +10,6 @@ import {
   applyToOwnSkill,
   benchTools,
   cloneRepo,
-  detectTargets,
   headCommit,
   installInCopy,
   learnedSection,
@@ -23,43 +21,11 @@ import {
   runUserCommand,
 } from "@reflex/skills";
 import { type SkillChange, Store, paths } from "@reflex/storage";
+import { type Found, skillFiles } from "../skills";
 import { c, confirm, fileBlock, ok, out, pct, plural, rows, shortDate, spinner, title, warn } from "../ui";
-
-const onPath = (cmd: string): boolean => (process.env.PATH ?? "").split(delimiter).some((d) => d && existsSync(join(d, cmd)));
 import { describeCost } from "./impact";
 
-/** `path` is the real `SKILL.md`; `link` is the agent's folder entry when it is a symlink (a skills repo). */
-type Found = { name: string; path: string; target: string; link?: string };
-
-/**
- * Skills in each agent's skill folder: folder names and whether `SKILL.md` is a regular file.
- * Nothing is read. A symlinked folder (skills kept in one repo and linked in) resolves to the real
- * folder, so Reflex reads and writes the real file and never writes through the link.
- */
-async function skillFiles(): Promise<Found[]> {
-  const out: Found[] = [];
-  for (const t of await detectTargets()) {
-    let entries;
-    try {
-      entries = await readdir(t.skillsDir, { withFileTypes: true });
-    } catch {
-      continue;
-    }
-    for (const e of entries) {
-      if (!(e.isDirectory() || e.isSymbolicLink()) || !OWN_SKILL_NAME.test(e.name)) continue;
-      const entry = join(t.skillsDir, e.name);
-      try {
-        const dir = e.isSymbolicLink() ? await realpath(entry) : entry;
-        if (!(await lstat(dir)).isDirectory()) continue;
-        const path = join(dir, "SKILL.md");
-        if ((await lstat(path)).isFile()) out.push({ name: e.name, path, target: t.label, link: e.isSymbolicLink() ? entry : undefined });
-      } catch {
-        continue;
-      }
-    }
-  }
-  return out;
-}
+const onPath = (cmd: string): boolean => (process.env.PATH ?? "").split(delimiter).some((d) => d && existsSync(join(d, cmd)));
 
 const unique = <T extends { sessionId: string }>(xs: T[]): T[] => [...new Map(xs.map((x) => [x.sessionId, x])).values()];
 
@@ -144,7 +110,8 @@ async function verifyOutput(name: string, current: string, next: string, opts: I
   if (!(await confirm(`Run the before/after check?`, opts))) return undefined;
   await ensureDir(paths.home(), 0o700);
   await ensureDir(benchRoot, 0o700);
-  const { tools } = benchTools("");
+  // The run must be able to load the skill under test; `reflex bench` runs leave it out.
+  const tools = ["Skill", ...benchTools("").tools];
   const prompt = `Use the ${name} skill. ${task}`;
   const result: Verify = { runs, sameShape: true, beforeMs: 0, afterMs: 0 };
   const sums = { before: [] as number[], after: [] as number[] };

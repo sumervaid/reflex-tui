@@ -161,6 +161,8 @@ export function consensusSteps(instances: WorkflowInstance[]): ConsensusStep[] {
       positions.set("reproduce-failure", [...(positions.get("reproduce-failure") ?? []), pos]);
     }
     for (const c of t.commands) {
+      // A command that failed is not one to repeat: often a wrong guess before the one that worked.
+      if (c.failed) continue;
       const byCmd = commandHits.get(c.action) ?? new Map<string, Set<string>>();
       const sessions = byCmd.get(c.normalized) ?? new Set<string>();
       sessions.add(inst.id);
@@ -331,6 +333,11 @@ export type AnalyzeOptions = {
   vectors?: SessionVectors;
   /** Skills Reflex generated: loading one of these does not make a workflow "covered by your skills". */
   ownSkills?: ReadonlySet<string>;
+  /**
+   * Skill folder names in your agents' skill folders. When given, only these can cover a workflow,
+   * so a plugin's skill (which `reflex improve` cannot edit) never hides a suggestion.
+   */
+  userSkills?: ReadonlySet<string>;
 };
 
 export function analyze(traces: WorkflowTrace[], opts: AnalyzeOptions = {}): Analysis {
@@ -378,7 +385,7 @@ export function analyze(traces: WorkflowTrace[], opts: AnalyzeOptions = {}): Ana
         return lift >= SPECIFIC_LIFT;
       }).map(([s]) => s),
     );
-    const yours = (g: WorkflowInstance) => [...skillsOf(g)].filter((s) => s !== baseSlug && !opts.ownSkills?.has(s) && specific.has(s));
+    const yours = (g: WorkflowInstance) => [...skillsOf(g)].filter((s) => !opts.ownSkills?.has(s) && (!opts.userSkills || opts.userSkills.has(s)) && specific.has(s));
     const withYours = group.filter((g) => yours(g).length);
     if (withYours.length >= COVERED_SHARE * group.length) {
       const counts = new Map<string, number>();

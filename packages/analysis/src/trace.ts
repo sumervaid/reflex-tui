@@ -61,7 +61,7 @@ export function buildTrace(session: NormalizedSession): WorkflowTrace {
         tools.add("shell");
         for (const s of skillsIn(ev.command)) skills.add(s);
         for (const fp of classifyCommand(ev.command)) {
-          commands.push(fp);
+          commands.push(ev.isError ? { ...fp, failed: true } : fp);
           steps.push({ action: fp.action, isError: ev.isError, command: fp });
           show(fp.normalized);
         }
