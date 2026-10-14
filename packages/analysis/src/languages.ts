@@ -100,3 +100,18 @@ export function koreanStem(word: string): string {
   for (const p of KO_PARTICLES) if (word.endsWith(p) && word.length - p.length >= 2) return word.slice(0, -p.length);
   return word;
 }
+
+/** Path pieces and file extensions ("src", "ts" from src/utils/date.ts): where code lives, not what was asked. */
+const PATH_FRAGMENTS = new Set("src lib libs dist app apps pkg packages internal cmd ts tsx js jsx mjs cjs py rb rs java kt swift cpp hpp json yaml yml toml md mdx txt html css scss sql sh lock".split(" "));
+
+/**
+ * Whether a word is too generic to name a workflow: a stopword in any language's published or
+ * casual list (the full English list too, which matching cannot use because it drops "test" and
+ * "fix"), or a path fragment. `keep` holds developer words that always qualify.
+ */
+export function isGenericWord(word: string, keep: ReadonlySet<string> = new Set()): boolean {
+  if (keep.has(word)) return false;
+  if (PATH_FRAGMENTS.has(word)) return true;
+  for (const lang of [...Object.keys(LISTS), ...Object.keys(CASUAL_STOPWORDS)]) if (listOf(lang).has(word)) return true;
+  return false;
+}
