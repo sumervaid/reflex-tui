@@ -35,7 +35,7 @@ alias reflex="node $PWD/apps/cli/dist/reflex.js"
 | Command | What it does |
 | --- | --- |
 | `doctor` | Node and SQLite check, detected history locations and file counts, install targets, agent CLIs |
-| `scan --days <n>` | Ask per source, then read and store redacted workflow traces. `--source <claude-code\|codex\|cursor>` (repeatable), `--claude-dir`, `--codex-dir`, `--cursor-dir`, `--yes`, `--full` (re-read every file instead of reusing unchanged ones) |
+| `scan --days <n>` | Ask per source, then read and store redacted workflow traces. `--source <claude-code\|codex\|cursor>` (repeatable), `--claude-dir`, `--codex-dir`, `--cursor-dir`, `--yes`, `--full` (re-read every file instead of reusing unchanged ones), `--embed-minutes <n>` (most time spent comparing new sessions by meaning; default 5, the rest continue next scan) |
 | `sessions` | Sessions from the last scan, redacted |
 | `suggest` | Detect repeated workflows and review them interactively (`--no-interactive`, `--all`) |
 | `show <n\|name>` | A suggestion in detail: steps, support, uncertainty |
@@ -56,7 +56,7 @@ alias reflex="node $PWD/apps/cli/dist/reflex.js"
 | `improve [skill]` | For skills you already have: lists them with the sessions that loaded each; with a name, compares the skill with those sessions and proposes an edit (asks before reading the skill and before changing it; keeps a backup). `--file`, `--yes` |
 | `stats` | Counts from local data |
 | `reset` | Delete Reflex's own data (not installed skills or the model) |
-| `model [status\|fetch\|remove]` | Optional local embedding model for matching requests by meaning (`fetch` downloads 23 MB) |
+| `model [status\|fetch\|use\|remove]` | Optional local embedding model for matching requests by meaning. `fetch` downloads bge-m3 (multilingual, 587 MB); `fetch --light` the English-only all-MiniLM-L6-v2 (23 MB); `use <name>` switches between installed ones |
 
 Prompts default to No. Without a terminal, nothing is read or written unless you pass `--yes`.
 
@@ -91,8 +91,12 @@ as inspect CI, install dependencies, patch, run tests, inspect the diff), normal
 file categories and outcome. Copies, resumed sessions and quick retries count once. Traces are
 compared on intent (0.40), action sequence (0.30), commands and tools (0.15), file categories
 (0.10) and repository (0.05), then clustered. Intent compares the requests' words (stemmed terms,
-phrases and a small concept lexicon); with the optional model (`reflex model fetch`) it also compares
-their meaning, so "make the login page load faster" and "the sign-in screen is really slow" match. A cluster becomes a suggestion only if it has at
+phrases and a small concept lexicon) in any language: Japanese, Chinese and Thai are split into
+words, Korean particles are stripped (배포를 → 배포), filler words are dropped (published lists plus
+everyday fillers, `casual-stopwords.ts`) and words your own history uses across unrelated kinds of
+work are quieted, more so as the history grows; with the optional model (`reflex model fetch`) it also compares
+their meaning, so "make the login page load faster", "the sign-in screen is really slow" and
+"로그인 화면이 너무 느려" match. A cluster becomes a suggestion only if it has at
 least 3 independent sessions with consistent behavior; one-offs, read-and-answer sessions and
 generic "read, edit, test" patterns are not suggested.
 
@@ -101,6 +105,32 @@ happened, with example commands that recurred and passed a safety filter. Correc
 follow-up messages ("don't change the CI workflow") become constraints when the same correction
 appears in at least 2 sessions; only the words those sessions share are kept. No transcript excerpts.
 Details: [docs/architecture.md](docs/architecture.md).
+
+## Matching by meaning: which model
+
+Matching by words always runs. A local embedding model adds matching by meaning; it is optional and
+runs on your machine (WebAssembly, no native code, no network after the download).
+
+| | `reflex model fetch` (default) | `reflex model fetch --light` |
+| --- | --- | --- |
+| Model | bge-m3, int8 | all-MiniLM-L6-v2, int8 |
+| Reads | 100+ languages, and requests that mix them | English (Latin script); other text is matched by words only |
+| Download | 587 MB | 23 MB |
+| Memory while embedding | about 2.8 GB | about 0.6 GB |
+| Time per session, 1 / 4 threads | about 2.9 s / 0.8 s | about 0.09 s / 0.03 s |
+
+Measured on Apple silicon with real-length requests; older CPUs can be up to about 3x slower. The
+`Embedding benchmark` workflow (`.github/workflows/embedding-bench.yml`; on pull requests that change embedding or matching code, by hand, and weekly)
+measures load time, time per request and peak memory for both models on Linux (x64 and ARM),
+Windows and macOS (Intel and Apple silicon), and checks matching quality is the same everywhere;
+locally: `REFLEX_PERF=bge-m3 REFLEX_TEST_MODELS=~/.reflex/models pnpm vitest run packages/analysis/test/eval/perf.test.ts`. On
+English requests MiniLM matches at least as well as bge-m3, so English-only users lose nothing with
+`--light`. Embedding uses up to 4 cores (`REFLEX_EMBED_THREADS` to change). Before downloading,
+`model fetch` estimates the first scan's time from your stored sessions and recommends `--light`
+on machines with under 8 GB of memory or fewer than 4 cores. Each scan spends at most
+`--embed-minutes` (default 5) embedding, newest sessions first, and the next scan continues; a
+machine without memory for the model skips it with a warning. Vectors are cached per model, so
+`reflex model use <name>` switches without re-embedding what either model already did.
 
 ## Skills you already have
 
@@ -197,8 +227,9 @@ Cursor isn't routed: it records no tokens to compare, and its editor takes no mo
 
 - Transcripts are read locally and treated as data, never as instructions.
 - Reflex makes no network connections; outgoing sockets are blocked in-process. The one exception is
-  `reflex model fetch`, which you run explicitly to download the optional embedding model (pinned
-  files, verified by SHA-256). It reads no transcripts and uploads nothing; scans stay offline.
+  `reflex model fetch`, which you run explicitly to download an optional embedding model (pinned
+  files, streamed to disk and verified by SHA-256). It reads no transcripts and uploads nothing;
+  scans stay offline.
 - Secrets, emails, home paths and your user name are redacted before anything is stored or shown.
 - Scans are incremental: a transcript that has not changed since the last scan is not opened again.
   Redacted traces are kept after their transcript is deleted (by you, or by the agent's own cleanup),
@@ -217,8 +248,14 @@ Threat model and mitigations: [docs/security.md](docs/security.md).
 | Codex | `$CODEX_HOME/sessions/YYYY/MM/DD/rollout-*.jsonl` | `~/.codex/skills/<name>/SKILL.md` | Parser follows the Codex protocol types and is tested on fixtures; not yet run against real rollouts or a live Codex session |
 | Cursor | `~/.cursor/projects/*/agent-transcripts/*/*.jsonl` | `~/.cursor/skills/<name>/SKILL.md` | Parser tested on fixtures and on real agent transcripts. Cursor doesn't record tool results, so pass/fail outcomes aren't available for its sessions |
 
-Override locations with `REFLEX_CLAUDE_DIR`, `REFLEX_CODEX_DIR`, `REFLEX_CURSOR_DIR`,
-`REFLEX_CLAUDE_SKILLS_DIR`, `REFLEX_CODEX_SKILLS_DIR`, `REFLEX_CURSOR_SKILLS_DIR` and `REFLEX_HOME`. `REFLEX_DEBUG=1` prints local counters (counts only).
+**Conductor.** Conductor runs its own Claude Code and Codex, which save sessions to `~/.claude` and
+`~/.codex` like any other session, so Reflex reads them with those sources. A session whose folder is
+a Conductor workspace (`~/conductor/workspaces/<repo>/<workspace>`) counts toward `<repo>`, not
+toward each workspace, and `reflex sessions` marks it "via Conductor". `reflex doctor` shows whether
+the workspace folder exists. Cursor and OpenCode sessions run through Conductor are not read yet.
+
+Override locations with `REFLEX_CLAUDE_DIR`, `REFLEX_CODEX_DIR`, `REFLEX_CURSOR_DIR`, `REFLEX_CONDUCTOR_DIR`,
+`REFLEX_CLAUDE_SKILLS_DIR`, `REFLEX_CODEX_SKILLS_DIR`, `REFLEX_CURSOR_SKILLS_DIR` and `REFLEX_HOME`. `REFLEX_EMBED_THREADS` sets the embedding threads. `REFLEX_DEBUG=1` prints local counters (counts only).
 
 ## Walkthrough
 
@@ -242,11 +279,13 @@ by the tests; it is not part of the published CLI.
 ## Limitations
 
 - Confidence is a ranking heuristic, not a probability.
-- Without the model, intent matching uses stemmed TF-IDF plus a small built-in lexicon. Requests worded
-  with no words in common need `reflex model fetch` to match.
-- The embedding model (all-MiniLM-L6-v2) is English-only and does not know developer jargon as well as
-  the lexicon ("GitHub Actions is red" vs. "CI is failing"), so it is combined with word matching,
-  never used alone. Clusters found only by meaning may get a generic name.
+- Without the model, intent matching uses stemmed TF-IDF plus a small built-in lexicon (English).
+  Requests worded with no words in common, or asked in different languages, need
+  `reflex model fetch` to match.
+- Embedding models do not know developer jargon as well as the lexicon ("GitHub Actions is red" vs.
+  "CI is failing"), so they are combined with word matching, never used alone. With the light
+  model, requests in other scripts (Korean, Japanese, ...) are matched by words only. Clusters
+  found only by meaning may get a generic name.
 - Each source reads at most its 2,000 most recent files per scan.
 - Sponsor integrations (Alike, Darwin) are not included: no public API documentation was available
   to build against, and the product works without them.

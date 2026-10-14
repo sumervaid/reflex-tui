@@ -23,7 +23,7 @@ flowchart LR
 | `@reflex/adapters` | Claude Code, Codex and Cursor parsers: detection, permission prompt, bounded discovery, streaming parse |
 | `@reflex/analysis` | Command classification, traces, de-duplication, similarity, clustering, consensus steps, suggestions |
 | `@reflex/storage` | SQLite (`node:sqlite`) store in `REFLEX_HOME` (default `~/.reflex`) |
-| `@reflex/embeddings` | Optional sentence embeddings: pinned model download and verification, WordPiece tokenizer, onnxruntime-web (WebAssembly) inference |
+| `@reflex/embeddings` | Optional sentence embeddings: the model registry (bge-m3 default, all-MiniLM-L6-v2 light), pinned streaming download and verification, WordPiece and Hugging Face tokenizers, onnxruntime-web (WebAssembly) inference, per-model reference means, machine checks |
 | `@reflex/skills` | SKILL.md generation, validation, diffs, install planning, fresh-task sandbox |
 | `@reflex/test-fixtures` | Synthetic transcripts in the real on-disk layouts, for tests only (not bundled) |
 | `@reflex/tui` | Full-screen terminal UI: the `TuiData` contract, layout ported from the design prototype, terminal I/O, and the live data source over the store |
@@ -51,6 +51,12 @@ skip bad lines, cap line size and events per session).
   Subagent transcripts and background-task notifications are skipped. The workspace path is decoded
   by checking which folders exist (metadata only). Cursor records no tool results, so its sessions
   never count as "recovered from a failure". Tested on fixtures and parsed cleanly on real history.
+
+- Conductor: not a separate source. Its bundled Claude Code and Codex write to `~/.claude` and
+  `~/.codex`. `SessionBuilder.build` recognizes a working folder under
+  `<...>/conductor/workspaces/<repo>/<workspace>` (each workspace is a git worktree): the project is
+  `<repo>`, hashed from the `<repo>` folder so every workspace of it is one repository, and the
+  session gets `harness: {name: "conductor", workspace}`.
 
 All text is truncated and redacted inside the adapter, before anything else sees it.
 
@@ -80,14 +86,38 @@ Token usage, where recorded, is attached to the session as `{input, output, cach
 3. **Similarity.** Weighted: intent 0.40, action sequence 0.30, commands and tools 0.15, file
    categories 0.10, repository 0.05. Intent blends TF-IDF over stemmed terms (plus a bonus for
    shared word pairs) with a small concept lexicon so "GitHub Actions is red" and "CI is failing"
-   match. With the optional model, each session's context document (the redacted first request, up to
-   1,000 characters, plus file kinds; actions are left out because they have their own weight) is
-   embedded, and intent is
-   the larger of the lexical score and the rescaled embedding cosine (`(cos - 0.2) / 0.8`).
-   Meaning can connect requests that share no words but never lowers a lexical match. On the
-   fixtures this raises same-vs-different pair separation (AUC) from 0.84 to 0.92. Action similarity mixes exact sequence
-   (LCS, Jaccard) with coarse classes (inspect, change, verify).
-4. **Cluster.** Average-linkage agglomerative clustering, threshold 0.45.
+   match. Intent terms work in any language (`languages.ts`): scripts without spaces are split by
+   `Intl.Segmenter`, a single Han character counts as a word, Korean particles and verb endings
+   are stripped, and stopwords come from stopwords-iso (MIT) per script, or per Latin-script
+   language when the request is detected as that language by its function words; English keeps
+   its own short list, since the published one drops "test", "fix" and "page". Everyday fillers
+   the published lists miss are in `casual-stopwords.ts`, and developer words (the concept
+   lexicon) are never dropped. On top, `fillers.ts` learns fillers from the history itself: a
+   term whose sessions behave less alike than random pairs is quieted in TF-IDF (to 20% at most),
+   from 20 sessions on and fully at 200. On the 7-language request benchmark
+   (`test/eval/requests.test.ts`) word matching went from AUC 0.50 to 0.70 in Japanese, 0.56 to
+   0.78 in Chinese and 0.61 to 0.78 in Korean, with English unchanged at 0.79. With the optional model, each session's context document is embedded: its file kinds
+   first (so they survive the cut), then its first two redacted requests (the task often follows an
+   opener) without pasted code blocks, stack frames and log lines, cut at the model's own token
+   limit. Actions are left out because they have their own weight. Text the model cannot read
+   (scripts other than Latin, for the light all-MiniLM-L6-v2) is compared by words only, since
+   every such text looks alike to it; bge-m3 reads every script. Vectors are centered on the mean of a fixed set of generic coding
+   requests (`REFERENCE_REQUESTS`), which removes the direction all coding requests share; a fixed
+   reference rather than the user's own mean, which would erase real meaning in a history with
+   only a few kinds of task. Intent is the larger of the lexical score and the rescaled cosine
+   (`(cos - 0.05) / 0.95`): meaning can connect requests that share no words but never lowers a
+   lexical match. Action similarity mixes exact sequence (LCS, Jaccard) with coarse classes
+   (inspect, change, verify).
+4. **Cluster.** Average-linkage agglomerative clustering, threshold 0.45. Two clusters merge only if
+   the mean intent similarity between them is ≥ 0.35: sessions that behave alike (read, edit, test)
+   but ask for different things would otherwise merge into one mixed cluster that the intent gate
+   below rejects as a whole, losing every workflow in it.
+
+   Matching quality is measured on a labeled evaluation set (`packages/test-fixtures/src/eval.ts`,
+   about 75 synthetic sessions in 10 task families with hard cases) by
+   `packages/analysis/test/eval/eval.test.ts`: same-vs-different task AUC, pairwise clustering F1,
+   and how many suggestions are made of one task only. With the model these went from 0.88 AUC,
+   0.61 F1 and 5 clean suggestions to 0.92, 0.70 and 7; by words only, F1 from 0.63 to 0.67.
 5. **Gates.** A cluster becomes a suggestion only with ≥ 3 independent sessions, intent cohesion
    ≥ 0.2, action cohesion ≥ 0.5, and a non-generic trace (≥ 3 distinct actions). Read-and-answer
    sessions and generic "read, edit, test" behavior do not pass.
@@ -243,8 +273,10 @@ schema changes; version 2 adds `skills.baseline_json` in place; version 3 adds `
 (vectors keyed by a hash of model id and context document, kept for every cached trace so changing
 `--days` never re-embeds); version 4 replaces the per-scan `sessions` table with a transcript cache.
 `route_runs` and `bench_results` (JSON rows) and the `router` entry in `settings` are created in place. The
-1,000-character request text is embedded during `scan` and never stored; each stored trace keeps
-only `contextHash`, so `suggest` and `stats` can find its vector without the text.
+request text is embedded during `scan` and never stored; each stored trace keeps only
+`contextHash`, so `suggest` and `stats` can find its vector without the text. Vectors are stored
+uncentered; a document the model cannot read is stored as an empty vector, so it is known and its
+file is not re-read for it.
 
 ### Incremental scans
 
@@ -271,9 +303,21 @@ upgrade or a model install or removal they recompute once from the stored traces
 Approving or rejecting does not affect it. Analysis itself still runs once per scan and grows with
 the number of session pairs (about 30 s at 1,500 long sessions, mostly action-sequence LCS).
 
-The optional model lives in `~/.reflex/models/all-minilm-l6-v2-q8/` (23 MB, int8 ONNX). It is read
-only after its SHA-256 matches the pinned value, and is embedded one text at a time: the int8
-model quantizes per batch, so batching would make a session's vector depend on its neighbors.
+Models live in `~/.reflex/models/<id>/` (`bge-m3-q8`, 587 MB, or `all-minilm-l6-v2-q8`, 23 MB; int8
+ONNX), and `~/.reflex/models/active` names the one in use (else whichever is installed, bge-m3
+first). Files are streamed to disk while hashed and kept only if size and SHA-256 match; they are
+verified again before every load. Texts are embedded one at a time: the int8 models quantize per
+batch, so batching would make a session's vector depend on its neighbors. Up to four WebAssembly
+threads run each text; vectors are bit-for-bit the same for any thread count.
+
+Cost differs by model and machine, so the safeguards scale with both. bge-m3 peaks at about
+2.8 GB of memory (the runtime expands its int8 weights when loading; input length and threads do
+not change it) and takes about 2.9 s per real-length session on one thread, 0.8 s on four;
+MiniLM about 0.6 GB and 0.09 s. `model fetch` estimates the first scan from the stored session
+count and threads, and recommends the light model below 8 GB of memory or 4 cores. A scan
+embeds newest sessions first, saves every four, and stops after `--embed-minutes` (default 5);
+the rest are compared by words until the next scan. A machine with less memory than the model's
+peak plus 3 GB embeds nothing new and says so.
 
 ## Configuration
 
@@ -282,5 +326,6 @@ model quantizes per batch, so batching would make a session's vector depend on i
 | `REFLEX_HOME` | Reflex data folder (default `~/.reflex`) |
 | `REFLEX_CLAUDE_DIR`, `REFLEX_CODEX_DIR`, `CODEX_HOME`, `REFLEX_CURSOR_DIR` | Transcript locations |
 | `REFLEX_CLAUDE_SKILLS_DIR`, `REFLEX_CODEX_SKILLS_DIR`, `REFLEX_CURSOR_SKILLS_DIR` | Install targets |
+| `REFLEX_EMBED_THREADS` | WebAssembly threads for embedding (default: cores, up to 4) |
 | `REFLEX_DEBUG=1` | Local counters on stderr (counts only, never content) |
 | `REFLEX_REDACT_USER` | Extra user name to redact |

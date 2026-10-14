@@ -21,4 +21,14 @@ describe("embedding cache", () => {
       store.close();
     }
   });
+
+  it("keeps an empty vector, the marker for text the model cannot read", () => {
+    const store = new Store();
+    try {
+      store.saveEmbeddings("m", [["ko", new Float32Array(0)]]);
+      expect(store.embeddings(["ko"]).get("ko")).toHaveLength(0);
+    } finally {
+      store.close();
+    }
+  });
 });

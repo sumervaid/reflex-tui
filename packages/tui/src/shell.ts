@@ -85,7 +85,7 @@ export function summaries(data: TuiData): Record<ViewId, Line> {
   const money = data.money;
   const dashboard: Line = [];
   if (top) dashboard.push(S(top.short + " ", "dim"), S(Math.round(top.pct) + "%", lc(top.pct), BOLD));
-  if (money) dashboard.push(S(top ? " · today " : "today ", "dim"), S(usd(money.today.usd), "fg"));
+  if (money) dashboard.push(S(top ? " · today " : "today ", "dim"), money.today.usd === undefined ? S("not recorded", "dim") : S(usd(money.today.usd), "fg"));
 
   const yd = yesterdayVsAvg(data);
   let morning: Line = notMeasured();
