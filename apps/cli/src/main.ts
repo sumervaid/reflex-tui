@@ -15,7 +15,7 @@ import { fail } from "./ui";
 import { parseDays, parseEmbedMinutes, scan } from "./commands/scan";
 import { approve, evidence, reject, show, suggest } from "./commands/review";
 import { explain, installCommand, listSkills, showSkill, validate } from "./commands/skills";
-import { doctor, reset, sessions, stats } from "./commands/misc";
+import { agents, doctor, reset, sessions, stats } from "./commands/misc";
 import { memoryAdd, memoryForget, memoryOff, memoryOn, memoryRemember, memoryStatus } from "./commands/memory";
 import { modelFetch, modelRemove, modelStatusCommand, modelUse } from "./commands/model";
 import { impact } from "./commands/impact";
@@ -69,6 +69,7 @@ program
   );
 
 program.command("sessions").description("list sessions from the last scan (redacted)").action(run(sessions));
+program.command("agents").description("sessions that launched agents (Cursor), what kinds, and how much work the agents did").action(run(agents));
 
 program
   .command("suggest")

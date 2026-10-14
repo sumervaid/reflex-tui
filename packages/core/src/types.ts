@@ -36,9 +36,9 @@ export function addUsage(a: TokenUsage | undefined, b: TokenUsage): TokenUsage {
 export type SessionEvent =
   | { kind: "user"; at?: string; text: string }
   | { kind: "assistant"; at?: string; text: string }
-  | { kind: "tool"; at?: string; tool: string; isError?: boolean; skill?: string }
-  | { kind: "shell"; at?: string; command: string; isError?: boolean }
-  | { kind: "file"; at?: string; op: FileOp; path: string; isError?: boolean }
+  | { kind: "tool"; at?: string; tool: string; isError?: boolean; skill?: string; byAgent?: true }
+  | { kind: "shell"; at?: string; command: string; isError?: boolean; byAgent?: true }
+  | { kind: "file"; at?: string; op: FileOp; path: string; isError?: boolean; byAgent?: true }
   | { kind: "error"; at?: string; message: string };
 
 export type LocalSourceReference = {
@@ -71,6 +71,27 @@ export type NormalizedSession = {
   usageByModel?: Record<string, TokenUsage>;
   /** Models the source named for this session, most used first, when it records no usage per model (Cursor). */
   models?: string[];
+  /** Agents this session launched, and how many of their transcripts were read into `events`. */
+  agents?: { spawned: SpawnedAgent[]; transcripts: number };
+};
+
+/**
+ * An agent a session launched (Cursor's `Task` / `Subagent` tool). The description is written by
+ * the parent agent, not the developer: redacted, display only, never a request.
+ */
+export type SpawnedAgent = { type: string; model?: string; background: boolean; description: string };
+
+/** What a session delegated to agents: counted in its actions and tool calls too. */
+export type AgentSummary = {
+  spawned: number;
+  types: Record<string, number>;
+  background: number;
+  models: string[];
+  /** Up to 5 descriptions, in launch order. */
+  descriptions: string[];
+  transcripts: number;
+  /** Shell, file and other tool calls the agents made. */
+  toolCalls: number;
 };
 
 export type DetectionResult = {
@@ -201,6 +222,8 @@ export type WorkflowTrace = {
   usageByModel?: Record<string, TokenUsage>;
   /** Models named without usage (Cursor), most used first. `[]` means looked up and none recorded; undefined means not looked up. */
   models?: string[];
+  /** Agents the session launched; their work is included in the actions above. */
+  agents?: AgentSummary;
   /** Requests the developer typed. Optional in traces stored before it existed. */
   requests?: number;
   /** Tool calls that failed. Optional in traces stored before it existed. */
