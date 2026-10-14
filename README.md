@@ -211,7 +211,8 @@ by the tests; it is not part of the published CLI.
   with no words in common need `reflex model fetch` to match.
 - The embedding model (all-MiniLM-L6-v2) is English-only and does not know developer jargon as well as
   the lexicon ("GitHub Actions is red" vs. "CI is failing"), so it is combined with word matching,
-  never used alone. Clusters found only by meaning may get a generic name.
+  never used alone. Requests in other scripts (Korean, Japanese, ...) are matched by words only.
+  Clusters found only by meaning may get a generic name.
 - Each source reads at most its 2,000 most recent files per scan.
 - Sponsor integrations (Alike, Darwin) are not included: no public API documentation was available
   to build against, and the product works without them.

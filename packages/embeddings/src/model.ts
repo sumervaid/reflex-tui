@@ -35,6 +35,19 @@ export const MODEL = {
 
 export const modelBytes = (): number => MODEL.files.reduce((n, f) => n + f.bytes, 0);
 
+/**
+ * Whether the model can read a text. Its vocabulary covers Latin script only: other scripts come
+ * apart into single letters (Korean into jamo), and any two such texts then look alike whatever
+ * they say (two unrelated Korean requests average a cosine of 0.40, two English ones 0.13). Such
+ * text is compared by words only. Mostly-Latin text with a few other letters is still read.
+ */
+export function modelReads(text: string): boolean {
+  const letters = text.match(/\p{L}/gu)?.length ?? 0;
+  if (!letters) return true;
+  const latin = text.match(/\p{Script=Latin}/gu)?.length ?? 0;
+  return latin / letters >= 0.7;
+}
+
 export function modelDir(modelsRoot: string): string {
   return join(modelsRoot, MODEL.id);
 }

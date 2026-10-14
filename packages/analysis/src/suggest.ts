@@ -2,7 +2,7 @@ import type { ActionCategory, SourceId, WorkflowTrace } from "@reflex/core";
 import { SOURCE_IDS, debug, totalTokens } from "@reflex/core";
 import { toSlug } from "@reflex/safety";
 import { FAMILIES } from "./catalog";
-import { CLUSTER_THRESHOLD, clusterTraces } from "./cluster";
+import { CLUSTER_THRESHOLD, MIN_INTENT_COHESION, clusterTraces } from "./cluster";
 import type { SessionVectors } from "./context";
 import { type DedupStats, type WorkflowInstance, deduplicate } from "./dedup";
 import { MODIFY_TARGET_LABEL, STEP_TEXT, type StepKind } from "./steps";
@@ -11,7 +11,6 @@ import { type WorkflowCost, median, workflowCost } from "./impact";
 import { isGenericTrace, usedSkill } from "./trace";
 
 export const MIN_INSTANCES = 3;
-const MIN_INTENT_COHESION = 0.2;
 const MIN_ACTION_COHESION = 0.5;
 const MIN_STEP_SUPPORT = 0.5;
 const MAX_EXAMPLES_PER_STEP = 3;

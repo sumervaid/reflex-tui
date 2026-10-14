@@ -86,14 +86,28 @@ Token usage, where recorded, is attached to the session as `{input, output, cach
 3. **Similarity.** Weighted: intent 0.40, action sequence 0.30, commands and tools 0.15, file
    categories 0.10, repository 0.05. Intent blends TF-IDF over stemmed terms (plus a bonus for
    shared word pairs) with a small concept lexicon so "GitHub Actions is red" and "CI is failing"
-   match. With the optional model, each session's context document (the redacted first request, up to
-   1,000 characters, plus file kinds; actions are left out because they have their own weight) is
-   embedded, and intent is
-   the larger of the lexical score and the rescaled embedding cosine (`(cos - 0.2) / 0.8`).
-   Meaning can connect requests that share no words but never lowers a lexical match. On the
-   fixtures this raises same-vs-different pair separation (AUC) from 0.84 to 0.92. Action similarity mixes exact sequence
-   (LCS, Jaccard) with coarse classes (inspect, change, verify).
-4. **Cluster.** Average-linkage agglomerative clustering, threshold 0.45.
+   match. With the optional model, each session's context document is embedded: its file kinds
+   first (so they survive the cut), then its first two redacted requests (the task often follows an
+   opener) without pasted code blocks, stack frames and log lines, cut at the model's own token
+   limit. Actions are left out because they have their own weight. Text the model cannot read
+   (scripts other than Latin, for all-MiniLM-L6-v2) is compared by words only, since every such
+   text looks alike to it. Vectors are centered on the mean of a fixed set of generic coding
+   requests (`REFERENCE_REQUESTS`), which removes the direction all coding requests share; a fixed
+   reference rather than the user's own mean, which would erase real meaning in a history with
+   only a few kinds of task. Intent is the larger of the lexical score and the rescaled cosine
+   (`(cos - 0.05) / 0.95`): meaning can connect requests that share no words but never lowers a
+   lexical match. Action similarity mixes exact sequence (LCS, Jaccard) with coarse classes
+   (inspect, change, verify).
+4. **Cluster.** Average-linkage agglomerative clustering, threshold 0.45. Two clusters merge only if
+   the mean intent similarity between them is ≥ 0.35: sessions that behave alike (read, edit, test)
+   but ask for different things would otherwise merge into one mixed cluster that the intent gate
+   below rejects as a whole, losing every workflow in it.
+
+   Matching quality is measured on a labeled evaluation set (`packages/test-fixtures/src/eval.ts`,
+   about 75 synthetic sessions in 10 task families with hard cases) by
+   `packages/analysis/test/eval/eval.test.ts`: same-vs-different task AUC, pairwise clustering F1,
+   and how many suggestions are made of one task only. With the model these went from 0.88 AUC,
+   0.61 F1 and 5 clean suggestions to 0.92, 0.70 and 7; by words only, F1 from 0.63 to 0.67.
 5. **Gates.** A cluster becomes a suggestion only with ≥ 3 independent sessions, intent cohesion
    ≥ 0.2, action cohesion ≥ 0.5, and a non-generic trace (≥ 3 distinct actions). Read-and-answer
    sessions and generic "read, edit, test" behavior do not pass.
@@ -217,8 +231,10 @@ schema changes; version 2 adds `skills.baseline_json` in place; version 3 adds `
 (vectors keyed by a hash of model id and context document, kept for every cached trace so changing
 `--days` never re-embeds); version 4 replaces the per-scan `sessions` table with a transcript cache.
 `route_runs` and `bench_results` (JSON rows) and the `router` entry in `settings` are created in place. The
-1,000-character request text is embedded during `scan` and never stored; each stored trace keeps
-only `contextHash`, so `suggest` and `stats` can find its vector without the text.
+request text is embedded during `scan` and never stored; each stored trace keeps only
+`contextHash`, so `suggest` and `stats` can find its vector without the text. Vectors are stored
+uncentered; a document the model cannot read is stored as an empty vector, so it is known and its
+file is not re-read for it.
 
 ### Incremental scans
 

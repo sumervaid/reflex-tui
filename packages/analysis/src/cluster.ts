@@ -5,6 +5,17 @@ import { opKeys, similarity } from "./similarity";
 
 export const CLUSTER_THRESHOLD = 0.45;
 
+/** Least mean intent similarity for a cluster to become a suggestion: the requests must share a purpose. */
+export const MIN_INTENT_COHESION = 0.2;
+
+/**
+ * Least mean intent similarity for two clusters to merge. Sessions that behave alike (read, edit,
+ * test) but ask for different things otherwise merge on behavior alone into one mixed cluster,
+ * which MIN_INTENT_COHESION then rejects as a whole, losing every workflow inside it. Checked while
+ * merging, they stay apart. Set above the suggestion gate so merging stays conservative.
+ */
+export const MIN_INTENT_LINK = 0.35;
+
 export type Cluster = {
   members: number[];
   /** Mean pairwise hybrid similarity among members (1 for singletons). */
@@ -18,11 +29,12 @@ export type Cluster = {
 type Matrices = { total: number[][]; intent: number[][]; actions: number[][] };
 
 /**
- * Embedding cosine at or below which two sessions count as unrelated in meaning. Sentences about
- * coding share a domain, so unrelated requests still score above zero; rescaling from this floor
- * puts embeddings on the same 0..1 footing as the lexical signals.
+ * Embedding cosine at or below which two sessions count as unrelated in meaning. Session vectors
+ * are centered on the model's reference mean (see centerOnReference in @reflex/embeddings), which
+ * removes the direction every coding request shares, so unrelated requests land near zero.
+ * Rescaling from this floor puts embeddings on the same 0..1 footing as the lexical signals.
  */
-export const EMBEDDING_FLOOR = 0.2;
+export const EMBEDDING_FLOOR = 0.05;
 
 export function rescaleEmbedding(cos: number): number {
   return Math.min(1, Math.max(0, (cos - EMBEDDING_FLOOR) / (1 - EMBEDDING_FLOOR)));
@@ -82,14 +94,21 @@ function meanPairwise(matrix: number[][], members: number[]): number {
 
 /**
  * Average-linkage agglomerative clustering: repeatedly merge the two clusters whose members are
- * most similar on average, until no pair reaches the threshold. Deterministic for a given input.
+ * most similar on average, until no pair reaches the threshold. Two clusters whose requests share
+ * too little purpose on average (below `minIntent`) are never merged. Deterministic for a given input.
  */
-export function clusterTraces(traces: WorkflowTrace[], threshold = CLUSTER_THRESHOLD, vectors?: SessionVectors): Cluster[] {
+export function clusterTraces(
+  traces: WorkflowTrace[],
+  threshold = CLUSTER_THRESHOLD,
+  vectors?: SessionVectors,
+  minIntent = MIN_INTENT_LINK,
+): Cluster[] {
   const sim = similarityMatrices(traces, vectors);
   const n = traces.length;
   const members: (number[] | null)[] = traces.map((_, i) => [i]);
-  // link[i][j] = average similarity between clusters i and j (Lance-Williams update).
+  // link[i][j] / intentLink[i][j] = average total / intent similarity between clusters i and j (Lance-Williams update).
   const link = sim.total.map((row) => [...row]);
+  const intentLink = sim.intent.map((row) => [...row]);
 
   for (;;) {
     let best = -1;
@@ -98,7 +117,7 @@ export function clusterTraces(traces: WorkflowTrace[], threshold = CLUSTER_THRES
     for (let i = 0; i < n; i++) {
       if (!members[i]) continue;
       for (let j = i + 1; j < n; j++) {
-        if (!members[j]) continue;
+        if (!members[j] || intentLink[i]![j]! < minIntent) continue;
         if (link[i]![j]! > best) {
           best = link[i]![j]!;
           bi = i;
@@ -114,6 +133,9 @@ export function clusterTraces(traces: WorkflowTrace[], threshold = CLUSTER_THRES
       const v = (a.length * link[bi]![k]! + b.length * link[bj]![k]!) / (a.length + b.length);
       link[bi]![k] = v;
       link[k]![bi] = v;
+      const w = (a.length * intentLink[bi]![k]! + b.length * intentLink[bj]![k]!) / (a.length + b.length);
+      intentLink[bi]![k] = w;
+      intentLink[k]![bi] = w;
     }
     members[bi] = [...a, ...b].sort((x, y) => x - y);
     members[bj] = null;

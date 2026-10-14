@@ -4,7 +4,7 @@ import { fileURLToPath } from "node:url";
 import { sha256 } from "@reflex/core";
 import type { WorkflowTrace } from "@reflex/core";
 import { type SessionVectors, contextDocument, contextHash } from "@reflex/analysis";
-import { MODEL, WASM_FILES, loadEmbedder, modelStatus } from "@reflex/embeddings";
+import { MODEL, WASM_FILES, centerOnReference, loadEmbedder, modelReads, modelStatus } from "@reflex/embeddings";
 import { type Store, paths } from "@reflex/storage";
 
 export type VectorResult =
@@ -25,6 +25,12 @@ export function embeddingKey(contextHashValue: string): string {
 
 const keyOf = (t: WorkflowTrace) => embeddingKey(t.contextHash ?? contextHash(contextDocument(t)));
 
+/** The request part of a context document (after its "Files:" line), which decides whether the model can read it. */
+const readable = (doc: string) => modelReads(doc.replace(/^Files: [^\n]*\n/, ""));
+
+/** Stored for a document the model cannot read: known, so never re-read for it, but compared by words only. */
+const UNREADABLE = new Float32Array(0);
+
 /**
  * A new request's vector plus the stored session vectors, when the model is installed, so a request
  * can be matched to past sessions by meaning. Undefined (match by words) otherwise or on failure.
@@ -35,13 +41,13 @@ export async function requestVectors(
   store: Store,
 ): Promise<{ vectors: SessionVectors; requestVector: Float32Array } | undefined> {
   const status = await modelStatus(paths.models());
-  if (!status.installed) return undefined;
+  if (!status.installed || !readable(document)) return undefined;
   try {
     const cached = await sessionVectors(traces, store, { cacheOnly: true });
     if (cached.status !== "ok" || !cached.vectors.size) return undefined;
     const embedder = await loadEmbedder(status.dir, { wasmDir: bundledWasmDir() });
     const [requestVector] = await embedder.embed([document]);
-    return requestVector ? { vectors: cached.vectors, requestVector } : undefined;
+    return requestVector ? { vectors: cached.vectors, requestVector: centerOnReference(requestVector) } : undefined;
   } catch {
     return undefined;
   }
@@ -58,8 +64,9 @@ export async function vectorNeeds(store: Store): Promise<((t: WorkflowTrace) => 
 }
 
 /**
- * Sentence vectors for each session's context document, when the optional model is installed.
- * Vectors are cached by model and document hash, so only new or changed sessions are embedded.
+ * Sentence vectors for each session's context document, when the optional model is installed,
+ * centered on the model's reference mean. Vectors are cached (uncentered) by model and document
+ * hash, so only new or changed sessions are embedded.
  * `documents` (by session id) holds the text to embed; only `scan` has it, for the files it read,
  * because the full request is never stored. With `cacheOnly`, returns only vectors already stored.
  * Vectors are kept for every cached trace, so changing --days never re-embeds anything.
@@ -75,7 +82,9 @@ export async function sessionVectors(
   try {
     const keys = traces.map(keyOf);
     const cached = store.embeddings(keys);
-    const pick = () => new Map(traces.flatMap((t, i) => (cached.has(keys[i]!) ? [[t.sessionId, cached.get(keys[i]!)!] as const] : [])));
+    // Stored raw, so the cache survives a change of reference; centered for comparison (see EMBEDDING_FLOOR).
+    const pick = () =>
+      new Map(traces.flatMap((t, i) => (cached.get(keys[i]!)?.length ? [[t.sessionId, centerOnReference(cached.get(keys[i]!)!)] as const] : [])));
     // Commands that re-analyze stored sessions use what the scan embedded and never load the model.
     if (opts.cacheOnly) {
       const vectors = pick();
@@ -86,7 +95,12 @@ export async function sessionVectors(
       const doc = opts.documents?.get(t.sessionId);
       if (doc !== undefined && !cached.has(keys[i]!)) docOf.set(keys[i]!, doc);
     });
-    const missing = [...docOf.keys()];
+    const missing = [...docOf.keys()].filter((k) => readable(docOf.get(k)!));
+    const unreadable = [...docOf.keys()].filter((k) => !readable(docOf.get(k)!)).map((k) => [k, UNREADABLE] as [string, Float32Array]);
+    if (unreadable.length) {
+      store.saveEmbeddings(MODEL.id, unreadable);
+      for (const [k, v] of unreadable) cached.set(k, v);
+    }
     if (missing.length) {
       opts.onProgress?.(missing.length);
       const embedder = await loadEmbedder(status.dir, { wasmDir: bundledWasmDir() });
