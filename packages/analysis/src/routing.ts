@@ -1,6 +1,6 @@
 import { type SourceId, type WorkflowTrace, costOf } from "@reflex/core";
-import { intentSimilarities } from "./cluster";
-import { type SessionVectors, contextDocument } from "./context";
+import { EMBEDDING_FLOOR, intentSimilarities } from "./cluster";
+import { type SessionVectors, contextDocument, withFloor } from "./context";
 import { concepts, intentTerms } from "./intents";
 
 /** A model needs this many sessions of a kind of task before it can be picked. */
@@ -145,7 +145,8 @@ const CONCEPT_KIND: Record<string, string> = {
 export function classifyRequest(request: string, traces: WorkflowTrace[], opts: { vectors?: SessionVectors; requestVector?: ArrayLike<number> } = {}): KindGuess {
   const probe = { sessionId: "\0request", intents: intentTerms(request) } as WorkflowTrace;
   const all = [probe, ...traces];
-  const vectors = opts.requestVector && opts.vectors ? new Map([...opts.vectors, [probe.sessionId, opts.requestVector]]) : opts.vectors;
+  const vectors =
+    opts.requestVector && opts.vectors ? withFloor(new Map([...opts.vectors, [probe.sessionId, opts.requestVector]]), opts.vectors.floor ?? EMBEDDING_FLOOR) : opts.vectors;
   const sim = intentSimilarities(all, vectors);
   const near = traces
     .map((t, i) => ({ t, s: sim(0, i + 1) }))

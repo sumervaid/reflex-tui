@@ -12,12 +12,12 @@ process.stdout.on("error", (err: NodeJS.ErrnoException) => {
 import { Command, Option } from "commander";
 import type { SourceId } from "@reflex/core";
 import { fail } from "./ui";
-import { parseDays, scan } from "./commands/scan";
+import { parseDays, parseEmbedMinutes, scan } from "./commands/scan";
 import { approve, evidence, reject, show, suggest } from "./commands/review";
 import { explain, installCommand, listSkills, showSkill, validate } from "./commands/skills";
 import { doctor, reset, sessions, stats } from "./commands/misc";
 import { memoryAdd, memoryForget, memoryOff, memoryOn, memoryRemember, memoryStatus } from "./commands/memory";
-import { modelFetch, modelRemove, modelStatusCommand } from "./commands/model";
+import { modelFetch, modelRemove, modelStatusCommand, modelUse } from "./commands/model";
 import { impact } from "./commands/impact";
 import { improve } from "./commands/improve";
 import { bench, routeAutopilot, routeExplore, routeStatus, runRouted } from "./commands/route";
@@ -61,9 +61,11 @@ program
   .addOption(new Option("--source <source...>", "only read these sources (repeatable)").choices(["claude-code", "codex", "cursor"]))
   .option("-y, --yes", "consent to reading the detected history without prompting")
   .option("--full", "read every transcript again instead of reusing unchanged ones")
+  .option("--embed-minutes <n>", "most minutes to spend comparing new sessions by meaning; the rest continue next scan", "5")
   .action(
-    run(async (o: { days: string; claudeDir?: string; codexDir?: string; cursorDir?: string; source?: SourceId[]; yes?: boolean; full?: boolean }) =>
-      scan({ ...o, days: parseDays(o.days) }),
+    run(
+      async (o: { days: string; claudeDir?: string; codexDir?: string; cursorDir?: string; source?: SourceId[]; yes?: boolean; full?: boolean; embedMinutes: string }) =>
+        scan({ ...o, days: parseDays(o.days), embedMinutes: parseEmbedMinutes(o.embedMinutes) }),
     ),
   );
 
@@ -109,13 +111,22 @@ program
   .action(run(tui));
 
 const model = program.command("model").description("optional local embedding model for matching requests by meaning");
-model.command("status", { isDefault: true }).description("show whether the model is installed").action(run(modelStatusCommand));
+model.command("status", { isDefault: true }).description("show the models, which are installed and which one scans use").action(run(modelStatusCommand));
 model
   .command("fetch")
-  .description("download the pinned model (about 23 MB; the only command that uses the network)")
+  .description("download the pinned model and use it: bge-m3 (multilingual, about 590 MB) by default; the only command that uses the network")
+  .option("--light", "the small English-only model instead (all-MiniLM-L6-v2, about 23 MB)")
+  .option("--model <name>", "download a model by name (bge-m3, minilm)")
   .option("-y, --yes", "download without prompting")
   .action(run(modelFetch));
-model.command("remove").description("delete the downloaded model").option("-y, --yes", "remove without prompting").action(run(modelRemove));
+model.command("use <name>").description("switch scans to another installed model (bge-m3, minilm)").action(run(modelUse));
+model
+  .command("remove")
+  .description("delete a downloaded model (the one in use, unless --light or --model)")
+  .option("--light", "remove the small English-only model")
+  .option("--model <name>", "remove a model by name")
+  .option("-y, --yes", "remove without prompting")
+  .action(run(modelRemove));
 
 program
   .command("improve [skill]")

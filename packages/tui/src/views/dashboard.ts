@@ -59,7 +59,12 @@ function kpis(data: TuiData): Kpi[] {
   const dp = y != null && avg ? Math.round((y / avg - 1) * 100) : undefined;
   const wd = win?.days;
   return [
-    { label: "TODAY", value: money && usd(money.today.usd), color: "fg", sub: money && plural(money.today.sessions, "session") + " so far" },
+    {
+      label: "TODAY",
+      value: money?.today.usd !== undefined ? usd(money.today.usd) : undefined,
+      color: "fg",
+      sub: money && (money.today.unpriced ? `${plural(money.today.sessions, "session")} · ${money.today.unpriced} Cursor, no cost recorded` : plural(money.today.sessions, "session") + " so far"),
+    },
     {
       label: "YESTERDAY",
       value: y != null ? usd(y) : undefined,

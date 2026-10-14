@@ -58,6 +58,8 @@ export type NormalizedSession = {
     name?: string;
     pathHash?: string;
   };
+  /** The app the agent ran inside, when its working folder shows one (Conductor workspaces). */
+  harness?: { name: "conductor"; workspace: string };
   requests: UserRequest[];
   events: SessionEvent[];
   sourceRef: LocalSourceReference;
@@ -149,6 +151,8 @@ export type CommandFingerprint = {
   /** Command with arguments generalized, e.g. `git diff <file>`. */
   normalized: string;
   action: ActionCategory;
+  /** The command failed (the tool result was an error). Absent in traces saved before it existed. */
+  failed?: boolean;
 };
 
 export type OutcomeSignal = {
@@ -173,6 +177,8 @@ export type WorkflowTrace = {
   endedAt?: string;
   projectName?: string;
   projectHash?: string;
+  /** The app the agent ran inside (Conductor), and its workspace folder name. */
+  harness?: { name: "conductor"; workspace: string };
   /** Normalized intent terms derived from the user's requests. */
   intents: string[];
   tools: string[];

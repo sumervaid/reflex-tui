@@ -1,5 +1,6 @@
 import { spawnSync } from "node:child_process";
-import { rm, stat } from "node:fs/promises";
+import { readdir, rm, stat } from "node:fs/promises";
+import { homedir } from "node:os";
 import { join } from "node:path";
 import { SOURCE_LABELS, totalTokens } from "@reflex/core";
 import { createAdapters } from "@reflex/adapters";
@@ -7,9 +8,23 @@ import { deduplicate, isGenericTrace } from "@reflex/analysis";
 import { displayPath, excerpt, pathExists } from "@reflex/safety";
 import { Store, paths } from "@reflex/storage";
 import { detectTargets, removeMemory } from "@reflex/skills";
-import { MODEL, modelStatus } from "@reflex/embeddings";
+import { activeModel } from "@reflex/embeddings";
 import { latestAnalysis } from "../analysis";
 import { c, confirm, ok, out, plural, rows, shortDate, title } from "../ui";
+
+/** Conductor's default workspace folder (`~/conductor/workspaces`); `REFLEX_CONDUCTOR_DIR` overrides it. */
+const conductorRoot = (): string => process.env.REFLEX_CONDUCTOR_DIR ?? join(homedir(), "conductor", "workspaces");
+
+/** Whether Conductor's workspace folder exists, and how many repositories it holds (folder names only). */
+async function conductorWorkspaces(): Promise<{ dir: string; repos: number } | undefined> {
+  const dir = conductorRoot();
+  try {
+    const entries = await readdir(dir, { withFileTypes: true });
+    return { dir, repos: entries.filter((e) => e.isDirectory() && !e.name.startsWith(".")).length };
+  } catch {
+    return undefined;
+  }
+}
 
 export async function doctor(): Promise<void> {
   title("Reflex doctor");
@@ -22,7 +37,7 @@ export async function doctor(): Promise<void> {
     ["SQLite", `built-in node:sqlite ${c.green("ok")}`],
     ["Reflex home", `${displayPath(home)} ${c.dim(homeMode)}`],
     ["Network", "Reflex opens no network connections (enforced in-process; only `reflex model fetch` downloads)"],
-    ["Meaning model", (await modelStatus(paths.models())).installed ? `${MODEL.label} ${c.green("installed")}` : c.dim("not installed (optional: reflex model fetch)")],
+    ["Meaning model", await activeModel(paths.models()).then((m) => (m ? `${m.label} ${c.green("installed")}` : c.dim("not installed (optional: reflex model fetch)")))],
   ]);
   out();
   out("Transcript sources (detected by location; nothing is read)");
@@ -30,6 +45,12 @@ export async function doctor(): Promise<void> {
     const d = await a.detect();
     out(`  ${d.found ? c.green("✔") : c.dim("·")} ${a.label.padEnd(12)} ${d.location} ${c.dim(d.found ? plural(d.candidateFiles ?? 0, "file") : "not found")}`);
   }
+  const conductor = await conductorWorkspaces();
+  out(
+    conductor
+      ? `  ${c.green("✔")} ${"Conductor".padEnd(12)} ${displayPath(conductor.dir)} ${c.dim(`${plural(conductor.repos, "repository", "repositories")}; its Claude Code and Codex sessions are read with those sources`)}`
+      : `  ${c.dim("·")} ${"Conductor".padEnd(12)} ${displayPath(conductorRoot())} ${c.dim("not found")}`,
+  );
   out();
   out("Skill install targets");
   for (const t of await detectTargets()) out(`  ${t.detected ? c.green("✔") : c.dim("·")} ${t.label.padEnd(12)} ${displayPath(t.skillsDir)}`);
@@ -52,7 +73,8 @@ export async function sessions(): Promise<void> {
     const primary = new Set(instances.map((i) => i.primary.sessionId));
     title(`${plural(traces.length, "session")} from the last scan (${shortDate(scan.startedAt)}, ${scan.mode})`);
     for (const t of traces) {
-      const tag = !primary.has(t.sessionId) ? c.yellow(" duplicate") : isGenericTrace(t) ? c.dim(" generic") : "";
+      const via = t.harness?.name === "conductor" ? c.dim(` via Conductor (${t.harness.workspace})`) : "";
+      const tag = (!primary.has(t.sessionId) ? c.yellow(" duplicate") : isGenericTrace(t) ? c.dim(" generic") : "") + via;
       const model = t.models?.[0] ?? Object.entries(t.usageByModel ?? {}).sort((a, b) => totalTokens(b[1]) - totalTokens(a[1]))[0]?.[0] ?? "—";
       out(`  ${c.dim(shortDate(t.startedAt))}  ${SOURCE_LABELS[t.source].padEnd(11)} ${(t.projectName ?? "?").padEnd(14)} ${c.dim(model.slice(0, 18).padEnd(18))} ${excerpt(t.excerpt, 60)}${tag}`);
     }

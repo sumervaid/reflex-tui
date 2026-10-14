@@ -29,6 +29,20 @@ describe("workflows your own skills already handle", () => {
     expect(stats.generalSkills).toEqual(["house-rules"]);
   });
 
+  it("are covered by your skill even when it has the name Reflex would give the suggestion", async () => {
+    const { suggestions, stats } = analyze(await withSkills(() => ["fix-ci"]));
+    expect(suggestions.map((s) => s.slug)).not.toContain("fix-ci");
+    expect(stats.covered![0]!.skills.map((s) => s.name)).toEqual(["fix-ci"]);
+  });
+
+  it("are not covered by a plugin's skill that isn't in your skill folders", async () => {
+    const traces = await withSkills(() => ["superpowers:systematic-debugging"]);
+    const mine = analyze(traces, { userSkills: new Set(["rca"]) });
+    expect(mine.suggestions.map((s) => s.slug)).toContain("fix-ci");
+    expect(mine.stats.covered).toEqual([]);
+    expect(analyze(traces, { userSkills: new Set(["systematic-debugging"]) }).stats.covered).toHaveLength(1);
+  });
+
   it("still suggest when few sessions used your skills, or the skills are Reflex's own", async () => {
     expect(analyze(await withSkills((_, i) => (i === 0 ? ["rca"] : []))).suggestions.map((s) => s.slug)).toContain("fix-ci");
     const own = await withSkills(() => ["ci-fixer"]);
@@ -65,6 +79,17 @@ describe("reviewSkill", () => {
     const fixed = reviewSkill("rca", `${named}\n\n## Output format\n\n- Root cause`, traces);
     expect(fixed.protected).toEqual(["Output format"]);
     expect(fixed.missing.map((s) => s.kind)).not.toContain("summarize");
+  });
+});
+
+describe("commands that failed", () => {
+  it("are never offered as examples", async () => {
+    const traces = await withSkills(() => ["rca"]);
+    const skill = "Run the tests. Inspect the failing CI job.";
+    const all = reviewSkill("rca", skill, traces).commands.flatMap((s) => s.examples);
+    expect(all.length).toBeGreaterThan(0);
+    const failed = traces.map((t) => ({ ...t, commands: t.commands.map((c) => (all.includes(c.normalized) ? { ...c, failed: true } : c)) }));
+    expect(reviewSkill("rca", skill, failed).commands.flatMap((s) => s.examples)).toEqual([]);
   });
 });
 

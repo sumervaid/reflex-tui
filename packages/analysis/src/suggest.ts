@@ -2,16 +2,18 @@ import type { ActionCategory, SourceId, WorkflowTrace } from "@reflex/core";
 import { SOURCE_IDS, debug, totalTokens } from "@reflex/core";
 import { toSlug } from "@reflex/safety";
 import { FAMILIES } from "./catalog";
-import { CLUSTER_THRESHOLD, clusterTraces } from "./cluster";
+import { CLUSTER_THRESHOLD, MIN_INTENT_COHESION, clusterTraces } from "./cluster";
 import type { SessionVectors } from "./context";
 import { type DedupStats, type WorkflowInstance, deduplicate } from "./dedup";
 import { MODIFY_TARGET_LABEL, STEP_TEXT, type StepKind } from "./steps";
 import { type Constraint, recurringCorrections } from "./corrections";
 import { type WorkflowCost, median, workflowCost } from "./impact";
 import { isGenericTrace, usedSkill } from "./trace";
+import { fillerWeights } from "./fillers";
+import { DEVELOPER_WORDS, stem } from "./intents";
+import { isGenericWord } from "./languages";
 
 export const MIN_INSTANCES = 3;
-const MIN_INTENT_COHESION = 0.2;
 const MIN_ACTION_COHESION = 0.5;
 const MIN_STEP_SUPPORT = 0.5;
 const MAX_EXAMPLES_PER_STEP = 3;
@@ -159,6 +161,8 @@ export function consensusSteps(instances: WorkflowInstance[]): ConsensusStep[] {
       positions.set("reproduce-failure", [...(positions.get("reproduce-failure") ?? []), pos]);
     }
     for (const c of t.commands) {
+      // A command that failed is not one to repeat: often a wrong guess before the one that worked.
+      if (c.failed) continue;
       const byCmd = commandHits.get(c.action) ?? new Map<string, Set<string>>();
       const sessions = byCmd.get(c.normalized) ?? new Set<string>();
       sessions.add(inst.id);
@@ -257,7 +261,8 @@ function completionCriteria(steps: Set<StepKind>): string[] {
   return out;
 }
 
-function topTerms(instances: WorkflowInstance[], limit = 6): string[] {
+/** Request terms most of a cluster's sessions share, most frequent first: used to recognize known workflow families. */
+function frequentTerms(instances: WorkflowInstance[], limit = 6): string[] {
   const df = new Map<string, number>();
   for (const inst of instances) for (const t of new Set(inst.primary.intents)) df.set(t, (df.get(t) ?? 0) + 1);
   return [...df]
@@ -265,6 +270,42 @@ function topTerms(instances: WorkflowInstance[], limit = 6): string[] {
     .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
     .slice(0, limit)
     .map(([t]) => t);
+}
+
+/** How many sessions of the whole history use each term, and which terms the history shows to be filler. */
+export type TermContext = { sessions: number; df: ReadonlyMap<string, number>; fillers: ReadonlyMap<string, number> };
+
+export function termContext(traces: WorkflowTrace[]): TermContext {
+  const df = new Map<string, number>();
+  for (const t of traces) for (const term of new Set(t.intents)) df.set(term, (df.get(term) ?? 0) + 1);
+  return { sessions: traces.length, df, fillers: fillerWeights(traces) };
+}
+
+/**
+ * Terms that set a cluster apart, for its name and "use for requests like" line: shared by at
+ * least two of its sessions and rare in the rest of the history (TF-IDF), scaled down as far as
+ * the history shows a term to be filler; words generic in any language and path fragments left
+ * out; one surface form per stem ("dependency" and "depend" count once).
+ */
+export function distinctiveTerms(instances: WorkflowInstance[], ctx: TermContext, limit = 6): string[] {
+  const inCluster = new Map<string, number>();
+  for (const inst of instances) for (const t of new Set(inst.primary.intents)) inCluster.set(t, (inCluster.get(t) ?? 0) + 1);
+  const scored = [...inCluster]
+    .filter(([t, c]) => c >= 2 && !isGenericWord(t, DEVELOPER_WORDS))
+    .map(([t, c]) => [t, (c / instances.length) * Math.log((ctx.sessions + 1) / ((ctx.df.get(t) ?? 0) + 1)) * (ctx.fillers.get(t) ?? 1)] as const)
+    // A term in nearly every session of the history sets nothing apart.
+    .filter(([, score]) => score > 0.05)
+    .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]));
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const [t] of scored) {
+    const key = stem(t).slice(0, Math.max(4, stem(t).length - 3));
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push(t);
+    if (out.length === limit) break;
+  }
+  return out;
 }
 
 function evidenceFor(inst: WorkflowInstance, slug: string): Evidence {
@@ -292,12 +333,18 @@ export type AnalyzeOptions = {
   vectors?: SessionVectors;
   /** Skills Reflex generated: loading one of these does not make a workflow "covered by your skills". */
   ownSkills?: ReadonlySet<string>;
+  /**
+   * Skill folder names in your agents' skill folders. When given, only these can cover a workflow,
+   * so a plugin's skill (which `reflex improve` cannot edit) never hides a suggestion.
+   */
+  userSkills?: ReadonlySet<string>;
 };
 
 export function analyze(traces: WorkflowTrace[], opts: AnalyzeOptions = {}): Analysis {
   const { instances, stats: dedup } = deduplicate(traces);
   const candidates = instances.filter((i) => !isGenericTrace(i.primary));
   const clusters = clusterTraces(candidates.map((i) => i.primary), CLUSTER_THRESHOLD, opts.vectors);
+  const context = termContext(candidates.map((i) => i.primary));
   debug("clusters formed", { candidates: candidates.length, clusters: clusters.length });
 
   const suggestions: Suggestion[] = [];
@@ -316,10 +363,11 @@ export function analyze(traces: WorkflowTrace[], opts: AnalyzeOptions = {}): Ana
     const stepKinds = new Set(steps.map((s) => s.kind));
     if (stepKinds.size - (stepKinds.has("summarize") ? 1 : 0) < 3) continue;
 
-    const terms = topTerms(group);
+    const terms = distinctiveTerms(group, context);
+    const frequent = frequentTerms(group);
     const fileCats = new Set(group.flatMap((g) => g.primary.fileCategories));
     const family = FAMILIES.filter((f) => f.requires(stepKinds, fileCats))
-      .map((f) => ({ f, score: f.terms.filter((t) => terms.includes(t)).length }))
+      .map((f) => ({ f, score: f.terms.filter((t) => frequent.includes(t)).length }))
       .filter((x) => x.score > 0)
       .sort((a, b) => b.score - a.score)[0]?.f;
 
@@ -337,7 +385,7 @@ export function analyze(traces: WorkflowTrace[], opts: AnalyzeOptions = {}): Ana
         return lift >= SPECIFIC_LIFT;
       }).map(([s]) => s),
     );
-    const yours = (g: WorkflowInstance) => [...skillsOf(g)].filter((s) => s !== baseSlug && !opts.ownSkills?.has(s) && specific.has(s));
+    const yours = (g: WorkflowInstance) => [...skillsOf(g)].filter((s) => !opts.ownSkills?.has(s) && (!opts.userSkills || opts.userSkills.has(s)) && specific.has(s));
     const withYours = group.filter((g) => yours(g).length);
     if (withYours.length >= COVERED_SHARE * group.length) {
       const counts = new Map<string, number>();

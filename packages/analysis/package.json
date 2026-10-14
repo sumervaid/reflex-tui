@@ -13,11 +13,12 @@
   },
   "dependencies": {
     "@reflex/core": "workspace:*",
-    "@reflex/safety": "workspace:*"
+    "@reflex/safety": "workspace:*",
+    "stopwords-iso": "1.1.0"
   },
   "devDependencies": {
     "@reflex/adapters": "workspace:*",
-    "@reflex/test-fixtures": "workspace:*",
-    "@reflex/embeddings": "workspace:*"
+    "@reflex/embeddings": "workspace:*",
+    "@reflex/test-fixtures": "workspace:*"
   }
 }

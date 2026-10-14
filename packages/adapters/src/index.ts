@@ -8,6 +8,7 @@ export { CodexAdapter } from "./codex";
 export { CursorAdapter, decodeWorkspace } from "./cursor";
 export { CursorModelIndex, defaultCursorStateDb } from "./cursor-models";
 export { readJsonl } from "./jsonl";
+export { conductorWorkspace } from "./common";
 
 export type AdapterRoots = { claude?: string; codex?: string; cursor?: string };
 

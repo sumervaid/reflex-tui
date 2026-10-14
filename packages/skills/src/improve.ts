@@ -50,6 +50,11 @@ export function learnedSection(review: SkillReview, opts: { behavior?: boolean; 
 
 /** `content` with Reflex's learned section added, or replaced if an earlier one is there. Everything else is kept byte for byte. */
 export function applyLearned(content: string, section: string): string {
+  const starts = content.split(LEARNED_START).length - 1;
+  const ends = content.split(LEARNED_END).length - 1;
+  // A section whose markers were edited by hand could swallow your own text when replaced.
+  if (starts > 1 || ends > 1 || starts !== ends || (starts && content.indexOf(LEARNED_END) < content.indexOf(LEARNED_START)))
+    throw new Error(`The skill's "Learned from your sessions" markers are incomplete or repeated. Fix or remove ${LEARNED_START} and ${LEARNED_END}, then run reflex improve again.`);
   const start = content.indexOf(LEARNED_START);
   const end = start >= 0 ? content.indexOf(LEARNED_END, start) : -1;
   if (start >= 0 && end >= 0) return content.slice(0, start) + section + content.slice(end + LEARNED_END.length);

@@ -507,7 +507,8 @@ export class Store {
   }
 
   saveEmbeddings(model: string, entries: Iterable<[string, Float32Array]>): void {
-    const put = this.db.prepare("INSERT OR REPLACE INTO embeddings (key, model, vector) VALUES (?,?,?)");
+    // Some Node versions bind a zero-length view as NULL; COALESCE keeps the empty "unreadable" marker.
+    const put = this.db.prepare("INSERT OR REPLACE INTO embeddings (key, model, vector) VALUES (?,?,COALESCE(?, zeroblob(0)))");
     this.db.exec("BEGIN");
     try {
       for (const [key, v] of entries) put.run(key, model, new Uint8Array(v.buffer, v.byteOffset, v.byteLength));

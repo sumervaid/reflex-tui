@@ -53,7 +53,7 @@ export async function installInCopy(dir: string, name: string, content: string):
 const SIMPLE_COMMAND = /^[\w@./:=,+-]+( [\w@./:=,+-]+)*$/;
 
 export function benchTools(check: string): { tools: string[]; agentCanRunCheck: boolean } {
-  const tools = ["Skill", "Read", "Edit", "Write", "Glob", "Grep", "Bash(git status:*)", "Bash(git diff:*)", "Bash(git log:*)", "Bash(ls:*)"];
+  const tools = ["Read", "Edit", "Write", "Glob", "Grep", "Bash(git status:*)", "Bash(git diff:*)", "Bash(git log:*)", "Bash(ls:*)"];
   const simple = SIMPLE_COMMAND.test(check.trim());
   if (simple) tools.push(`Bash(${check.trim()}:*)`);
   return { tools, agentCanRunCheck: simple };
