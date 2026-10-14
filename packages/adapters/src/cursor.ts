@@ -8,6 +8,9 @@ import { debug } from "@reflex/core";
 import { displayPath, excerpt } from "@reflex/safety";
 import { CursorModelIndex, defaultCursorStateDb } from "./cursor-models";
 import { readJsonl } from "./jsonl";
+
+// eslint-disable-next-line no-control-regex -- stripping control characters is the point
+const CONTROL = /[\x00-\x1f\x7f-\x9f]/g;
 import { MAX_EVENTS_PER_SESSION, SessionBuilder, clean, cutoffFor, isDirectory, listFiles, modelName, patchedFiles, toTranscriptFiles } from "./common";
 
 /**
@@ -294,7 +297,8 @@ export class CursorAdapter implements TranscriptAdapter {
         type: type && AGENT_TYPE.test(type) ? type : "agent",
         model: modelName(args.model),
         background: args.run_in_background === true,
-        description: excerpt(str(args.description) ?? "", 80),
+        // The parent agent writes this; strip control characters so `reflex agents` never prints escape sequences.
+        description: excerpt((str(args.description) ?? "").replace(CONTROL, " "), 80),
       });
     }
     if (SHELL_TOOLS.has(name)) {
