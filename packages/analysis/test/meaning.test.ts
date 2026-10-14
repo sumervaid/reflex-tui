@@ -1,9 +1,10 @@
 import { describe, expect, it } from "vitest";
 import type { WorkflowTrace } from "@reflex/core";
 import { ALL_SESSIONS, LONG_PREAMBLE, SPEED_UP } from "@reflex/test-fixtures";
-import { loadEmbedder } from "@reflex/embeddings";
+import { MINILM, centerOnReference, loadEmbedder, modelDir as modelPath } from "@reflex/embeddings";
+import { existsSync } from "node:fs";
 import { intentSimilarities } from "../src/cluster";
-import { CONTEXT_CHARS, contextDocument, contextHash, dotProduct, sessionContext } from "../src/context";
+import { CONTEXT_CHARS, contextDocument, contextHash, dotProduct, requestWords, sessionContext } from "../src/context";
 import { intentTerms } from "../src/intents";
 import { analyze } from "../src/suggest";
 import { buildTrace } from "../src/trace";
@@ -16,9 +17,47 @@ const summary = (traces: WorkflowTrace[], vectors?: Map<string, Float32Array>) =
   analyze(traces, { vectors }).suggestions.map((s) => `${s.instances}:${s.evidence.map((e) => e.sessionId).sort().join(",")}`).sort();
 
 describe("context document", () => {
-  it("holds the request and file kinds, not the action steps", () => {
+  it("holds file kinds and the request, not the action steps", () => {
     const doc = contextDocument({ excerpt: "CI is failing on main", fileCategories: ["ci-config", "dependency-manifest"], actionSequence: ["inspect-ci", "run-tests"] } as WorkflowTrace);
-    expect(doc).toBe("CI is failing on main\nFiles: ci config, dependency manifest.");
+    expect(doc).toBe("Files: ci config, dependency manifest.\nCI is failing on main");
+  });
+
+  it("puts file kinds first, so cutting a long request at the model's token limit keeps them", () => {
+    const doc = contextDocument({ excerpt: "", fileCategories: ["tests"] }, "word ".repeat(1000));
+    expect(doc.startsWith("Files: tests.\n")).toBe(true);
+  });
+
+  it("leaves out pasted stack frames, log lines and test output but keeps the request and the error", () => {
+    const request = [
+      "the indexer crashes every night:",
+      "[worker-1] 2026-10-08T08:12:22.101Z ERROR job=reindex-4101 attempt=2 queue=search-index",
+      "  ✗ src/search/index.test.ts > builds the index (31ms)",
+      "TypeError: Cannot read properties of null (reading 'slug')",
+      "    at buildIndex (src/search/index.ts:58:31)",
+      "```",
+      "const x = await build(pages);",
+      "```",
+      "please fix it",
+    ].join("\n");
+    const words = requestWords(request);
+    expect(words).toContain("the indexer crashes every night");
+    expect(words).toContain("TypeError: Cannot read properties of null");
+    expect(words).toContain("please fix it");
+    for (const noise of ["worker-1", "builds the index", "buildIndex (src", "await build"]) expect(words).not.toContain(noise);
+  });
+
+  it("keeps non-English lines and requests that are nothing but output", () => {
+    expect(requestWords("결제 페이지 로딩이 너무 느려서 처음 열 때 4초 정도 걸려요, 빠르게 해줘")).toContain("결제 페이지");
+    const onlyLog = "    at main (src/index.ts:5:3)";
+    expect(requestWords(onlyLog)).toBe(onlyLog);
+  });
+
+  it("includes the second request, where the task often follows an opener", () => {
+    const t = { excerpt: "", fileCategories: [] };
+    const session = { requests: [{ text: "first get familiar with the repo" }, { text: "now add tests for slugify" }, { text: "also rename it" }] } as Parameters<typeof sessionContext>[0];
+    const doc = sessionContext(session, t);
+    expect(doc).toContain("add tests for slugify");
+    expect(doc).not.toContain("rename");
   });
 
   it("reads the request well past the 180-character display excerpt", () => {
@@ -28,7 +67,7 @@ describe("context document", () => {
     expect(contextDocument(t)).not.toContain("checkout");
   });
 
-  it("stops at the model's input budget", () => {
+  it("stops at what the adapters keep; the model's own token limit cuts the rest", () => {
     const doc = contextDocument({ excerpt: "", fileCategories: [] }, "word ".repeat(1000));
     expect(doc.length).toBeLessThanOrEqual(CONTEXT_CHARS);
   });
@@ -83,14 +122,16 @@ describe("meaning-based intent", () => {
   });
 });
 
-const modelDir = process.env.REFLEX_TEST_MODEL_DIR;
+// Needs the real model: set REFLEX_TEST_MODELS to a models folder holding it (e.g. ~/.reflex/models).
+const root = process.env.REFLEX_TEST_MODELS;
+const modelDir = root && existsSync(modelPath(root, MINILM)) ? modelPath(root, MINILM) : undefined;
 
 describe.skipIf(!modelDir)("meaning-based detection (real model)", () => {
   it("adds the reworded workflow and keeps the existing ones", async () => {
-    const embedder = await loadEmbedder(modelDir!);
+    const embedder = await loadEmbedder(modelDir!, MINILM);
     const all = await fixtureTraces([...ALL_SESSIONS, ...SPEED_UP]);
     const v = await embedder.embed(all.map((t) => contextDocument(t)));
-    const vectors = new Map(all.map((t, i) => [t.sessionId, v[i]!]));
+    const vectors = new Map(all.map((t, i) => [t.sessionId, centerOnReference(v[i]!, MINILM)]));
     const lexical = summary(all);
     const withMeaning = summary(all, vectors);
     for (const s of lexical) expect(withMeaning).toContain(s);
@@ -102,7 +143,7 @@ describe.skipIf(!modelDir)("meaning-based detection (real model)", () => {
 
 describe.skipIf(!modelDir)("long requests (real model)", () => {
   it("tells tasks apart that only differ after a shared opening", async () => {
-    const embedder = await loadEmbedder(modelDir!);
+    const embedder = await loadEmbedder(modelDir!, MINILM);
     const sessions = await fixtureSessions(LONG_PREAMBLE);
     const traces = sessions.map(buildTrace);
     const task = (i: number) => (/^pre-rename/.test(LONG_PREAMBLE.find((f) => sessions[i]!.requests[0]!.text.endsWith(f.prompt.slice(-20)))!.key) ? "rename" : "perf");

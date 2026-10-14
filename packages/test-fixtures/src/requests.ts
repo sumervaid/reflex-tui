@@ -1,0 +1,235 @@
+/**
+ * Labeled coding requests in several languages, for comparing embedding models on what Reflex asks
+ * of them: do two requests ask for the same kind of task? Synthetic. Each task has five English
+ * requests and two per other language, written independently (not translations of each other) and
+ * in the casual style people use with coding agents: identifiers, file names, filler words, typos.
+ * Tasks come in confusable pairs (see CONFUSABLE) that share vocabulary but are different work.
+ */
+export type LabeledRequest = { task: string; lang: string; text: string };
+
+const T: Record<string, Record<string, string[]>> = {
+  "fix-ci": {
+    en: [
+      "CI is failing on main after the last merge, figure out why and fix it",
+      "github actions went red on my PR, can you check the logs and fix whatever broke",
+      "the build job in the pipeline keeps failing at the install step",
+      "checks are failing on #142, pls take a look",
+      "our workflow run errors out with exit code 1 in the test job, fix the CI",
+    ],
+    ko: ["main 브랜치 CI가 터졌어 로그 보고 고쳐줘", "PR 올렸는데 github actions 체크가 계속 실패하네. 원인 찾아서 수정 부탁"],
+    ja: ["mainブランチのCIが落ちてるので原因を調べて直してください", "PRのGitHub Actionsが赤くなってる。ログ見て修正お願い"],
+    zh: ["main 分支的 CI 挂了，帮我看看日志修一下", "我的 PR 上 GitHub Actions 检查一直失败，找下原因"],
+    es: ["el CI está fallando en main desde el último merge, arréglalo", "los checks de GitHub Actions de mi PR están en rojo, revisa los logs"],
+    de: ["Die CI auf main schlägt seit dem letzten Merge fehl, bitte reparieren", "GitHub Actions ist bei meinem PR rot, schau dir die Logs an und fix das"],
+    fr: ["la CI échoue sur main depuis le dernier merge, corrige ça", "les checks GitHub Actions de ma PR sont rouges, regarde les logs"],
+  },
+  "upgrade-dependency": {
+    en: [
+      "bump react to v19 and fix whatever breaks",
+      "upgrade all our npm dependencies to the latest minor versions",
+      "we're on an old version of prisma, update it to 6.x",
+      "dependabot opened a PR for axios, can you update it properly and make sure nothing breaks",
+      "move the project from node 18 to node 22",
+    ],
+    ko: ["react 19로 버전 올리고 깨지는 거 있으면 고쳐줘", "의존성 패키지들 최신 버전으로 업그레이드해줘"],
+    ja: ["reactをv19にアップデートして壊れたところを直して", "npmの依存パッケージを最新版に上げてほしい"],
+    zh: ["把 react 升级到 19，顺便修复不兼容的地方", "帮我把项目的 npm 依赖都升级到最新版本"],
+    es: ["actualiza react a la versión 19 y arregla lo que se rompa", "sube todas las dependencias de npm a sus últimas versiones"],
+    de: ["Bitte React auf Version 19 aktualisieren und Fehler beheben", "aktualisiere alle npm-Abhängigkeiten auf die neuesten Versionen"],
+    fr: ["passe react en v19 et corrige ce qui casse", "mets à jour toutes les dépendances npm vers les dernières versions"],
+  },
+  "speed-up": {
+    en: [
+      "the checkout page takes like 4 seconds to load, make it faster",
+      "dashboard renders super slowly on older phones, improve performance",
+      "search results show up with a big delay, speed it up",
+      "why is the settings screen so sluggish? optimize it",
+      "page load time on /products is terrible, can you profile and fix it",
+    ],
+    ko: ["결제 페이지 로딩이 너무 느려 4초나 걸려. 빠르게 해줘", "대시보드가 오래된 폰에서 엄청 버벅거림 성능 개선해줘"],
+    ja: ["チェックアウトページの読み込みが遅すぎるので高速化して", "古いスマホでダッシュボードがカクカクする、パフォーマンス改善お願い"],
+    zh: ["结账页面加载要四秒，太慢了，优化一下", "仪表盘在旧手机上渲染很卡，提升下性能"],
+    es: ["la página de pago tarda unos 4 segundos en cargar, hazla más rápida", "el dashboard va lentísimo en móviles viejos, mejora el rendimiento"],
+    de: ["Die Checkout-Seite lädt viel zu langsam, bitte schneller machen", "Das Dashboard ruckelt auf älteren Handys, Performance verbessern"],
+    fr: ["la page de paiement met 4 secondes à charger, accélère-la", "le dashboard rame sur les vieux téléphones, améliore les perfs"],
+  },
+  "add-index": {
+    en: [
+      "add a database index on orders.created_at, the query does a full table scan",
+      "the users lookup by email is slow because there's no index, add one with a migration",
+      "create a composite index on (tenant_id, status) for the invoices table",
+      "postgres EXPLAIN shows a seq scan on events, add the right index",
+      "write a migration that indexes comments.post_id",
+    ],
+    ko: ["orders.created_at 컬럼에 인덱스가 없어서 풀스캔함. 인덱스 추가해줘", "이메일로 유저 조회하는 쿼리용 인덱스 마이그레이션 만들어줘"],
+    ja: ["orders.created_atにインデックスを追加して、フルスキャンになってる", "メールでのユーザー検索用にインデックスを貼るマイグレーションを書いて"],
+    zh: ["orders.created_at 没有索引导致全表扫描，加个索引", "写个迁移给 comments.post_id 加索引"],
+    es: ["añade un índice en orders.created_at, la consulta hace un full scan", "crea una migración con un índice compuesto en (tenant_id, status)"],
+    de: ["Füge einen Index auf orders.created_at hinzu, die Abfrage macht einen Full Table Scan", "schreib eine Migration, die comments.post_id indiziert"],
+    fr: ["ajoute un index sur orders.created_at, la requête fait un full scan", "écris une migration qui indexe comments.post_id"],
+  },
+  "write-tests": {
+    en: [
+      "add unit tests for the invoice total calculator, it has none",
+      "write tests for src/utils/date.ts, especially DST edge cases",
+      "we need test coverage for the auth middleware",
+      "can you write specs for parseConfig",
+      "cover the slugify helper with tests",
+    ],
+    ko: ["인보이스 금액 계산 함수에 유닛 테스트 좀 작성해줘", "slugify 헬퍼 테스트 커버리지 채워줘"],
+    ja: ["請求額計算の関数にユニットテストを書いて", "認証ミドルウェアのテストを追加してほしい"],
+    zh: ["给发票金额计算函数写单元测试", "帮 parseConfig 补一下测试用例"],
+    es: ["escribe tests unitarios para la función que calcula el total de la factura", "añade cobertura de tests al middleware de autenticación"],
+    de: ["Schreib Unit-Tests für die Rechnungssummen-Berechnung", "füg Tests für den slugify-Helper hinzu"],
+    fr: ["écris des tests unitaires pour le calcul du total des factures", "ajoute des tests pour le middleware d'authentification"],
+  },
+  "flaky-test": {
+    en: [
+      "the checkout e2e test fails randomly on CI, make it stable",
+      "UserList.spec passes locally but intermittently times out in the pipeline",
+      "this test is flaky, it only fails sometimes",
+      "orders tests pass alone but fail when the whole suite runs",
+      "a test fails maybe 1 in 5 runs, find the nondeterminism",
+    ],
+    ko: ["checkout e2e 테스트가 CI에서 가끔만 실패해. 안정적으로 만들어줘", "혼자 돌리면 통과하는데 전체로 돌리면 깨지는 테스트가 있어"],
+    ja: ["e2eテストがCIでたまにだけ落ちる、安定させて", "単体だと通るのに全体で実行すると落ちるテストがある"],
+    zh: ["checkout 的 e2e 测试在 CI 上偶尔失败，帮忙让它稳定", "这个测试时好时坏，单独跑能过，一起跑就挂"],
+    es: ["el test e2e de checkout falla aleatoriamente en CI, hazlo estable", "hay un test que pasa solo pero falla con toda la suite"],
+    de: ["Der Checkout-E2E-Test schlägt in der CI zufällig fehl, bitte stabilisieren", "ein Test ist flaky und schlägt nur manchmal fehl"],
+    fr: ["le test e2e du checkout échoue aléatoirement en CI, stabilise-le", "un test passe seul mais échoue quand toute la suite tourne"],
+  },
+  "crash-fix": {
+    en: [
+      "getting TypeError: Cannot read properties of undefined (reading 'id') in prod, fix it",
+      "app crashes on startup with ENOENT config/default.json",
+      "the worker keeps dying with Maximum call stack size exceeded",
+      "unhandled promise rejection when the webhook arrives twice, please fix",
+      "NullPointerException in OrderService.process, fix the crash",
+    ],
+    ko: ["운영에서 TypeError: Cannot read properties of undefined 에러 나는데 고쳐줘", "앱이 시작하자마자 죽어. 원인 찾아서 수정해줘"],
+    ja: ["本番でTypeError: Cannot read properties of undefinedが出るので直して", "起動直後にアプリがクラッシュする、原因を調べて修正して"],
+    zh: ["线上报 TypeError: Cannot read properties of undefined，修一下", "worker 一直报 Maximum call stack size exceeded 然后挂掉"],
+    es: ["en producción sale TypeError: Cannot read properties of undefined, arréglalo", "la app se cae al arrancar, encuentra la causa"],
+    de: ["In Produktion kommt TypeError: Cannot read properties of undefined, bitte fixen", "die App stürzt beim Start ab, finde die Ursache"],
+    fr: ["en prod on a TypeError: Cannot read properties of undefined, corrige-le", "l'app plante au démarrage, trouve pourquoi"],
+  },
+  "add-logging": {
+    en: [
+      "add logging around the checkout flow so we can debug failures",
+      "we have no visibility into the payment webhook, add structured logs",
+      "log every retry in the HTTP client with the attempt number",
+      "add request ids to our logs",
+      "instrument the worker with debug logs",
+    ],
+    ko: ["결제 흐름에 로그 좀 추가해줘 나중에 디버깅하게", "웹훅 처리 부분에 구조화된 로그 남기게 해줘"],
+    ja: ["チェックアウト処理にログを追加して、障害時に追えるように", "HTTPクライアントのリトライ毎にログを出して"],
+    zh: ["在结账流程里加点日志，方便以后排查问题", "给 worker 加上调试日志"],
+    es: ["añade logs en el flujo de pago para poder depurar fallos", "agrega logs estructurados al webhook de pagos"],
+    de: ["Füg Logging im Checkout-Ablauf hinzu, damit wir Fehler debuggen können", "logge jeden Retry im HTTP-Client"],
+    fr: ["ajoute des logs dans le parcours de paiement pour pouvoir débugger", "ajoute des logs structurés au webhook de paiement"],
+  },
+  "update-docs": {
+    en: [
+      "document the new --dry-run flag in the README",
+      "the CONTRIBUTING guide still says yarn, update it for pnpm",
+      "add a section to docs/api.md about the pagination params",
+      "write up the env vars the service needs in the docs",
+      "the docs don't mention feature flags at all, add a page",
+    ],
+    ko: ["새로 추가한 --dry-run 옵션 README에 설명 추가해줘", "docs에 환경변수 목록이 빠져있어 문서화해줘"],
+    ja: ["新しい--dry-runフラグをREADMEに記載して", "ドキュメントに環境変数の一覧を追加して"],
+    zh: ["在 README 里写一下新的 --dry-run 参数", "文档里缺少环境变量说明，补上"],
+    es: ["documenta el nuevo flag --dry-run en el README", "la guía de contribución todavía dice yarn, actualízala a pnpm"],
+    de: ["Dokumentiere das neue --dry-run Flag in der README", "die Doku erwähnt die Umgebungsvariablen nicht, bitte ergänzen"],
+    fr: ["documente le nouveau flag --dry-run dans le README", "le guide de contribution parle encore de yarn, mets-le à jour pour pnpm"],
+  },
+  "explain-code": {
+    en: [
+      "explain how the auth flow works in this repo",
+      "what does this regex do",
+      "walk me through how the job queue processes retries",
+      "I'm new here, give me an overview of the architecture",
+      "how does the caching layer decide when to invalidate",
+    ],
+    ko: ["이 레포에서 인증 흐름이 어떻게 동작하는지 설명해줘", "나 처음인데 전체 구조 좀 설명해줄래"],
+    ja: ["このリポジトリの認証の流れを説明して", "ジョブキューがリトライをどう処理してるか教えて"],
+    zh: ["解释一下这个仓库的认证流程是怎么工作的", "我刚来，给我讲讲整体架构"],
+    es: ["explícame cómo funciona el flujo de autenticación en este repo", "soy nuevo, dame una visión general de la arquitectura"],
+    de: ["Erklär mir, wie der Auth-Flow in diesem Repo funktioniert", "ich bin neu hier, gib mir einen Überblick über die Architektur"],
+    fr: ["explique-moi comment marche le flux d'authentification dans ce repo", "je suis nouveau, donne-moi une vue d'ensemble de l'architecture"],
+  },
+  rename: {
+    en: [
+      "rename getUserById to findUser everywhere",
+      "fetchOrders should be called loadOrders now, update all call sites",
+      "change the Button component's kind prop to variant across the app",
+      "rename the utils folder to lib and fix the imports",
+      "the class PaymentHandler should be PaymentService, rename it",
+    ],
+    ko: ["getUserById를 findUser로 전부 이름 바꿔줘", "Button 컴포넌트 kind prop을 variant로 바꾸고 쓰는 곳 다 수정해줘"],
+    ja: ["getUserByIdをfindUserに全部リネームして", "fetchOrdersをloadOrdersに名前変更して呼び出し箇所も直して"],
+    zh: ["把 getUserById 全部重命名为 findUser", "Button 组件的 kind 属性改名为 variant，所有用到的地方都改"],
+    es: ["renombra getUserById a findUser en todo el código", "cambia el prop kind del componente Button a variant en toda la app"],
+    de: ["Benenne getUserById überall in findUser um", "das Prop kind der Button-Komponente soll variant heißen, überall anpassen"],
+    fr: ["renomme getUserById en findUser partout", "le prop kind du composant Button doit s'appeler variant, mets à jour partout"],
+  },
+  "rename-column": {
+    en: [
+      "rename users.name to users.full_name in the database",
+      "write a migration that renames the column orders.total to amount",
+      "the db column created to created_at, rename it with a migration and keep the data",
+      "change the column name customer_id to account_id in the invoices table",
+      "rename the status column in payments to state, schema migration please",
+    ],
+    ko: ["DB에서 users.name 컬럼을 full_name으로 이름 바꾸는 마이그레이션 짜줘", "invoices 테이블 customer_id 컬럼명을 account_id로 변경해줘"],
+    ja: ["users.nameカラムをfull_nameにリネームするマイグレーションを書いて", "invoicesテーブルのcustomer_id列をaccount_idに変更して"],
+    zh: ["写个迁移把 users.name 列改名为 full_name", "把 invoices 表的 customer_id 字段改名为 account_id"],
+    es: ["escribe una migración que renombre la columna users.name a full_name", "cambia el nombre de la columna customer_id a account_id en invoices"],
+    de: ["Schreib eine Migration, die die Spalte users.name in full_name umbenennt", "benenne die Spalte customer_id in der invoices-Tabelle in account_id um"],
+    fr: ["écris une migration qui renomme la colonne users.name en full_name", "renomme la colonne customer_id en account_id dans la table invoices"],
+  },
+  "review-pr": {
+    en: [
+      "review PR #212 before I approve it",
+      "look over this pull request and leave comments",
+      "do a code review of the changes on this branch vs main",
+      "check this PR for bugs",
+      "can you review my diff before I push",
+    ],
+    ko: ["PR #212 승인하기 전에 리뷰 좀 해줘", "이 브랜치 변경사항 main이랑 비교해서 코드 리뷰해줘"],
+    ja: ["承認前にPR #212をレビューして", "このブランチの変更をmainと比べてコードレビューして"],
+    zh: ["我批准之前帮我 review 一下 PR #212", "对比 main 看看这个分支的改动，做个代码审查"],
+    es: ["revisa el PR #212 antes de que lo apruebe", "haz una revisión de código de los cambios de esta rama contra main"],
+    de: ["Reviewe bitte PR #212, bevor ich ihn approve", "mach ein Code-Review der Änderungen auf diesem Branch gegen main"],
+    fr: ["relis la PR #212 avant que je l'approuve", "fais une revue de code des changements de cette branche par rapport à main"],
+  },
+  "add-feature": {
+    en: [
+      "add a dark mode toggle to the settings page",
+      "implement password reset by email",
+      "add an export to CSV button on the reports table",
+      "build a simple onboarding wizard for new users",
+      "let users upload an avatar on their profile",
+    ],
+    ko: ["설정 페이지에 다크 모드 토글 추가해줘", "이메일로 비밀번호 재설정하는 기능 만들어줘"],
+    ja: ["設定画面にダークモードの切り替えを追加して", "メールでパスワードをリセットする機能を実装して"],
+    zh: ["在设置页面加一个深色模式开关", "实现通过邮件重置密码的功能"],
+    es: ["añade un interruptor de modo oscuro en la página de ajustes", "implementa el restablecimiento de contraseña por email"],
+    de: ["Füge einen Dark-Mode-Schalter auf der Einstellungsseite hinzu", "implementiere das Zurücksetzen des Passworts per E-Mail"],
+    fr: ["ajoute un bouton mode sombre dans la page des paramètres", "implémente la réinitialisation du mot de passe par email"],
+  },
+};
+
+/** Task pairs that share vocabulary but are different work: the cases a good model must still separate. */
+export const CONFUSABLE: Array<[string, string]> = [
+  ["write-tests", "flaky-test"],
+  ["rename", "rename-column"],
+  ["speed-up", "add-index"],
+  ["update-docs", "explain-code"],
+  ["fix-ci", "upgrade-dependency"],
+  ["crash-fix", "add-logging"],
+];
+
+export const LABELED_REQUESTS: LabeledRequest[] = Object.entries(T).flatMap(([task, byLang]) =>
+  Object.entries(byLang).flatMap(([lang, texts]) => texts.map((text) => ({ task, lang, text }))),
+);

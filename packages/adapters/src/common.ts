@@ -117,6 +117,18 @@ export async function isDirectory(path: string): Promise<boolean> {
   }
 }
 
+const CONDUCTOR_WORKSPACE = /^(.*[\\/]conductor[\\/]workspaces[\\/]([^\\/]+))[\\/]([^\\/]+)(?:[\\/]|$)/;
+
+/**
+ * A Conductor workspace: a git worktree at `<...>/conductor/workspaces/<repo>/<workspace>` (by
+ * default under the home folder). Every workspace of a repo is the same project, named after the
+ * repo; `reposDir` identifies it.
+ */
+export function conductorWorkspace(cwd: string): { repo: string; workspace: string; reposDir: string } | undefined {
+  const m = CONDUCTOR_WORKSPACE.exec(cwd);
+  return m ? { reposDir: m[1]!, repo: m[2]!, workspace: m[3]! } : undefined;
+}
+
 /** Mutable builder used while streaming one session. */
 export class SessionBuilder {
   requests: NormalizedSession["requests"] = [];
@@ -163,15 +175,19 @@ export class SessionBuilder {
   }
 
   build(): NormalizedSession {
-    const project = this.cwd
-      ? { name: clean.path(basename(this.cwd)) || undefined, pathHash: shortHash(this.cwd) }
-      : undefined;
+    const conductor = this.cwd ? conductorWorkspace(this.cwd) : undefined;
+    const project = conductor
+      ? { name: clean.path(conductor.repo) || undefined, pathHash: shortHash(conductor.reposDir) }
+      : this.cwd
+        ? { name: clean.path(basename(this.cwd)) || undefined, pathHash: shortHash(this.cwd) }
+        : undefined;
     return {
       id: `${this.source}:${this.nativeId}`,
       source: this.source,
       startedAt: this.startedAt,
       endedAt: this.endedAt,
       project,
+      ...(conductor ? { harness: { name: "conductor" as const, workspace: clean.path(conductor.workspace) } } : {}),
       requests: this.requests,
       events: this.events,
       sourceRef: { file: this.file.displayPath, nativeId: this.nativeId },

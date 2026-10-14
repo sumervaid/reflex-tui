@@ -2,12 +2,13 @@ import type { SourceId, TranscriptAdapter } from "@reflex/core";
 import { debug } from "@reflex/core";
 import { ClaudeCodeAdapter, CodexAdapter, CursorAdapter } from "@reflex/adapters";
 import { type Suggestion, analyze, deduplicate } from "@reflex/analysis";
+import { totalmem } from "node:os";
 import { displayPath } from "@reflex/safety";
 import { type MemorySync, syncMemory } from "@reflex/skills";
 import { Store, paths } from "@reflex/storage";
 import { c, confirm, out, plural, rows, spinner, title, warn } from "../ui";
-import { modelBytes } from "@reflex/embeddings";
-import { type VectorResult, sessionVectors, vectorNeeds } from "../embeddings";
+import { DEFAULT_MODEL, MINILM, modelBytes } from "@reflex/embeddings";
+import { EMBED_BUDGET_MS, type VectorResult, sessionVectors, vectorNeeds } from "../embeddings";
 import { MAX_FILES_PER_SOURCE, collect, currentKeys } from "../collect";
 import { analysisKey, summarize } from "../analysis";
 
@@ -21,7 +22,22 @@ export type ScanOptions = {
   yes?: boolean;
   /** Read every file again instead of reusing what earlier scans cached. */
   full?: boolean;
+  /** Most minutes to spend embedding new sessions; the rest wait for the next scan. */
+  embedMinutes?: number;
 };
+
+export function parseEmbedMinutes(value: string): number {
+  const n = Number(value);
+  if (!Number.isFinite(n) || n < 0 || n > 24 * 60) throw new Error("--embed-minutes must be a number of minutes between 0 and 1440.");
+  return n;
+}
+
+/** "45 s", "3 min", "1 h 20 min". */
+export function duration(seconds: number): string {
+  if (seconds < 60) return `${Math.max(1, Math.round(seconds))} s`;
+  const minutes = Math.round(seconds / 60);
+  return minutes < 60 ? `${minutes} min` : `${Math.floor(minutes / 60)} h ${minutes % 60} min`;
+}
 
 export function parseDays(value: string): number {
   const n = Number(value);
@@ -110,9 +126,12 @@ export async function scan(opts: ScanOptions): Promise<void> {
     let embedding = false;
     meaning = await sessionVectors(traces, store, {
       documents: collected.documents,
-      onProgress: (n) => {
+      budgetMs: (opts.embedMinutes ?? EMBED_BUDGET_MS / 60_000) * 60_000,
+      onProgress: (done, total, model, eta) => {
+        const text = `Comparing new sessions by meaning (local model ${model.name}): ${done} of ${total}${eta === undefined ? "" : `, about ${duration(eta)} left`}`;
+        if (!embedding) embedSpin.start(text);
+        else embedSpin.message(text);
         embedding = true;
-        embedSpin.start(`Comparing ${plural(n, "new session")} by meaning (local model)…`);
       },
     });
     if (embedding) embedSpin.stop(meaning.status === "ok" ? "Compared by meaning" : "Meaning comparison unavailable");
@@ -120,7 +139,7 @@ export async function scan(opts: ScanOptions): Promise<void> {
     suggestions = analysis.suggestions;
     const scanId = store.latestScan()!.id;
     store.saveSuggestions(scanId, suggestions);
-    store.saveAnalysis(scanId, analysisKey(meaning.status === "ok"), summarize(analysis, traces));
+    store.saveAnalysis(scanId, analysisKey(meaning.status === "ok" ? meaning.model.id : undefined), summarize(analysis, traces));
     memoryResult = await syncMemory(store);
   } finally {
     store.close();
@@ -138,11 +157,28 @@ export async function scan(opts: ScanOptions): Promise<void> {
     stats.retries && plural(stats.retries, "retry", "retries"),
   ].filter(Boolean);
   if (folded.length) out(c.dim(`  counted once: ${folded.join(", ")}`));
+  const conductor = traces.filter((t) => t.harness?.name === "conductor");
+  if (conductor.length) {
+    const workspaces = new Set(conductor.map((t) => `${t.projectHash}/${t.harness!.workspace}`)).size;
+    out(c.dim(`  ${plural(conductor.length, "session")} ran in ${plural(workspaces, "Conductor workspace")}, grouped by repository`));
+  }
   if (partial) out(c.dim(`  ${plural(partial, "session")} partially recovered (${plural(skippedRecords, "malformed record")} skipped)`));
   if (unreadable) warn(`${plural(unreadable, "unreadable file")} skipped`);
   if (kept) out(c.dim(`  ${plural(kept, "session")} kept from transcripts that have since been deleted`));
   if (capped) warn(`${plural(capped, "older file")} skipped; Reflex reads the ${MAX_FILES_PER_SOURCE} most recent per source. Use a shorter --days window.`);
-  if (meaning.status === "ok") out(c.dim(`  requests compared by words and by meaning (local model; ${plural(meaning.embedded, "session")} newly embedded)`));
+  if (meaning.status === "ok") {
+    out(c.dim(`  requests compared by words and by meaning (local model ${meaning.model.name}; ${plural(meaning.embedded, "session")} newly embedded)`));
+    if (meaning.stoppedBy === "time")
+      out(
+        c.dim(
+          `  ${plural(meaning.remaining, "older session")} not embedded yet (time limit); compared by words for now, the next scan continues (${c.cyan("--embed-minutes")} to change the limit)`,
+        ),
+      );
+    if (meaning.stoppedBy === "memory")
+      warn(
+        `${plural(meaning.remaining, "session")} not compared by meaning: ${meaning.model.name} needs about ${(meaning.model.peakMemoryMB / 1000).toFixed(1)} GB and this machine has ${(totalmem() / 1e9).toFixed(0)} GB. Try the light model: reflex model fetch --light`,
+      );
+  }
   else if (meaning.status === "failed") warn(`Meaning comparison skipped (${meaning.error}); requests were compared by words only.`);
   out(`  ${c.green("0 bytes uploaded")} · transcripts were read locally; only redacted summaries were stored in ${displayPath(paths.db())}`);
   if (memoryResult?.writes.length) {
@@ -162,5 +198,10 @@ export async function scan(opts: ScanOptions): Promise<void> {
       ? `${plural(suggestions.length, "repeated workflow")} found. Next: ${c.cyan("reflex suggest")}`
       : `No repeated workflows yet. Details: ${c.cyan("reflex suggest")}`,
   );
-  if (meaning.status === "no-model") out(c.dim(`Tip: ${c.cyan("reflex model fetch")} also matches requests worded differently (optional, ${Math.round(modelBytes() / 1e6)} MB, runs locally).`));
+  if (meaning.status === "no-model")
+    out(
+      c.dim(
+        `Tip: ${c.cyan("reflex model fetch")} also matches requests worded differently, in any language (optional, ${Math.round(modelBytes(DEFAULT_MODEL) / 1e6)} MB, runs locally; ${c.cyan("--light")} for a ${Math.round(modelBytes(MINILM) / 1e6)} MB English-only model).`,
+      ),
+    );
 }
