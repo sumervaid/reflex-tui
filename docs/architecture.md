@@ -86,7 +86,17 @@ Token usage, where recorded, is attached to the session as `{input, output, cach
 3. **Similarity.** Weighted: intent 0.40, action sequence 0.30, commands and tools 0.15, file
    categories 0.10, repository 0.05. Intent blends TF-IDF over stemmed terms (plus a bonus for
    shared word pairs) with a small concept lexicon so "GitHub Actions is red" and "CI is failing"
-   match. With the optional model, each session's context document is embedded: its file kinds
+   match. Intent terms work in any language (`languages.ts`): scripts without spaces are split by
+   `Intl.Segmenter`, a single Han character counts as a word, Korean particles and verb endings
+   are stripped, and stopwords come from stopwords-iso (MIT) per script, or per Latin-script
+   language when the request is detected as that language by its function words; English keeps
+   its own short list, since the published one drops "test", "fix" and "page". Everyday fillers
+   the published lists miss are in `casual-stopwords.ts`, and developer words (the concept
+   lexicon) are never dropped. On top, `fillers.ts` learns fillers from the history itself: a
+   term whose sessions behave less alike than random pairs is quieted in TF-IDF (to 20% at most),
+   from 20 sessions on and fully at 200. On the 7-language request benchmark
+   (`test/eval/requests.test.ts`) word matching went from AUC 0.50 to 0.70 in Japanese, 0.56 to
+   0.78 in Chinese and 0.61 to 0.78 in Korean, with English unchanged at 0.79. With the optional model, each session's context document is embedded: its file kinds
    first (so they survive the cut), then its first two redacted requests (the task often follows an
    opener) without pasted code blocks, stack frames and log lines, cut at the model's own token
    limit. Actions are left out because they have their own weight. Text the model cannot read

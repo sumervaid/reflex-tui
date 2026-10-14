@@ -90,7 +90,10 @@ as inspect CI, install dependencies, patch, run tests, inspect the diff), normal
 file categories and outcome. Copies, resumed sessions and quick retries count once. Traces are
 compared on intent (0.40), action sequence (0.30), commands and tools (0.15), file categories
 (0.10) and repository (0.05), then clustered. Intent compares the requests' words (stemmed terms,
-phrases and a small concept lexicon); with the optional model (`reflex model fetch`) it also compares
+phrases and a small concept lexicon) in any language: Japanese, Chinese and Thai are split into
+words, Korean particles are stripped (배포를 → 배포), filler words are dropped (published lists plus
+everyday fillers, `casual-stopwords.ts`) and words your own history uses across unrelated kinds of
+work are quieted, more so as the history grows; with the optional model (`reflex model fetch`) it also compares
 their meaning, so "make the login page load faster", "the sign-in screen is really slow" and
 "로그인 화면이 너무 느려" match. A cluster becomes a suggestion only if it has at
 least 3 independent sessions with consistent behavior; one-offs, read-and-answer sessions and
@@ -231,8 +234,9 @@ by the tests; it is not part of the published CLI.
 ## Limitations
 
 - Confidence is a ranking heuristic, not a probability.
-- Without the model, intent matching uses stemmed TF-IDF plus a small built-in lexicon. Requests worded
-  with no words in common need `reflex model fetch` to match.
+- Without the model, intent matching uses stemmed TF-IDF plus a small built-in lexicon (English).
+  Requests worded with no words in common, or asked in different languages, need
+  `reflex model fetch` to match.
 - Embedding models do not know developer jargon as well as the lexicon ("GitHub Actions is red" vs.
   "CI is failing"), so they are combined with word matching, never used alone. With the light
   model, requests in other scripts (Korean, Japanese, ...) are matched by words only. Clusters

@@ -1,3 +1,5 @@
+import { isForeignStopword, koreanStem, latinLanguage, meaningfulSingle, splitUnspaced } from "./languages";
+
 const STOPWORDS = new Set(
   (
     "a an the and or but if then so to of in on at by for with from into onto about as is are was were be been being am " +
@@ -67,11 +69,15 @@ export function intentTerms(text: string): string[] {
   let t = text.toLowerCase();
   t = t.replace(/https?:\/\/\S+/g, " ").replace(/\[redacted[^\]]*\]|\[email\]|\[REDACTED[^\]]*\]/gi, " ");
   for (const [re, rep] of PHRASES) t = t.replace(re, rep);
-  const words = t.split(/[^\p{L}\p{N}#@'-]+/u);
+  // Words in scripts written without spaces (Japanese, Chinese, Thai) are split by the platform's segmenter.
+  const words = t
+    .split(/[^\p{L}\p{N}\p{M}#@'-]+/u)
+    .flatMap(splitUnspaced)
+    .map((w) => koreanStem(w.replace(/^['#-]+|['-]+$/g, "")));
+  const latinLang = latinLanguage(words);
   const out: string[] = [];
   for (let w of words) {
-    w = w.replace(/^['#-]+|['-]+$/g, "");
-    if (w.length < 2 || /^\d+$/.test(w) || STOPWORDS.has(w)) continue;
+    if ((w.length < 2 && !meaningfulSingle(w)) || /^\d+$/.test(w) || STOPWORDS.has(w) || isForeignStopword(w, latinLang, DEVELOPER_WORDS)) continue;
     w = CANONICAL[w] ?? w;
     if (STOPWORDS.has(w)) continue;
     out.push(w);
@@ -119,9 +125,9 @@ const BIGRAM_BLEND = 0.3;
  * requests share a phrase, but never lower it: requests that share words in a different order
  * score exactly as they would on words alone.
  */
-export function termSimilarities(termLists: string[][]): (i: number, j: number) => number {
+export function termSimilarities(termLists: string[][], weights?: ReadonlyMap<string, number>): (i: number, j: number) => number {
   const stems = termLists.map((terms) => terms.map(stem));
-  const words = buildTfIdf(stems).vectors;
+  const words = buildTfIdf(stems, weights && new Map([...weights].map(([t, w]) => [stem(t), w]))).vectors;
   const pairs = buildTfIdf(stems.map(bigrams)).vectors;
   return (i, j) => {
     const w = cosine(words[i]!, words[j]!);
@@ -149,6 +155,8 @@ const CONCEPT_WORDS: Record<string, string[]> = {
 };
 
 const CONCEPT_OF = new Map<string, string>();
+/** Words of the developer lexicon and canonical forms: kept even where another language lists them as stopwords. */
+export const DEVELOPER_WORDS = new Set([...Object.values(CONCEPT_WORDS).flat(), ...Object.values(CANONICAL)]);
 for (const [concept, words] of Object.entries(CONCEPT_WORDS)) for (const w of words) CONCEPT_OF.set(w, concept);
 
 export function concepts(terms: string[]): Map<string, number> {
@@ -168,7 +176,8 @@ export function concepts(terms: string[]): Map<string, number> {
 
 export type TfIdfModel = { idf: Map<string, number>; vectors: Map<string, number>[] };
 
-export function buildTfIdf(docs: string[][]): TfIdfModel {
+/** `weights` scales individual terms (1 when absent), e.g. to quiet words learned to be filler. */
+export function buildTfIdf(docs: string[][], weights?: ReadonlyMap<string, number>): TfIdfModel {
   const df = new Map<string, number>();
   for (const doc of docs) for (const term of new Set(doc)) df.set(term, (df.get(term) ?? 0) + 1);
   const n = docs.length;
@@ -180,7 +189,7 @@ export function buildTfIdf(docs: string[][]): TfIdfModel {
     const v = new Map<string, number>();
     let norm = 0;
     for (const [term, count] of tf) {
-      const w = (1 + Math.log(count)) * (idf.get(term) ?? 1);
+      const w = (1 + Math.log(count)) * (idf.get(term) ?? 1) * (weights?.get(term) ?? 1);
       v.set(term, w);
       norm += w * w;
     }

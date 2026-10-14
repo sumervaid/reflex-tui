@@ -1,5 +1,6 @@
 import type { WorkflowTrace } from "@reflex/core";
 import { type SessionVectors, dotProduct } from "./context";
+import { fillerWeights } from "./fillers";
 import { concepts, cosine, termSimilarities } from "./intents";
 import { opKeys, similarity } from "./similarity";
 
@@ -48,7 +49,10 @@ export function rescaleEmbedding(cos: number, floor = EMBEDDING_FLOOR): number {
  * pull apart requests that do. A session without a vector is compared lexically.
  */
 export function intentSimilarities(traces: WorkflowTrace[], vectors?: SessionVectors): (i: number, j: number) => number {
-  const termSim = termSimilarities(traces.map((t) => t.intents));
+  const termSim = termSimilarities(
+    traces.map((t) => t.intents),
+    traces.every((t) => t.actionSequence) ? fillerWeights(traces) : undefined,
+  );
   const conceptVectors = traces.map((t) => concepts(t.intents));
   const embedded = traces.map((t) => vectors?.get(t.sessionId));
   return (i, j) => {
