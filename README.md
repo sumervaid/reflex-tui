@@ -119,7 +119,7 @@ runs on your machine (WebAssembly, no native code, no network after the download
 | Time per session, 1 / 4 threads | about 2.9 s / 0.8 s | about 0.09 s / 0.03 s |
 
 Measured on Apple silicon with real-length requests; older CPUs can be up to about 3x slower. The
-`Embedding benchmark` workflow (`.github/workflows/embedding-bench.yml`, manual and weekly)
+`Embedding benchmark` workflow (`.github/workflows/embedding-bench.yml`; on pull requests that change embedding or matching code, by hand, and weekly)
 measures load time, time per request and peak memory for both models on Linux (x64 and ARM),
 Windows and macOS (Intel and Apple silicon), and checks matching quality is the same everywhere;
 locally: `REFLEX_PERF=bge-m3 REFLEX_TEST_MODELS=~/.reflex/models pnpm vitest run packages/analysis/test/eval/perf.test.ts`. On

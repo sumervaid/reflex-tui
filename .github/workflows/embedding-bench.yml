@@ -1,9 +1,16 @@
 # How fast and how heavy the embedding models are on machines other than a developer's laptop,
 # and whether matching quality is the same everywhere. Downloads about 610 MB of models (cached),
-# so it runs by hand and weekly rather than on every push. Uses synthetic requests only.
+# so it runs on pull requests that change embedding or matching code, by hand, and weekly, rather
+# than on every push. Uses synthetic requests only.
 name: Embedding benchmark
 
 on:
+  pull_request:
+    paths:
+      - "packages/embeddings/**"
+      - "packages/analysis/src/**"
+      - "apps/cli/src/embeddings.ts"
+      - ".github/workflows/embedding-bench.yml"
   workflow_dispatch:
   schedule:
     - cron: "17 6 * * 1"
