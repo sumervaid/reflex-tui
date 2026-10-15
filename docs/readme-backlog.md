@@ -13,7 +13,9 @@ README revamp on 2026-10-15. Nothing here is decided; tick or delete items as th
 
 - [ ] **License.** The repo has no LICENSE file. Popular repos all have one, and some people and
   companies won't use code without one. MIT is the usual choice for CLIs like this; Apache-2.0 adds
-  a patent grant. Once chosen: add `LICENSE`, add `"license"` to `apps/cli/package.json`, and
+  a patent grant. Without a license nobody else may legally use, copy or modify the code. Everyone
+  who has committed code should agree (as of 2026-10-15: Nihar Shah, Sumer Vaid, Gio Jung). Also
+  decide the copyright holder line, e.g. "Reflex contributors" or the members' names. Once chosen: add `LICENSE`, add `"license"` to `apps/cli/package.json`, and
   uncomment the license badge and the License line in `README.md` (marked `TEMPLATE`).
 - [ ] **Logo.** Most popular repos open with one (atuin, opencode, aider, crush, ccusage). An SVG
   works best; a light and a dark version can be swapped with `<picture>` (atuin and opencode do
@@ -22,7 +24,7 @@ README revamp on 2026-10-15. Nothing here is decided; tick or delete items as th
   (commit b06c82d, 2026-10-11). It reads like a note about hackathon sponsor tools that were not
   integrated, not about funding sponsors. It is under "Status" in the README; keep, reword or drop.
 - [ ] **GitHub repo description and topics** (both empty today). Set them under the repo's
-  About ⚙ on GitHub, or with `gh repo edit sumervaid/reflex-tui --description "..." --add-topic ...`.
+  About ⚙ on GitHub (only the repo owner, sumervaid, or an admin can), or with `gh repo edit sumervaid/reflex-tui --description "..." --add-topic ...`.
   Proposal:
   - Description: "Find the workflows you keep re-explaining to Claude Code, Codex and Cursor, and
     turn them into reusable skills."
@@ -30,6 +32,12 @@ README revamp on 2026-10-15. Nothing here is decided; tick or delete items as th
     `developer-tools`, `local-first`
 - [ ] **Sponsors / funding section.** Not a priority now. If it ever happens: GitHub Sponsors plus a
   `.github/FUNDING.yml`, and a section like ccusage's.
+
+- [ ] **What the README says about the TUI.** The TUI does two jobs: the main loop visually (Skills
+  and Workflows do what `suggest`, `approve` and `install` do) and usage insight that has no command
+  (Tokens: cost at list prices and caching savings, not money Reflex saved; Search: reopen
+  sessions; Morning: daily summary). Teammates weren't sure what it was for. The README's
+  "Terminal UI" section now says this; check it reads clearly to someone new.
 
 ## Template slots in README.md
 
@@ -80,7 +88,8 @@ crush and delta.
 
 ## CLI ideas noticed while writing the Commands table (code not changed)
 
-Suggestions for the team, not bugs:
+Suggestions for the team, not bugs. Parked on purpose: the owner wants to finish the README first
+and discuss these separately.
 
 - `show <n>` shows a suggestion but `show-skill <name>` shows a skill. Two near-identical names for
   different objects; `reflex skill show <name>` or one `show` that accepts either would be easier to
@@ -98,6 +107,12 @@ Suggestions for the team, not bugs:
 - The README's first-time path is scan → suggest (approve) → install. If `suggest`'s approve
   already offers to install (it does when run interactively), the README quick start could drop the
   separate `install` line.
+
+## Team update sent
+
+A paste-ready FYI for the team was drafted on 2026-10-15: what changed, the four decisions above,
+the before-merging step, and the problems spotted. Update this file rather than re-sending the
+whole list when things are decided.
 
 ## Recordings
 
