@@ -106,6 +106,6 @@ Suggestions for the team, not bugs:
   `vhs docs/assets/tui-tour.tape` and `vhs docs/assets/quickstart.tape` from the repo root after
   `pnpm build`. Re-record after visible TUI changes.
 - No background around the recordings (the owner didn't like the purple margin). Possible later: a light-theme version.
-- `how-it-works-light.svg` / `-dark.svg` are hand-written SVGs; the README picks one with `<picture>` by
+- `how-it-works-light.svg` / `-dark.svg` are generated SVGs (a simple 4-step flow; the owner preferred this over a detailed architecture diagram); the README picks one with `<picture>` by
   GitHub theme (npm shows the light one). Edit both when the flow changes.
 - The README images point at `main`, so they only show on GitHub after this branch is merged.
