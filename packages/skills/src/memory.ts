@@ -56,6 +56,7 @@ export function renderMemoryBlock(rules: Array<{ text: string; sessions?: number
     "",
     "Corrections the developer gave coding agents in more than one past session. Follow them unless the current task says otherwise.",
     "Managed by `reflex memory`: edits inside this block are replaced on the next scan.",
+    "To see how work is done in the current repository (commands that work, rules the developer gave), run `reflex handbook --json`, or `reflex handbook ask \"<question>\" --json`. Both are read-only.",
     "",
     ...rules.map((r) => `- ${r.text}${r.sessions ? ` (${r.sessions} sessions)` : ""}`),
     MEMORY_END,

@@ -126,6 +126,11 @@ type Rule = { polarity: Correction["polarity"]; words: string[]; sessions: Set<n
  * the words both sessions used, so no single session's phrasing reaches the skill.
  */
 export function recurringCorrections(perInstance: Correction[][]): Constraint[] {
+  return recurringCorrectionsBySession(perInstance).map(({ instances: _, ...c }) => c);
+}
+
+/** `recurringCorrections`, with the indexes of the instances behind each rule (ascending). */
+export function recurringCorrectionsBySession(perInstance: Correction[][]): Array<Constraint & { instances: number[] }> {
   const items = perInstance.flatMap((cs, inst) => cs.map((c) => ({ ...c, inst, keys: matchKeys(c.words) })));
   const rules = new Map<string, Rule>();
   for (let i = 0; i < items.length; i++) {
@@ -155,6 +160,6 @@ export function recurringCorrections(perInstance: Correction[][]): Constraint[] 
     );
   return all
     .filter((r) => !covered(r))
-    .map((r) => ({ polarity: r.polarity, text: render(r.polarity, r.words), sessions: r.sessions.size }))
+    .map((r) => ({ polarity: r.polarity, text: render(r.polarity, r.words), sessions: r.sessions.size, instances: [...r.sessions].sort((a, b) => a - b) }))
     .sort((a, b) => b.sessions - a.sessions || a.text.localeCompare(b.text));
 }

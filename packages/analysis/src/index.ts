@@ -13,3 +13,4 @@ export * from "./corrections";
 export * from "./memory";
 export * from "./routing";
 export * from "./improve";
+export * from "./handbook";

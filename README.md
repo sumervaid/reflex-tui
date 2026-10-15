@@ -55,6 +55,7 @@ alias reflex="node $PWD/apps/cli/dist/reflex.js"
 | `bench <task>` | Run one task on several Claude Code models, each in a fresh copy of the current repository, scored by `--check "<command>"`. `--models`, `--setup`, `--runs`, `--timeout`, `--keep`, `--yes` |
 | `improve [skill]` | For skills you already have: lists them with the sessions that loaded each; with a name, compares the skill with those sessions and proposes an edit (asks before reading the skill and before changing it; keeps a backup). `--file`, `--yes` |
 | `agents` | Sessions that launched agents (Cursor): how many, which kinds, and how many tool calls the agents made |
+| `handbook` | How work is done in the current repository, learned from past sessions: test, build and lint commands that worked (and ones that kept failing), and corrections you repeated, with the situation they came up in and the sessions behind each. `show <id>`, `ask "<question>"`, `export` (Markdown for a teammate, no request text), `--project`, `--all`, `--json`. Read-only, so agents can call it |
 | `stats` | Counts from local data |
 | `reset` | Delete Reflex's own data (not installed skills or the model) |
 | `model [status\|fetch\|use\|remove]` | Optional local embedding model for matching requests by meaning. `fetch` downloads bge-m3 (multilingual, 587 MB); `fetch --light` the English-only all-MiniLM-L6-v2 (23 MB); `use <name>` switches between installed ones |

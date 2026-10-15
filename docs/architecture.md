@@ -211,6 +211,31 @@ tests passing.
 - **Record.** `skill_changes` holds one JSON row per proposal: hashes, counts, check result,
   applied, backup path.
 
+## Handbook
+
+`buildHandbook` (`@reflex/analysis` `handbook.ts`) turns the stored traces into practices, on demand;
+nothing is persisted. Copies, resumes and retries count once (`deduplicate`).
+
+- **Commands.** Per repository (`projectHash`) and per verify action (`run-tests`, `run-build`,
+  `run-lint`), the normalized command that ran without failing in the most sessions becomes a practice
+  once it did so in at least 2. A different command for the same action that only ever failed, in at
+  least 2 sessions, is named as the one not to use. Commands must pass `isSafeExample`.
+- **Rules.** `recurringCorrectionsBySession` over all instances (the same matching as memory). A rule
+  whose sessions are all in one repository belongs to it; otherwise it applies everywhere. A situation
+  (`when`) is attached when a file category is in at least 2/3 of the rule's sessions and at least 2
+  times as common there as in the scope's other sessions (add-one-half smoothing). Rules must pass
+  `isSafeConstraint`; rules forgotten with `reflex memory forget` are left out.
+- **Evidence.** Each practice keeps its session count, the latest session's start, and up to 5 sources
+  (date, tool, redacted first request). Ids are a hash of kind, repository and wording, so they hold
+  across scans.
+- **Ask.** `askHandbook` scores practices by stemmed word overlap with the question, including words
+  for the situation and the command kind, and ranks the current repository's practices above others.
+  No model and no network.
+- **CLI.** `reflex handbook` resolves the repository by walking up from the current folder to a
+  session `cwd` hash (or `--project <name>`). Every subcommand only reads the database. `export`
+  prints Markdown without request text, for sharing. When memory is on, its block tells agents the
+  command exists.
+
 ## Router
 
 `@reflex/analysis` `routing.ts` is shared by the CLI and the TUI.
