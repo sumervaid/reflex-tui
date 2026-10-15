@@ -7,11 +7,11 @@ Reflex finds the workflows you keep re-explaining to Claude Code, Codex and Curs
 A skill is a `SKILL.md` file of reusable instructions; Claude Code, Codex and Cursor pick installed
 skills up when a new session starts.
 
-<!--
-  HERO IMAGE PLACEHOLDER: not recorded yet. Record with `vhs docs/assets/quickstart.tape`
-  (synthetic fixtures only), commit docs/assets/quickstart.gif, then replace this comment with:
-  <img src="https://raw.githubusercontent.com/sumervaid/reflex-tui/main/docs/assets/quickstart.gif" alt="reflex scan, suggest and install on synthetic history" width="800">
--->
+<p align="center">
+  <img src="https://raw.githubusercontent.com/sumervaid/reflex-tui/main/docs/assets/tui-tour.gif" alt="The Reflex terminal UI: dashboard, tokens, skills, workflows, router and search views" width="900">
+</p>
+
+<sub>Recorded on the synthetic test history in <code>packages/test-fixtures</code>, not real sessions.</sub>
 
 ## Install
 
@@ -33,25 +33,30 @@ reflex install <name>     # copy an approved skill into Claude Code, Codex and/o
 of task in at least 3 independent sessions; if a short window finds nothing, try a longer one.
 [docs/demo.md](docs/demo.md) walks through the whole loop on your own history.
 
+<img src="https://raw.githubusercontent.com/sumervaid/reflex-tui/main/docs/assets/quickstart.gif" alt="reflex scan, suggest, approve and install on synthetic history" width="800">
+
 ## What you get
 
 - **Skills from your own repeats.** A workflow is suggested only after it shows up in at least 3
   independent sessions, with the evidence behind it. [How detection works](docs/how-detection-works.md)
 - **A terminal UI.** `reflex` opens seven views over your last scan: sessions, tokens and their cost
   at API list prices, skills to review, workflows, router and search. [docs/tui.md](docs/tui.md)
-
-  <!--
-    TUI SCREENSHOT PLACEHOLDER: not recorded yet. Record with `vhs docs/assets/tui-tour.tape`,
-    then replace this comment with:
-    <img src="https://raw.githubusercontent.com/sumervaid/reflex-tui/main/docs/assets/tui-tour.gif" alt="reflex terminal UI on synthetic history" width="800">
-  -->
-
 - **A model router and bench.** `reflex run` starts Claude Code or Codex on the cheapest model that
   needed fixing about as rarely as the most reliable one for that kind of task; `reflex bench` runs
   one task on several models and scores them with your check command.
   [Routing, improve and impact](docs/routing-and-improve.md)
 - **Memory.** Corrections you gave in at least 2 independent sessions, written as a marked block into
   `~/.claude/CLAUDE.md` and `~/.codex/AGENTS.md` once you run `reflex memory on`.
+
+## Screenshots
+
+| Tokens | Skills |
+| --- | --- |
+| <img src="https://raw.githubusercontent.com/sumervaid/reflex-tui/main/docs/assets/tui-tokens.png" alt="Tokens view: cost, cache savings, cost per tool, model and project" width="440"> | <img src="https://raw.githubusercontent.com/sumervaid/reflex-tui/main/docs/assets/tui-skills.png" alt="Skills view: suggested skills with the SKILL.md preview" width="440"> |
+| **Workflows** | **Router** |
+| <img src="https://raw.githubusercontent.com/sumervaid/reflex-tui/main/docs/assets/tui-workflows.png" alt="Workflows view: steps and evidence behind a repeated workflow" width="440"> | <img src="https://raw.githubusercontent.com/sumervaid/reflex-tui/main/docs/assets/tui-router.png" alt="Router view: cheapest reliable model per kind of task" width="440"> |
+
+Recordings are reproducible: `vhs docs/assets/tui-tour.tape` and `vhs docs/assets/quickstart.tape`.
 
 ## Privacy
 

@@ -5,10 +5,14 @@ Output docs/assets/quickstart.gif
 
 Set Shell bash
 Set FontSize 16
-Set Width 1200
-Set Height 800
-Set TypingSpeed 40ms
-Set Padding 20
+Set Width 1500
+Set Height 860
+Set TypingSpeed 45ms
+Set Padding 24
+Set Margin 24
+Set MarginFill "#5b4bd6"
+Set WindowBar Colorful
+Set BorderRadius 10
 
 Hide
 Type "source docs/assets/demo-env.sh && clear"
@@ -16,18 +20,23 @@ Enter
 Sleep 20s
 Show
 
+Sleep 500ms
 Type "reflex scan --days 30 --yes"
+Sleep 300ms
 Enter
-Sleep 6s
+Sleep 5s
 
-Type "reflex suggest --no-interactive | head -32"
+Type "clear && reflex suggest --no-interactive | head -26"
+Sleep 300ms
 Enter
-Sleep 6s
+Sleep 7s
 
-Type "reflex approve fix-ci --yes --no-install | tail -3"
+Type "clear && reflex approve fix-ci --yes --no-install | sed -n '25,48p'"
+Sleep 300ms
 Enter
-Sleep 3s
+Sleep 7s
 
-Type "reflex install fix-ci --target claude-code --yes"
+Type "clear && reflex install fix-ci --target claude-code --yes"
+Sleep 300ms
 Enter
-Sleep 4s
+Sleep 5s
