@@ -32,6 +32,7 @@
   <a href="#quick-start">Quick start</a> ·
   <a href="#how-it-works">How it works</a> ·
   <a href="#features">Features</a> ·
+  <a href="#terminal-ui">Terminal UI</a> ·
   <a href="#commands">Commands</a> ·
   <a href="#supported-agents">Supported agents</a> ·
   <a href="#faq">FAQ</a> ·
@@ -40,7 +41,7 @@
 
 <img src="https://raw.githubusercontent.com/sumervaid/reflex-tui/docs/readme-revamp/docs/assets/tui-tour.gif" alt="The Reflex terminal UI: dashboard, tokens, skills, workflows, router and search views" width="900">
 
-<sub>Recorded on the synthetic test history in <code>packages/test-fixtures</code>, not real sessions.</sub>
+<sub>The terminal UI, opened with <code>reflex</code>. <a href="#terminal-ui">What each view does</a>. Recorded on the synthetic test history in <code>packages/test-fixtures</code>, not real sessions.</sub>
 
 </div>
 
@@ -118,11 +119,39 @@ Details: [How detection works](docs/how-detection-works.md).
 - **Memory.** Corrections you gave in at least 2 independent sessions, written as a marked block into
   `~/.claude/CLAUDE.md` and `~/.codex/AGENTS.md` once you run `reflex memory on`.
 
-| Tokens | Skills |
-| --- | --- |
-| <img src="https://raw.githubusercontent.com/sumervaid/reflex-tui/docs/readme-revamp/docs/assets/tui-tokens.png" alt="Tokens view: cost, cache savings, cost per tool, model and project" width="440"> | <img src="https://raw.githubusercontent.com/sumervaid/reflex-tui/docs/readme-revamp/docs/assets/tui-skills.png" alt="Skills view: suggested skills with the SKILL.md preview" width="440"> |
-| **Workflows** | **Router** |
-| <img src="https://raw.githubusercontent.com/sumervaid/reflex-tui/docs/readme-revamp/docs/assets/tui-workflows.png" alt="Workflows view: steps and evidence behind a repeated workflow" width="440"> | <img src="https://raw.githubusercontent.com/sumervaid/reflex-tui/docs/readme-revamp/docs/assets/tui-router.png" alt="Router view: cheapest reliable model per kind of task" width="440"> |
+## Terminal UI
+
+Run `reflex` after a scan. You can do the whole loop from here (Skills, Workflows), and also see what your agent usage costs and reopen old sessions. Keys `0`-`6` switch views. More: [docs/tui.md](docs/tui.md).
+
+### Skills: review and install
+
+Suggested skills with the `SKILL.md` they would write. `space` approves one and installs it into every agent Reflex detects, or removes it again. The same loop as `reflex suggest` and `reflex install`, in one keypress.
+
+<img src="https://raw.githubusercontent.com/sumervaid/reflex-tui/docs/readme-revamp/docs/assets/tui-skills.png" alt="Skills view of the Reflex terminal UI" width="900">
+
+### Workflows: the evidence
+
+Every repeated workflow Reflex found: each step with how many sessions had it, corrections you repeated, cost per run, and the sessions themselves.
+
+<img src="https://raw.githubusercontent.com/sumervaid/reflex-tui/docs/readme-revamp/docs/assets/tui-workflows.png" alt="Workflows view of the Reflex terminal UI" width="900">
+
+### Tokens: what your agents cost
+
+Tokens from the last scan and what they would cost at API list prices, per day, tool, model and project, plus how much caching saved and your most expensive sessions.
+
+<img src="https://raw.githubusercontent.com/sumervaid/reflex-tui/docs/readme-revamp/docs/assets/tui-tokens.png" alt="Tokens view of the Reflex terminal UI" width="900">
+
+### Router: which model to use
+
+For each kind of task, the cheapest model that needed fixing about as rarely as the most reliable one. `space` turns autopilot on for `reflex run`.
+
+<img src="https://raw.githubusercontent.com/sumervaid/reflex-tui/docs/readme-revamp/docs/assets/tui-router.png" alt="Router view of the Reflex terminal UI" width="900">
+
+### Search: find and reopen a session
+
+Every scanned session's opening request and steps. Enter reopens it in Claude Code or Codex, or opens a Cursor chat's workspace.
+
+<img src="https://raw.githubusercontent.com/sumervaid/reflex-tui/docs/readme-revamp/docs/assets/tui-search.png" alt="Search view of the Reflex terminal UI" width="900">
 
 ## Commands
 
