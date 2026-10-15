@@ -8,7 +8,7 @@
 <div align="center">
 
 <!-- TEMPLATE: logo. Uncomment once docs/assets/logo.svg exists.
-<img src="https://raw.githubusercontent.com/sumervaid/reflex-tui/main/docs/assets/logo.svg" alt="Reflex logo" width="120">
+<img src="https://raw.githubusercontent.com/sumervaid/reflex-tui/docs/readme-revamp/docs/assets/logo.svg" alt="Reflex logo" width="120">
 -->
 
 <h1>Reflex</h1>
@@ -37,7 +37,7 @@
   <a href="#docs">Docs</a>
 </p>
 
-<img src="https://raw.githubusercontent.com/sumervaid/reflex-tui/main/docs/assets/tui-tour.gif" alt="The Reflex terminal UI: dashboard, tokens, skills, workflows, router and search views" width="900">
+<img src="https://raw.githubusercontent.com/sumervaid/reflex-tui/docs/readme-revamp/docs/assets/tui-tour.gif" alt="The Reflex terminal UI: dashboard, tokens, skills, workflows, router and search views" width="900">
 
 <sub>Recorded on the synthetic test history in <code>packages/test-fixtures</code>, not real sessions.</sub>
 
@@ -77,7 +77,7 @@ reflex install <name>     # copy an approved skill into Claude Code, Codex and/o
 reflex                    # open the terminal UI over the last scan
 ```
 
-<img src="https://raw.githubusercontent.com/sumervaid/reflex-tui/main/docs/assets/quickstart.gif" alt="reflex scan, suggest, approve and install on synthetic history" width="800">
+<img src="https://raw.githubusercontent.com/sumervaid/reflex-tui/docs/readme-revamp/docs/assets/quickstart.gif" alt="reflex scan, suggest, approve and install on synthetic history" width="800">
 
 If a short window finds nothing, try a longer one. [docs/demo.md](docs/demo.md) walks through the
 whole loop on your own history.
@@ -114,9 +114,9 @@ Details: [How detection works](docs/how-detection-works.md).
 
 | Tokens | Skills |
 | --- | --- |
-| <img src="https://raw.githubusercontent.com/sumervaid/reflex-tui/main/docs/assets/tui-tokens.png" alt="Tokens view: cost, cache savings, cost per tool, model and project" width="440"> | <img src="https://raw.githubusercontent.com/sumervaid/reflex-tui/main/docs/assets/tui-skills.png" alt="Skills view: suggested skills with the SKILL.md preview" width="440"> |
+| <img src="https://raw.githubusercontent.com/sumervaid/reflex-tui/docs/readme-revamp/docs/assets/tui-tokens.png" alt="Tokens view: cost, cache savings, cost per tool, model and project" width="440"> | <img src="https://raw.githubusercontent.com/sumervaid/reflex-tui/docs/readme-revamp/docs/assets/tui-skills.png" alt="Skills view: suggested skills with the SKILL.md preview" width="440"> |
 | **Workflows** | **Router** |
-| <img src="https://raw.githubusercontent.com/sumervaid/reflex-tui/main/docs/assets/tui-workflows.png" alt="Workflows view: steps and evidence behind a repeated workflow" width="440"> | <img src="https://raw.githubusercontent.com/sumervaid/reflex-tui/main/docs/assets/tui-router.png" alt="Router view: cheapest reliable model per kind of task" width="440"> |
+| <img src="https://raw.githubusercontent.com/sumervaid/reflex-tui/docs/readme-revamp/docs/assets/tui-workflows.png" alt="Workflows view: steps and evidence behind a repeated workflow" width="440"> | <img src="https://raw.githubusercontent.com/sumervaid/reflex-tui/docs/readme-revamp/docs/assets/tui-router.png" alt="Router view: cheapest reliable model per kind of task" width="440"> |
 
 ## Supported agents
 
