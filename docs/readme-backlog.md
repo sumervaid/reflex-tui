@@ -78,6 +78,27 @@ crush and delta.
   don't work there. Images already use absolute URLs; links could too
   (`https://github.com/sumervaid/reflex-tui/blob/main/docs/...`).
 
+## CLI ideas noticed while writing the Commands table (code not changed)
+
+Suggestions for the team, not bugs:
+
+- `show <n>` shows a suggestion but `show-skill <name>` shows a skill. Two near-identical names for
+  different objects; `reflex skill show <name>` or one `show` that accepts either would be easier to
+  guess.
+- `approve`, `show`, `evidence` and `reject` take a number or a name; `install`, `explain` and
+  `validate` take a name only. Accepting the suggestion number everywhere would let people go
+  `suggest` → `install 1` without looking up the name.
+- `reflex --help` doesn't list the subcommands of `memory`, `route` and `model`
+  (`on`/`off`/`forget`, `autopilot`/`explore`, `fetch`/`use`); you only find them with
+  `reflex memory --help`. One line each in the top-level help would make them discoverable.
+- `validate --run` only does something for skills named `fix-ci` (or `fix-ci-*`). The help text
+  doesn't say so.
+- The `stats` help says "defensible counts from local data"; "defensible" is unusual wording for
+  users.
+- The README's first-time path is scan → suggest (approve) → install. If `suggest`'s approve
+  already offers to install (it does when run interactively), the README quick start could drop the
+  separate `install` line.
+
 ## Recordings
 
 - `docs/assets/tui-tour.gif`, `quickstart.gif` and `tui-*.png` are recorded with VHS

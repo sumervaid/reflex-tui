@@ -32,6 +32,7 @@
   <a href="#quick-start">Quick start</a> ·
   <a href="#how-it-works">How it works</a> ·
   <a href="#features">Features</a> ·
+  <a href="#commands">Commands</a> ·
   <a href="#supported-agents">Supported agents</a> ·
   <a href="#faq">FAQ</a> ·
   <a href="#docs">Docs</a>
@@ -122,6 +123,33 @@ Details: [How detection works](docs/how-detection-works.md).
 | <img src="https://raw.githubusercontent.com/sumervaid/reflex-tui/docs/readme-revamp/docs/assets/tui-tokens.png" alt="Tokens view: cost, cache savings, cost per tool, model and project" width="440"> | <img src="https://raw.githubusercontent.com/sumervaid/reflex-tui/docs/readme-revamp/docs/assets/tui-skills.png" alt="Skills view: suggested skills with the SKILL.md preview" width="440"> |
 | **Workflows** | **Router** |
 | <img src="https://raw.githubusercontent.com/sumervaid/reflex-tui/docs/readme-revamp/docs/assets/tui-workflows.png" alt="Workflows view: steps and evidence behind a repeated workflow" width="440"> | <img src="https://raw.githubusercontent.com/sumervaid/reflex-tui/docs/readme-revamp/docs/assets/tui-router.png" alt="Router view: cheapest reliable model per kind of task" width="440"> |
+
+## Commands
+
+| | Command | What it does |
+| --- | --- | --- |
+| **Find skills** | `reflex doctor` | What Reflex can see: history locations and file counts, install targets. Reads nothing |
+| | `reflex scan --days <n>` | Read your agents' history (asks per source) and store redacted traces |
+| | `reflex suggest` | Review repeated workflows one by one: approve, see evidence, reject |
+| | `reflex show <n>` · `evidence <n>` | One suggestion in detail · the sessions behind it |
+| | `reflex approve <n>` · `reject <n>` | Generate its `SKILL.md` · stop suggesting it |
+| **Install** | `reflex install <name>` | Copy a skill into Claude Code, Codex and/or Cursor. Never overwrites |
+| | `reflex skills` · `show-skill <name>` | Generated skills and where they're installed · print one |
+| | `reflex explain <name>` | Why a skill exists: sessions, repositories, agents, steps |
+| **Explore** | `reflex` | The terminal UI: dashboard, tokens, skills, workflows, router, search |
+| | `reflex sessions` · `agents` · `stats` | Sessions from the last scan · agents they launched · counts |
+| **Measure and improve** | `reflex impact <name>` | Tokens and tool calls per run before vs. after the skill |
+| | `reflex validate <name>` | Check a skill; `--run` proves it in a fresh Claude Code session |
+| | `reflex improve <skill>` | Compare a skill you already have with the sessions that loaded it and propose an edit |
+| **Pick models** | `reflex run "<request>"` | Start Claude Code or Codex on the model the router picks (`--dry-run` shows why) |
+| | `reflex route` | Picks per kind of task, autopilot, exploration and bench results |
+| | `reflex bench "<task>" --check "<cmd>"` | Run one task on several models, scored by your check command |
+| **Memory** | `reflex memory on` · `off` | Tell new sessions the corrections you keep repeating, via `CLAUDE.md` / `AGENTS.md` |
+| **Setup** | `reflex model fetch` | Optional local model for matching requests by meaning (`--light` for 23 MB) |
+| | `reflex reset` | Delete Reflex's own data (not installed skills) |
+
+Prompts default to No; without a terminal nothing is read or written unless you pass `--yes`.
+Every option: [docs/commands.md](docs/commands.md).
 
 ## Supported agents
 
