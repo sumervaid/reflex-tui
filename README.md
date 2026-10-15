@@ -1,277 +1,89 @@
 # Reflex
 
-Reflex finds the workflows you keep re-explaining to Claude Code, Codex and Cursor, and turns the ones
-you have really repeated into reusable skills. It runs entirely on your machine.
+Reflex finds the workflows you keep re-explaining to Claude Code, Codex and Cursor, and turns them into reusable skills. Runs entirely on your machine.
 
-```
-scan history → find repeats across ≥ 3 independent sessions → show evidence
-            → you approve → SKILL.md in ~/.reflex/skills → you install → a fresh agent session uses it
-```
+[![npm](https://img.shields.io/npm/v/reflex-skills)](https://www.npmjs.com/package/reflex-skills)
 
-## Quick start
+A skill is a `SKILL.md` file of reusable instructions; Claude Code, Codex and Cursor pick installed
+skills up when a new session starts.
+
+<!--
+  HERO IMAGE PLACEHOLDER: not recorded yet. Record with `vhs docs/assets/quickstart.tape`
+  (synthetic fixtures only), commit docs/assets/quickstart.gif, then replace this comment with:
+  <img src="https://raw.githubusercontent.com/sumervaid/reflex-tui/main/docs/assets/quickstart.gif" alt="reflex scan, suggest and install on synthetic history" width="800">
+-->
+
+## Install
 
 Requires Node.js 22.13 or newer.
 
 ```sh
 npm install -g reflex-skills   # installs the `reflex` command (the npm name `reflex` is a different package)
-reflex doctor             # what Reflex can see, without reading anything
+```
+
+## Quick start
+
+```sh
 reflex scan --days 30     # read your Claude Code / Codex / Cursor history (asks first)
 reflex suggest            # review suggestions: [a]pprove, [e]vidence, [r]eject
-reflex install <name>     # copy a skill into Claude Code, Codex and/or Cursor (asks per target)
+reflex install <name>     # copy an approved skill into Claude Code, Codex and/or Cursor (asks per target)
 ```
 
-Suggestions need the same kind of task in at least 3 independent sessions. If a week of history
-finds nothing, try a longer window (`--days 30`).
+`reflex doctor` shows what Reflex can see without reading anything. Suggestions need the same kind
+of task in at least 3 independent sessions; if a short window finds nothing, try a longer one.
+[docs/demo.md](docs/demo.md) walks through the whole loop on your own history.
 
-From source (needs pnpm):
+## What you get
 
-```sh
-pnpm install && pnpm build && pnpm test
-alias reflex="node $PWD/apps/cli/dist/reflex.js"
-```
+- **Skills from your own repeats.** A workflow is suggested only after it shows up in at least 3
+  independent sessions, with the evidence behind it. [How detection works](docs/how-detection-works.md)
+- **A terminal UI.** `reflex` opens seven views over your last scan: sessions, tokens and their cost
+  at API list prices, skills to review, workflows, router and search. [docs/tui.md](docs/tui.md)
 
-## Commands
+  <!--
+    TUI SCREENSHOT PLACEHOLDER: not recorded yet. Record with `vhs docs/assets/tui-tour.tape`,
+    then replace this comment with:
+    <img src="https://raw.githubusercontent.com/sumervaid/reflex-tui/main/docs/assets/tui-tour.gif" alt="reflex terminal UI on synthetic history" width="800">
+  -->
 
-| Command | What it does |
-| --- | --- |
-| `doctor` | Node and SQLite check, detected history locations and file counts, install targets, agent CLIs |
-| `scan --days <n>` | Ask per source, then read and store redacted workflow traces. `--source <claude-code\|codex\|cursor>` (repeatable), `--claude-dir`, `--codex-dir`, `--cursor-dir`, `--yes`, `--full` (re-read every file instead of reusing unchanged ones), `--embed-minutes <n>` (most time spent comparing new sessions by meaning; default 5, the rest continue next scan) |
-| `sessions` | Sessions from the last scan, redacted |
-| `suggest` | Detect repeated workflows and review them interactively (`--no-interactive`, `--all`) |
-| `show <n\|name>` | A suggestion in detail: steps, support, uncertainty |
-| `evidence <n\|name>` | The sessions behind a suggestion: redacted request, actions, outcome, source |
-| `approve <n\|name>` | Generate `~/.reflex/skills/<name>/SKILL.md` (at most 150 lines) |
-| `reject <n\|name>` | Stop suggesting it |
-| `skills` | Generated skills and where they are installed |
-| `show-skill <name>` | Print a generated skill |
-| `install <name>` | Install into Claude Code, Codex or Cursor. `--target`, `--as <new-name>`, `--yes`. Never overwrites |
-| `explain <name>` | Why the skill exists: sessions, repositories, agents, steps, installs |
-| `validate <name>` | Static checks and installed-copy comparison. For `fix-ci`, also a fresh-task sandbox (`--run` starts Claude Code) |
-| `impact [name]` | Tokens and tool calls per run before the skill vs. runs that loaded it, plus the skill's own size |
-| `tui` | Full-screen terminal UI over the last scan: sessions, tokens, skills to review. `space` installs or removes a skill. Needs an interactive terminal |
-| `memory` | What new agent sessions remember: corrections you gave in at least 2 independent sessions. `on` writes a marked block into `~/.claude/CLAUDE.md` and `~/.codex/AGENTS.md` (refreshed after every scan), `off` removes it, plus `forget`, `remember` and `add` |
-| `run <request>` | Start Claude Code or Codex on the model the router picks for this kind of task. `--dry-run` shows the pick and why, `--tool`, `--model`, `--yes`. Asks first unless autopilot is on |
-| `route` | The router: picks per kind of task, settings, randomized trials and bench results. `autopilot on\|off`, `explore <percent>\|off [--protect <kind...>]` |
-| `bench <task>` | Run one task on several Claude Code models, each in a fresh copy of the current repository, scored by `--check "<command>"`. `--models`, `--setup`, `--runs`, `--timeout`, `--keep`, `--yes` |
-| `improve [skill]` | For skills you already have: lists them with the sessions that loaded each; with a name, compares the skill with those sessions and proposes an edit (asks before reading the skill and before changing it; keeps a backup). `--file`, `--yes` |
-| `agents` | Sessions that launched agents (Cursor): how many, which kinds, and how many tool calls the agents made |
-| `stats` | Counts from local data |
-| `reset` | Delete Reflex's own data (not installed skills or the model) |
-| `model [status\|fetch\|use\|remove]` | Optional local embedding model for matching requests by meaning. `fetch` downloads bge-m3 (multilingual, 587 MB); `fetch --light` the English-only all-MiniLM-L6-v2 (23 MB); `use <name>` switches between installed ones |
+- **A model router and bench.** `reflex run` starts Claude Code or Codex on the cheapest model that
+  needed fixing about as rarely as the most reliable one for that kind of task; `reflex bench` runs
+  one task on several models and scores them with your check command.
+  [Routing, improve and impact](docs/routing-and-improve.md)
+- **Memory.** Corrections you gave in at least 2 independent sessions, written as a marked block into
+  `~/.claude/CLAUDE.md` and `~/.codex/AGENTS.md` once you run `reflex memory on`.
 
-Prompts default to No. Without a terminal, nothing is read or written unless you pass `--yes`.
+## Privacy
 
-## Terminal UI
-
-```sh
-reflex scan --days 7   # the UI shows what the last scan read, so scan first
-reflex                 # or `reflex tui`
-```
-
-`reflex` on its own (or `reflex tui`) opens a full-screen view of Reflex's local data in seven
-views: Dashboard, Morning, Tokens, Skills, Workflows, Router and Search (keys `0`-`6`). It shows
-sessions per tool, tokens from the last scan and what they would cost at API list prices (per day,
-tool, model and project, the most expensive sessions, what caching saved), generated skills plus
-suggestions waiting for review, every repeated workflow with the evidence behind it, router
-suggestions (which model was cheapest and about as reliable, per kind of task), and a search over
-each session's opening request and steps. Enter reopens a Claude Code or Codex session, or opens a
-Cursor chat's workspace in Cursor. Cursor records no tokens, so its sessions have no cost; if you
-allow it, Reflex reads which model each Cursor chat used and Tokens counts Cursor sessions per
-model. Usage
-limits are not recorded, so that block says `not measured yet`. Run `reflex scan` again (or press
-`r`) after upgrading: costs need the model of each session, which older scans did not store.
-
-In Skills, `space` on a new suggestion approves it and installs it into every detected agent;
-`space` on an installed skill removes the copies Reflex wrote, unless you edited them. `r`
-repeats the last scan with the same window and sources. `q` quits. Details: [docs/tui.md](docs/tui.md).
-
-## How detection works
-
-Each session becomes a trace: what was asked (intent terms), what was done (ordered actions such
-as inspect CI, install dependencies, patch, run tests, inspect the diff), normalized commands,
-file categories and outcome. Copies, resumed sessions and quick retries count once. Traces are
-compared on intent (0.40), action sequence (0.30), commands and tools (0.15), file categories
-(0.10) and repository (0.05), then clustered. Intent compares the requests' words (stemmed terms,
-phrases and a small concept lexicon) in any language: Japanese, Chinese and Thai are split into
-words, Korean particles are stripped (배포를 → 배포), filler words are dropped (published lists plus
-everyday fillers, `casual-stopwords.ts`) and words your own history uses across unrelated kinds of
-work are quieted, more so as the history grows; with the optional model (`reflex model fetch`) it also compares
-their meaning, so "make the login page load faster", "the sign-in screen is really slow" and
-"로그인 화면이 너무 느려" match. A cluster becomes a suggestion only if it has at
-least 3 independent sessions with consistent behavior; one-offs, read-and-answer sessions and
-generic "read, edit, test" patterns are not suggested.
-
-The skill contains only steps seen in at least half the sessions, in the order they usually
-happened, with example commands that recurred and passed a safety filter. Corrections you gave in
-follow-up messages ("don't change the CI workflow") become constraints when the same correction
-appears in at least 2 sessions; only the words those sessions share are kept. No transcript excerpts.
-Details: [docs/architecture.md](docs/architecture.md).
-
-## Matching by meaning: which model
-
-Matching by words always runs. A local embedding model adds matching by meaning; it is optional and
-runs on your machine (WebAssembly, no native code, no network after the download).
-
-| | `reflex model fetch` (default) | `reflex model fetch --light` |
-| --- | --- | --- |
-| Model | bge-m3, int8 | all-MiniLM-L6-v2, int8 |
-| Reads | 100+ languages, and requests that mix them | English (Latin script); other text is matched by words only |
-| Download | 587 MB | 23 MB |
-| Memory while embedding | about 2.8 GB | about 0.6 GB |
-| Time per session, 1 / 4 threads | about 2.9 s / 0.8 s | about 0.09 s / 0.03 s |
-
-Measured on Apple silicon with real-length requests; older CPUs can be up to about 3x slower. The
-`Embedding benchmark` workflow (`.github/workflows/embedding-bench.yml`; on pull requests that change embedding or matching code, by hand, and weekly)
-measures load time, time per request and peak memory for both models on Linux (x64 and ARM),
-Windows and macOS (Intel and Apple silicon), and checks matching quality is the same everywhere;
-locally: `REFLEX_PERF=bge-m3 REFLEX_TEST_MODELS=~/.reflex/models pnpm vitest run packages/analysis/test/eval/perf.test.ts`. On
-English requests MiniLM matches at least as well as bge-m3, so English-only users lose nothing with
-`--light`. Embedding uses up to 4 cores (`REFLEX_EMBED_THREADS` to change). Before downloading,
-`model fetch` estimates the first scan's time from your stored sessions and recommends `--light`
-on machines with under 8 GB of memory or fewer than 4 cores. Each scan spends at most
-`--embed-minutes` (default 5) embedding, newest sessions first, and the next scan continues; a
-machine without memory for the model skips it with a warning. Vectors are cached per model, so
-`reflex model use <name>` switches without re-embedding what either model already did.
-
-## Skills you already have
-
-If most sessions of a repeated workflow already loaded skills you wrote, Reflex does not suggest a
-new skill for it; `reflex scan` says which of your skills handle it instead. Only skills specific to
-that workflow count (loaded at least twice as often there as in your other sessions), so general
-guidance you load everywhere never hides a suggestion. Skill folders that are symlinks into a
-skills repo are followed: Reflex reads and edits the real `SKILL.md`, so changes show up in that
-repo's `git status`. `--dry-run` shows the review, the proposal and the check without writing.
-
-`reflex improve <skill>` compares one of your skills with the sessions that loaded it (at least 2).
-The rule is that a skill keeps producing the same thing; improving it means getting there faster
-or cheaper.
-
-- **What it never touches.** Your text is never edited: Reflex only appends a marked "Learned from
-  your sessions" section (replaced on the next run, never duplicated). Sections whose heading names
-  the output (`Output format`, `Response`, `Template`, `Report`, …) and anything between
-  `<!-- reflex:fixed:start -->` and `<!-- reflex:fixed:end -->` are treated as the output contract:
-  the appended section says to keep them exactly, and nothing proposed may write a summary or
-  correct the format.
-- **Proposed by default: faster.** Commands that worked in those sessions for steps your skill
-  already names, so the agent doesn't work them out again.
-- **Shown, not written: cheaper.** If a cheaper model was about as reliable on those sessions,
-  `reflex improve` says so; `reflex run` uses it. The skill file isn't changed for that.
-- **Opt-in with `--behavior`: changes what the agent does.** Steps most sessions took that the
-  skill doesn't mention, and corrections you repeated. Steps the skill names that rarely happened
-  are reported; Reflex never removes a step.
-- **Checked before it's applied.** `--verify "<a task this skill handles>"` runs that task with the
-  current and the proposed skill, each in a fresh copy of the current repository (non-persistent
-  Claude Code sessions on your account), and compares the shape of the two answers: headings,
-  tables, lists, labels, JSON keys. Values such as times and names may differ; the format may not.
-  If it changed, the edit is not applied (`--force` overrides). Answers are compared in memory and
-  never saved.
-- **Recorded.** Every proposal is attached to the skill in Reflex's database: fingerprints before
-  and after, what was proposed, the check result, whether you applied it and where the backup is.
-  `reflex improve <skill> --history` lists them. Your file changes only if you confirm; the previous
-  version goes to `~/.reflex/backups`.
-
-A session counts as using a skill when the agent called it (Claude Code's `Skill` tool) or read
-its `SKILL.md`.
-
-## Measuring a skill
-
-Each suggestion shows what the workflow costs today: median tokens and tool calls per run. When you
-approve it, Reflex keeps that as the baseline. After you've used the skill, run `reflex scan` and
-`reflex impact <name>`. Reflex finds the sessions that loaded the skill (a `Skill` call, or the agent
-reading its `SKILL.md`) and compares their medians with the baseline. It reports a change only when
-both sides have at least 3 runs, and never predicts savings in advance.
-
-- Tokens are whole-session totals as Claude Code and Codex record them, cache reads included, so
-  other work in the same session counts too.
-- Cursor doesn't record tokens. Cursor runs count tool calls only.
-- The skill's own cost is shown as an estimate from its file size (4 characters per token).
-
-## Routing tasks to models
-
-The router groups your priced Claude Code and Codex sessions by kind of task (review, CI, debugging,
-features and tests, edits, research, questions) and compares the models you used on each: average
-cost at API list prices and how often the session needed fixing (your corrections, failed tool calls
-and repeated commands, per request). The pick is the cheapest model with at least 3 sessions that
-needed fixing about as rarely as the most reliable one; with less evidence the kind is LEARNING.
-
-```bash
-reflex run --dry-run "the CI job is failing on main, fix it"   # the pick and why
-reflex run "the CI job is failing on main, fix it"             # starts claude/codex on it (asks first)
-reflex route                                                   # picks, trials, bench results
-```
-
-`reflex run` decides before any work happens: your most similar past sessions vote on the kind of
-task (by meaning too, with the optional model), then it starts the agent with `--model`. One model
-per session, so prompt caching is unaffected. Nothing sits between you and the agent. Your request
-goes to the agent as typed and is never stored; Reflex keeps the kind, tool, model and time of the
-run so a later scan can find the session it started. Next to the pick it shows what a session on
-that model usually costs you. When the agent exits it asks one optional question, "Did it get the
-job done?" (Enter skips, `--no-ask` turns it off); the answer is stored with the run and is the
-strongest evidence the trials have.
-
-Past sessions alone can't say whether a cheaper model would have done as well, because you choose
-models by how hard the task looks. Two ways to get fair evidence:
-
-- **Exploration** (`reflex route explore 10`, off by default): on about 10% of runs, chosen at
-  random, `reflex run` tries the model you have used least on that kind of task among the ones you
-  already use with that tool. `reflex route` compares explored and picked runs from the same coin
-  flips. `--protect review ci` keeps kinds of task out of it.
-- **Bench** (`reflex bench "<task>" --models sonnet opus --check "pnpm test" --setup "pnpm install"`):
-  the same task on each model, each in a fresh clone of the current repository's last commit,
-  scored by your check command. Non-persistent Claude Code sessions with project settings only, so
-  bench runs never show up in your history. Each run uses your Claude account; before you confirm,
-  bench estimates the cost from your average session on each model.
-
-Cursor isn't routed: it records no tokens to compare, and its editor takes no model from outside.
-
-## Privacy and security
-
-- Transcripts are read locally and treated as data, never as instructions.
-- Reflex makes no network connections; outgoing sockets are blocked in-process. The one exception is
-  `reflex model fetch`, which you run explicitly to download an optional embedding model (pinned
-  files, streamed to disk and verified by SHA-256). It reads no transcripts and uploads nothing;
-  scans stay offline.
+- Transcripts are read locally; scans make no network connections. The only command that uses the
+  network is `reflex model fetch`, which you run yourself to download an optional model.
 - Secrets, emails, home paths and your user name are redacted before anything is stored or shown.
-- Scans are incremental: a transcript that has not changed since the last scan is not opened again.
-  Redacted traces are kept after their transcript is deleted (by you, or by the agent's own cleanup),
-  so history can reach further back than the agent keeps it. `reflex reset` deletes them.
-- It reads only known agent history folders (or ones you pass), after asking.
-- Nothing is written outside `~/.reflex` until you install: per target with `reflex install`, or into every
-  detected agent with `space` in `reflex tui`. Installs never overwrite; removals delete only unchanged copies Reflex wrote.
+- Nothing is written outside `~/.reflex` until you install a skill. Details: [docs/security.md](docs/security.md)
 
-Threat model and mitigations: [docs/security.md](docs/security.md).
+## Docs
 
-## Sources and targets
+- [Commands](docs/commands.md): every command and option
+- [How detection works](docs/how-detection-works.md)
+- [Routing, improve and impact](docs/routing-and-improve.md)
+- [Sources and targets](docs/sources.md): history locations, Conductor, environment variables
+- [Embedding models](docs/embedding-models.md): optional matching by meaning
+- [Terminal UI](docs/tui.md) · [Security](docs/security.md) · [Architecture](docs/architecture.md)
 
-| | Reads history from | Installs skills to | Status |
-| --- | --- | --- | --- |
-| Claude Code | `~/.claude/projects/*/*.jsonl` | `~/.claude/skills/<name>/SKILL.md` | Parser tested on fixtures matching real files; skill use verified with `validate --run` |
-| Codex | `$CODEX_HOME/sessions/YYYY/MM/DD/rollout-*.jsonl` | `~/.codex/skills/<name>/SKILL.md` | Parser follows the Codex protocol types and is tested on fixtures; not yet run against real rollouts or a live Codex session |
-| Cursor | `~/.cursor/projects/*/agent-transcripts/*/*.jsonl` | `~/.cursor/skills/<name>/SKILL.md` | Parser tested on fixtures and on real agent transcripts. Cursor doesn't record tool results, so pass/fail outcomes aren't available for its sessions |
+## Status and limitations
 
-**Agents a session launched.** When a Cursor chat launches agents (its `Task` / `Subagent` tool),
-Reflex records each one (kind, model, background or not, its short description) and reads the
-agents' transcripts (`<chat>/subagents/*.jsonl`). Their commands, files and tool calls count toward
-the chat's workflow; the message each agent was given is written by the parent agent, so it is
-never treated as your request. `reflex agents` lists the chats that launched the most, and
-`reflex sessions` notes the count. Claude Code's agents are not read yet.
+- Codex: the parser follows the Codex protocol types and is tested on fixtures; it has not yet been
+  run against real rollouts or a live Codex session.
+- Cursor doesn't record tool results or tokens, so its sessions have no pass/fail outcome or cost and
+  aren't routed.
+- Confidence is a ranking heuristic, not a probability. Without the optional model, requests worded
+  with no words in common don't match. More in [how detection works](docs/how-detection-works.md#limitations).
+- Sponsor integrations (Alike, Darwin) are not included: no public API documentation was available
+  to build against, and the product works without them.
 
-**Conductor.** Conductor runs its own Claude Code and Codex, which save sessions to `~/.claude` and
-`~/.codex` like any other session, so Reflex reads them with those sources. A session whose folder is
-a Conductor workspace (`~/conductor/workspaces/<repo>/<workspace>`) counts toward `<repo>`, not
-toward each workspace, and `reflex sessions` marks it "via Conductor". `reflex doctor` shows whether
-the workspace folder exists. Cursor and OpenCode sessions run through Conductor are not read yet.
-
-Override locations with `REFLEX_CLAUDE_DIR`, `REFLEX_CODEX_DIR`, `REFLEX_CURSOR_DIR`, `REFLEX_CONDUCTOR_DIR`,
-`REFLEX_CLAUDE_SKILLS_DIR`, `REFLEX_CODEX_SKILLS_DIR`, `REFLEX_CURSOR_SKILLS_DIR` and `REFLEX_HOME`. `REFLEX_EMBED_THREADS` sets the embedding threads. `REFLEX_DEBUG=1` prints local counters (counts only).
-
-## Walkthrough
-
-[docs/demo.md](docs/demo.md) walks through the loop on your own history.
-
-## Development
+## Contributing
 
 ```sh
+pnpm install
 pnpm build       # bundles the CLI to apps/cli/dist/reflex.js
 pnpm test        # vitest across all packages
 pnpm typecheck
@@ -282,18 +94,9 @@ The monorepo uses pnpm workspaces and Turborepo with strict TypeScript, Zod for 
 and built-in `node:sqlite` for storage, so there are no native dependencies. The optional embedding
 model runs on onnxruntime-web's WebAssembly backend for the same reason. Packages live in
 `packages/*`; the CLI in `apps/cli`. `packages/test-fixtures` holds synthetic transcripts used only
-by the tests; it is not part of the published CLI.
+by the tests; it is not part of the published CLI. Internals: [docs/architecture.md](docs/architecture.md).
 
-## Limitations
+## License
 
-- Confidence is a ranking heuristic, not a probability.
-- Without the model, intent matching uses stemmed TF-IDF plus a small built-in lexicon (English).
-  Requests worded with no words in common, or asked in different languages, need
-  `reflex model fetch` to match.
-- Embedding models do not know developer jargon as well as the lexicon ("GitHub Actions is red" vs.
-  "CI is failing"), so they are combined with word matching, never used alone. With the light
-  model, requests in other scripts (Korean, Japanese, ...) are matched by words only. Clusters
-  found only by meaning may get a generic name.
-- Each source reads at most its 2,000 most recent files per scan.
-- Sponsor integrations (Alike, Darwin) are not included: no public API documentation was available
-  to build against, and the product works without them.
+<!-- LICENSE PLACEHOLDER: the repository has no LICENSE file yet. -->
+No license file yet.
