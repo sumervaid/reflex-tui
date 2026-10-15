@@ -135,6 +135,9 @@ Every repeated workflow Reflex found: each step with how many sessions had it, c
 
 <img src="https://raw.githubusercontent.com/sumervaid/reflex-tui/docs/readme-revamp/docs/assets/tui-workflows.png" alt="Workflows view of the Reflex terminal UI" width="900">
 
+<details>
+<summary><b>More views: Tokens, Router, Search</b></summary>
+
 ### Tokens: what your agents cost
 
 Tokens from the last scan and what they would cost at API list prices, per day, tool, model and project, plus how much caching saved and your most expensive sessions.
@@ -152,6 +155,8 @@ For each kind of task, the cheapest model that needed fixing about as rarely as 
 Every scanned session's opening request and steps. Enter reopens it in Claude Code or Codex, or opens a Cursor chat's workspace.
 
 <img src="https://raw.githubusercontent.com/sumervaid/reflex-tui/docs/readme-revamp/docs/assets/tui-search.png" alt="Search view of the Reflex terminal UI" width="900">
+
+</details>
 
 ## Commands
 
