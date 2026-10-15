@@ -84,6 +84,11 @@ whole loop on your own history.
 
 ## How it works
 
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/sumervaid/reflex-tui/docs/readme-revamp/docs/assets/how-it-works-dark.svg">
+  <img src="https://raw.githubusercontent.com/sumervaid/reflex-tui/docs/readme-revamp/docs/assets/how-it-works-light.svg" alt="Agent history from Claude Code, Codex and Cursor is scanned into redacted traces in ~/.reflex; tasks repeated in at least 3 sessions are detected, reviewed and approved by you, and installed into each agent's skills folder. The terminal UI, router and memory use the same local data." width="900">
+</picture>
+
 1. **Scan.** Reflex asks per source, then reads your agents' history locally. Secrets, emails, home
    paths and your user name are redacted before anything is stored.
 2. **Detect.** Each session becomes a trace of what was asked and what was done. Traces that match

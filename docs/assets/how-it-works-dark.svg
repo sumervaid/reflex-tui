@@ -1,0 +1,106 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 420" width="960" height="420" role="img" aria-labelledby="title desc">
+  <title id="title">How Reflex works</title>
+  <desc id="desc">Reflex reads Claude Code, Codex and Cursor history, scans it into redacted traces stored in ~/.reflex, detects tasks repeated in at least 3 independent sessions, lets you review and approve each one, and installs the approved SKILL.md into the agents' skill folders. The terminal UI, model router and memory use the same local data.</desc>
+  <style>
+    :root { --fg:#e6edf3; --muted:#9198a1; --box:#161b22; --line:#3d444d; --accent:#3fb950; --step:#0d1117; }
+    text { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif; fill: var(--fg); }
+    .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+    .muted { fill: var(--muted); }
+    .h { font-size: 13px; font-weight: 600; fill: var(--muted); letter-spacing: .04em; }
+    .title { font-size: 15px; font-weight: 600; }
+    .num { font-size: 15px; font-weight: 700; fill: var(--accent); }
+    .small { font-size: 12px; }
+    .box { fill: var(--box); stroke: var(--line); stroke-width: 1; }
+    .step { fill: var(--step); stroke: var(--accent); stroke-width: 1.5; }
+    .frame { fill: none; stroke: var(--line); stroke-width: 1.5; stroke-dasharray: 6 5; }
+    .wire { fill: none; stroke: var(--muted); stroke-width: 1.5; }
+    .dash { fill: none; stroke: var(--muted); stroke-width: 1.2; stroke-dasharray: 3 3; }
+    .head { fill: var(--muted); }
+  </style>
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path class="head" d="M0,0 L10,5 L0,10 z"/>
+    </marker>
+  </defs>
+
+  <rect class="frame" x="10" y="10" width="940" height="400" rx="12"/>
+  <text class="small muted" x="28" y="34">Runs on your machine · scans make no network connections</text>
+
+  <!-- Agent history -->
+  <text class="h" x="30" y="66">AGENT HISTORY</text>
+  <rect class="box" x="30" y="76" width="172" height="48" rx="8"/>
+  <text class="title" x="44" y="96">Claude Code</text>
+  <text class="small muted mono" x="44" y="114">~/.claude/projects</text>
+  <rect class="box" x="30" y="136" width="172" height="48" rx="8"/>
+  <text class="title" x="44" y="156">Codex</text>
+  <text class="small muted mono" x="44" y="174">~/.codex/sessions</text>
+  <rect class="box" x="30" y="196" width="172" height="48" rx="8"/>
+  <text class="title" x="44" y="216">Cursor</text>
+  <text class="small muted mono" x="44" y="234">~/.cursor/projects</text>
+
+  <path class="wire" d="M202,100 C220,100 220,160 236,160" marker-end="url(#arrow)"/>
+  <path class="wire" d="M202,160 L236,160" marker-end="url(#arrow)"/>
+  <path class="wire" d="M202,220 C220,220 220,160 236,160" marker-end="url(#arrow)"/>
+
+  <!-- Steps -->
+  <rect class="step" x="240" y="112" width="118" height="96" rx="8"/>
+  <text class="num" x="254" y="138">1</text><text class="title" x="270" y="138">Scan</text>
+  <text class="small muted" x="254" y="162">asks per source,</text>
+  <text class="small muted" x="254" y="180">redacts secrets</text>
+
+  <path class="wire" d="M358,160 L374,160" marker-end="url(#arrow)"/>
+
+  <rect class="step" x="378" y="112" width="118" height="96" rx="8"/>
+  <text class="num" x="392" y="138">2</text><text class="title" x="408" y="138">Detect</text>
+  <text class="small muted" x="392" y="162">same task in</text>
+  <text class="small muted" x="392" y="180">≥ 3 sessions</text>
+
+  <path class="wire" d="M496,160 L512,160" marker-end="url(#arrow)"/>
+
+  <rect class="step" x="516" y="112" width="118" height="96" rx="8"/>
+  <text class="num" x="530" y="138">3</text><text class="title" x="546" y="138">Review</text>
+  <text class="small muted" x="530" y="162">see the evidence,</text>
+  <text class="small muted" x="530" y="180">you approve</text>
+
+  <path class="wire" d="M634,160 L650,160" marker-end="url(#arrow)"/>
+
+  <rect class="step" x="654" y="112" width="118" height="96" rx="8"/>
+  <text class="num" x="668" y="138">4</text><text class="title" x="684" y="138">Install</text>
+  <text class="small muted" x="668" y="162">per agent, never</text>
+  <text class="small muted" x="668" y="180">overwrites</text>
+
+  <!-- Installed skills -->
+  <path class="wire" d="M772,160 C786,160 786,100 800,100" marker-end="url(#arrow)"/>
+  <path class="wire" d="M772,160 L800,160" marker-end="url(#arrow)"/>
+  <path class="wire" d="M772,160 C786,160 786,220 800,220" marker-end="url(#arrow)"/>
+
+  <text class="h" x="804" y="66">SKILLS</text>
+  <rect class="box" x="804" y="76" width="138" height="48" rx="8"/>
+  <text class="small mono" x="816" y="105">~/.claude/skills</text>
+  <rect class="box" x="804" y="136" width="138" height="48" rx="8"/>
+  <text class="small mono" x="816" y="165">~/.codex/skills</text>
+  <rect class="box" x="804" y="196" width="138" height="48" rx="8"/>
+  <text class="small mono" x="816" y="225">~/.cursor/skills</text>
+  <text class="small muted" x="804" y="266">loaded by the next</text>
+  <text class="small muted" x="804" y="284">agent session</text>
+
+  <!-- Local store -->
+  <path class="dash" d="M299,208 L299,256" marker-end="url(#arrow)"/>
+  <path class="dash" d="M437,256 L437,212" marker-end="url(#arrow)"/>
+  <path class="dash" d="M575,208 L575,256" marker-end="url(#arrow)"/>
+  <path class="dash" d="M713,256 L713,212" marker-end="url(#arrow)"/>
+
+  <rect class="box" x="240" y="260" width="532" height="44" rx="8"/>
+  <text class="small" x="256" y="287"><tspan class="mono" font-weight="600">~/.reflex</tspan><tspan class="muted">   redacted traces (SQLite) · generated SKILL.md files</tspan></text>
+
+  <!-- Same data -->
+  <path class="dash" d="M506,304 L506,334"/>
+  <text class="small muted" x="30" y="360">Also built on the</text>
+  <text class="small muted" x="30" y="378">same local data</text>
+  <rect class="box" x="240" y="338" width="164" height="44" rx="22"/>
+  <text class="small" x="322" y="365" text-anchor="middle"><tspan font-weight="600">Terminal UI</tspan><tspan class="muted mono">  reflex</tspan></text>
+  <rect class="box" x="424" y="338" width="164" height="44" rx="22"/>
+  <text class="small" x="506" y="365" text-anchor="middle"><tspan font-weight="600">Router</tspan><tspan class="muted mono">  reflex run</tspan></text>
+  <rect class="box" x="608" y="338" width="164" height="44" rx="22"/>
+  <text class="small" x="690" y="365" text-anchor="middle"><tspan font-weight="600">Memory</tspan><tspan class="muted mono">  reflex memory</tspan></text>
+</svg>

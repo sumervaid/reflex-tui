@@ -9,10 +9,7 @@ Set Width 1500
 Set Height 860
 Set TypingSpeed 45ms
 Set Padding 24
-Set Margin 24
-Set MarginFill "#5b4bd6"
 Set WindowBar Colorful
-Set BorderRadius 10
 
 Hide
 Type "source docs/assets/demo-env.sh && clear"

@@ -9,10 +9,7 @@ Set FontSize 14
 Set Width 1400
 Set Height 860
 Set Padding 16
-Set Margin 24
-Set MarginFill "#5b4bd6"
 Set WindowBar Colorful
-Set BorderRadius 10
 
 Hide
 Type "source docs/assets/demo-env.sh && reflex scan --days 30 --yes > /dev/null && clear"

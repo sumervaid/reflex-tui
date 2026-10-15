@@ -6,7 +6,7 @@ README revamp on 2026-10-15. Nothing here is decided; tick or delete items as th
 ## Before merging
 
 - [ ] **Revert the temporary preview commit** (`TEMP: point README images at this branch`) so README
-  images point at `main` again: `git revert <that commit>`, or replace `reflex-tui/docs/readme-revamp/docs/assets`
+  images point at `main` again. Don't `git revert` it (images added later also use the branch URL); replace `reflex-tui/docs/readme-revamp/docs/assets`
   with `reflex-tui/main/docs/assets` in `README.md`.
 
 ## Decisions for the team
@@ -84,5 +84,7 @@ crush and delta.
   (`brew install vhs`) on the synthetic fixtures in a temp HOME, never real sessions:
   `vhs docs/assets/tui-tour.tape` and `vhs docs/assets/quickstart.tape` from the repo root after
   `pnpm build`. Re-record after visible TUI changes.
-- Possible later: a light-theme version, or a different background color than `#5b4bd6`.
+- No background around the recordings (the owner didn't like the purple margin). Possible later: a light-theme version.
+- `how-it-works-light.svg` / `-dark.svg` are hand-written SVGs; the README picks one with `<picture>` by
+  GitHub theme (npm shows the light one). Edit both when the flow changes.
 - The README images point at `main`, so they only show on GitHub after this branch is merged.
