@@ -108,7 +108,7 @@ and discuss these separately.
   already offers to install (it does when run interactively), the README quick start could drop the
   separate `install` line.
 
-## Team update sent
+## Team update
 
 A paste-ready FYI for the team was drafted on 2026-10-15: what changed, the four decisions above,
 the before-merging step, and the problems spotted. Update this file rather than re-sending the
