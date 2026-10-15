@@ -3,6 +3,12 @@
 Things that would make the README (and the repo's first impression) better, collected during the
 README revamp on 2026-10-15. Nothing here is decided; tick or delete items as the team settles them.
 
+## Before merging
+
+- [ ] **Revert the temporary preview commit** (`TEMP: point README images at this branch`) so README
+  images point at `main` again: `git revert <that commit>`, or replace `reflex-tui/docs/readme-revamp/docs/assets`
+  with `reflex-tui/main/docs/assets` in `README.md`.
+
 ## Decisions for the team
 
 - [ ] **License.** The repo has no LICENSE file. Popular repos all have one, and some people and
