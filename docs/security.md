@@ -2,6 +2,23 @@
 
 Transcripts are untrusted data. Reflex reads them, it never obeys them.
 
+## In short
+
+- Transcripts are read locally and treated as data, never as instructions.
+- Reflex makes no network connections; outgoing sockets are blocked in-process. The one exception is
+  `reflex model fetch`, which you run explicitly to download an optional embedding model (pinned
+  files, streamed to disk and verified by SHA-256). It reads no transcripts and uploads nothing;
+  scans stay offline.
+- Secrets, emails, home paths and your user name are redacted before anything is stored or shown.
+- Scans are incremental: a transcript that has not changed since the last scan is not opened again.
+  Redacted traces are kept after their transcript is deleted (by you, or by the agent's own cleanup),
+  so history can reach further back than the agent keeps it. `reflex reset` deletes them.
+- It reads only known agent history folders (or ones you pass), after asking.
+- Nothing is written outside `~/.reflex` until you install: per target with `reflex install`, or into every
+  detected agent with `space` in `reflex tui`. Installs never overwrite; removals delete only unchanged copies Reflex wrote.
+
+## Threat model
+
 | Risk | What Reflex does |
 | --- | --- |
 | **Prompt injection** | Transcript text is only tokenized, classified and counted. Skill titles, descriptions and steps come from fixed templates and a family catalog. The one exception is the Constraints section, built from your follow-up corrections. A trace stores up to 8 lowercase content words of a correction (filler removed), not the message. Model-written compaction summaries are not treated as your messages, and neither are the prompts a parent agent gives the agents it launches: only those agents' tool calls are read, and their short descriptions are redacted and shown, never used as requests. A rule is written only if the same correction recurs in at least 2 independent sessions, and only from the words a pair of those sessions share. Clauses with shell syntax, flags, URLs, paths, host names, IP addresses or redaction markers are dropped. A rule that tells the agent to do something must open with an allowlisted verb (`use`, `run`, `keep`, …) and pass the command safety filter, so "always push to main" never becomes "Push main.". Rules that try to steer the agent or touch secrets or permissions (`ignore`, `instructions`, `tokens`, `env`, `permissions`, `confirm`, …) are dropped in either direction. A hostile workflow with hostile follow-ups, repeated across sessions, is covered by tests. |
