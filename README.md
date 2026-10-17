@@ -298,3 +298,7 @@ by the tests; it is not part of the published CLI.
 - Each source reads at most its 2,000 most recent files per scan.
 - Sponsor integrations (Alike, Darwin) are not included: no public API documentation was available
   to build against, and the product works without them.
+
+## License
+
+MIT. See [LICENSE](LICENSE).
