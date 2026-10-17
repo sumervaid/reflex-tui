@@ -359,4 +359,4 @@ peak plus 3 GB embeds nothing new and says so.
 | `REFLEX_CLAUDE_SKILLS_DIR`, `REFLEX_CODEX_SKILLS_DIR`, `REFLEX_CURSOR_SKILLS_DIR` | Install targets |
 | `REFLEX_EMBED_THREADS` | WebAssembly threads for embedding (default: cores, up to 4) |
 | `REFLEX_DEBUG=1` | Local counters on stderr (counts only, never content) |
-| `REFLEX_REDACT_USER` | Extra user name to redact |
+| `REFLEX_REDACT_USER` | User name to redact instead of the login name |

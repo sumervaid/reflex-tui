@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { excerpt, findLeaks, redact, redactPath, redactWithReport } from "../src/redact";
 import { assertInside, displayPath, isValidSlug, toSlug } from "../src/paths";
 import { homedir } from "node:os";
@@ -87,6 +87,44 @@ describe("redact", () => {
     expect(e).not.toContain("abc ");
     expect(e.length).toBeLessThanOrEqual(80);
     expect(e).not.toContain("\n");
+  });
+});
+
+describe("the current user", () => {
+  // The rules are built when the module loads, so each case loads it again with that user name.
+  async function redactAs(name: string) {
+    vi.stubEnv("REFLEX_REDACT_USER", name);
+    vi.resetModules();
+    return import("../src/redact");
+  }
+
+  afterEach(() => {
+    vi.unstubAllEnvs();
+    vi.resetModules();
+  });
+
+  it("redacts a distinctive login name anywhere", async () => {
+    const { redact, redactPath } = await redactAs("nihar");
+    expect(redact("ask Nihar to review /srv/nihar/app")).toBe("ask <user> to review /srv/<user>/app");
+    expect(redactPath("/srv/nihar/app")).toBe("/srv/<user>/app");
+  });
+
+  it("leaves everyday words alone when the login name is one of them", async () => {
+    for (const name of ["root", "test", "build", "will", "admin", "dev"]) {
+      const { redact } = await redactAs(name);
+      const text = `Apply the smallest focused change that addresses the root cause. It will build, then run the test as admin in dev.`;
+      expect(redact(text)).toBe(text);
+    }
+  });
+
+  it("still redacts the home folder, wherever it is", async () => {
+    for (const home of ["/root", "/var/lib/jenkins"]) {
+      vi.stubEnv("HOME", home);
+      const { redact, redactPath } = await redactAs(home === "/root" ? "root" : "jenkins");
+      expect(redact(`cat ${home}/.zshrc`)).toBe("cat ~/.zshrc");
+      expect(redactPath(`${home}/.claude/skills`)).toBe("~/.claude/skills");
+      expect(redact(`ls ${home}fs/bin ${home}.bak`)).toBe(`ls ${home}fs/bin ${home}.bak`);
+    }
   });
 });
 
