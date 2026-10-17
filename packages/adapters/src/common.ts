@@ -2,7 +2,7 @@ import { lstat, readdir } from "node:fs/promises";
 import { basename, join } from "node:path";
 import type { NormalizedSession, SessionEvent, SourceId, TokenUsage, TranscriptFile } from "@reflex/core";
 import { shortHash } from "@reflex/core";
-import { displayPath, redact } from "@reflex/safety";
+import { displayPath, redactTruncated } from "@reflex/safety";
 
 export const MAX_EVENTS_PER_SESSION = 3000;
 export const MAX_REQUESTS_PER_SESSION = 40;
@@ -11,10 +11,10 @@ const MAX_COMMAND_CHARS = 600;
 const MAX_ASSISTANT_CHARS = 400;
 
 export const clean = {
-  request: (text: string) => redact(text.slice(0, MAX_REQUEST_CHARS)).trim(),
-  command: (text: string) => redact(text.slice(0, MAX_COMMAND_CHARS)).trim(),
-  assistant: (text: string) => redact(text.slice(0, MAX_ASSISTANT_CHARS)).trim(),
-  path: (text: string) => redact(text.slice(0, 400)),
+  request: (text: string) => redactTruncated(text, MAX_REQUEST_CHARS).trim(),
+  command: (text: string) => redactTruncated(text, MAX_COMMAND_CHARS).trim(),
+  assistant: (text: string) => redactTruncated(text, MAX_ASSISTANT_CHARS).trim(),
+  path: (text: string) => redactTruncated(text, 400),
 };
 
 /** Text injected by the harness rather than typed by the developer. */

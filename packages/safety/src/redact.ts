@@ -182,6 +182,14 @@ export function redactPath(input: string): string {
   return text;
 }
 
+/** Text past a length limit that is redacted too, so a secret crossing the limit is still seen whole. */
+const REDACT_MARGIN = 1024;
+
+/** Redact, then cut to `max` characters. Cutting first could leave a piece of a secret too short to match. */
+export function redactTruncated(input: string, max: number): string {
+  return redact(input.slice(0, max + REDACT_MARGIN)).slice(0, max);
+}
+
 /** Redact, collapse whitespace and truncate for display. */
 export function excerpt(input: string, maxLength = 160): string {
   const flat = redact(input).replace(/\s+/g, " ").trim();
