@@ -20,6 +20,7 @@ import { memoryAdd, memoryForget, memoryOff, memoryOn, memoryRemember, memorySta
 import { modelFetch, modelRemove, modelStatusCommand, modelUse } from "./commands/model";
 import { impact } from "./commands/impact";
 import { improve } from "./commands/improve";
+import { type HandbookOptions, handbook, handbookAsk, handbookExport, handbookShow } from "./commands/handbook";
 import { bench, routeAutopilot, routeExplore, routeStatus, runRouted } from "./commands/route";
 import { tui } from "./commands/tui";
 
@@ -71,6 +72,31 @@ program
 
 program.command("sessions").description("list sessions from the last scan (redacted)").action(run(sessions));
 program.command("agents").description("sessions that launched agents (Cursor), what kinds, and how much work the agents did").action(run(agents));
+
+const handbookCmd = program
+  .command("handbook")
+  .description("how work is done in this repository, learned from past sessions (read-only, safe for agents)")
+  .option("--project <name>", "a repository by name instead of the current folder")
+  .option("--all", "every repository")
+  .option("--json", "machine-readable output")
+  .action(run(async (o: HandbookOptions) => handbook(o)));
+handbookCmd
+  .command("show <id>")
+  .description("one practice and the sessions behind it")
+  .option("--json", "machine-readable output")
+  .action(run(async (id: string, _o: HandbookOptions, cmd: Command) => handbookShow(id, cmd.optsWithGlobals())));
+handbookCmd
+  .command("ask <question...>")
+  .description("practices that answer a question, with their sources")
+  .option("--project <name>", "a repository by name instead of the current folder")
+  .option("--json", "machine-readable output")
+  .action(run(async (q: string[], _o: HandbookOptions, cmd: Command) => handbookAsk(q, cmd.optsWithGlobals())));
+handbookCmd
+  .command("export")
+  .description("a Markdown handbook for a teammate or new hire (no request text)")
+  .option("--project <name>", "a repository by name instead of the current folder")
+  .option("--all", "every repository")
+  .action(run(async (_o: HandbookOptions, cmd: Command) => handbookExport(cmd.optsWithGlobals())));
 
 program
   .command("suggest")
