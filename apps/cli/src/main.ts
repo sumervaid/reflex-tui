@@ -1,9 +1,8 @@
 import { installNetworkGuard, quietSqliteWarning } from "./guard";
 quietSqliteWarning();
-// `reflex model fetch` downloads the optional embedding model and is the only command allowed to
-// use the network; it never reads transcripts. Every other command runs with sockets blocked.
-const fetchingModel = process.argv[2] === "model" && process.argv[3] === "fetch";
-if (!fetchingModel) installNetworkGuard();
+// Every command runs with the network blocked. `reflex model fetch` lets the download through to
+// Hugging Face only, while it downloads; it never reads transcripts.
+installNetworkGuard();
 process.stdout.on("error", (err: NodeJS.ErrnoException) => {
   if (err.code === "EPIPE") process.exit(0);
   throw err;
