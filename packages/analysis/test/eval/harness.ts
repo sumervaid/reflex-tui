@@ -81,8 +81,8 @@ export function evaluate(data: EvalData, opts: AnalyzeOptions = {}): EvalResult 
   for (let i = 0; i < candidates.length; i++)
     for (let j = i + 1; j < candidates.length; j++) {
       const k = labels[i] === labels[j] ? "same" : "diff";
-      intent[k].push(m.intent[i]![j]!);
-      total[k].push(m.total[i]![j]!);
+      intent[k].push(m.intent.get(i, j));
+      total[k].push(m.total.get(i, j));
     }
 
   const clusters = clusterTraces(candidates, CLUSTER_THRESHOLD, opts.vectors).map((c) => c.members);

@@ -14,25 +14,37 @@ export const WEIGHTS = {
 } as const;
 
 export function jaccard<T>(a: Iterable<T>, b: Iterable<T>): number {
-  const A = new Set(a);
-  const B = new Set(b);
+  return setJaccard(new Set(a), new Set(b));
+}
+
+function setJaccard<T>(A: ReadonlySet<T>, B: ReadonlySet<T>): number {
   if (!A.size && !B.size) return 0;
   let inter = 0;
   for (const x of A) if (B.has(x)) inter++;
   return inter / (A.size + B.size - inter);
 }
 
+/** Two rows of the LCS table, reused across calls: clustering compares every pair of sessions. */
+let lcsRows = new Int32Array(0);
+
 export function lcsLength<T>(a: T[], b: T[]): number {
   if (!a.length || !b.length) return 0;
-  let prev = new Array<number>(b.length + 1).fill(0);
+  const width = b.length + 1;
+  if (lcsRows.length < 2 * width) lcsRows = new Int32Array(2 * width);
+  const rows = lcsRows;
+  let prev = 0;
+  let cur = width;
+  rows.fill(0, prev, prev + width);
   for (let i = 1; i <= a.length; i++) {
-    const cur = new Array<number>(b.length + 1).fill(0);
+    rows[cur] = 0;
     for (let j = 1; j <= b.length; j++) {
-      cur[j] = a[i - 1] === b[j - 1] ? prev[j - 1]! + 1 : Math.max(prev[j]!, cur[j - 1]!);
+      rows[cur + j] = a[i - 1] === b[j - 1] ? rows[prev + j - 1]! + 1 : Math.max(rows[prev + j]!, rows[cur + j - 1]!);
     }
+    const done = prev;
     prev = cur;
+    cur = done;
   }
-  return prev[b.length]!;
+  return rows[prev + b.length]!;
 }
 
 /** Coarse behavior classes, so "patched config" and "patched code" still count as the same step shape. */
@@ -60,18 +72,32 @@ function collapse(seq: string[]): string[] {
   return seq.filter((s, i) => i === 0 || seq[i - 1] !== s);
 }
 
-function sequenceAgreement(x: string[], y: string[]): number {
-  if (!x.length || !y.length) return 0;
-  const lcs = (2 * lcsLength(x, y)) / (x.length + y.length);
-  return 0.5 * lcs + 0.5 * jaccard(x, y);
+/** A sequence and its set of steps. */
+type Steps = { seq: string[]; set: Set<string> };
+
+/** An action sequence as actionSimilarity compares it, at fine and coarse granularity. */
+type ActionShape = { fine: Steps; coarse: Steps };
+
+const steps = (seq: string[]): Steps => ({ seq, set: new Set(seq) });
+
+function actionShape(sequence: string[]): ActionShape {
+  const fine = sequence.filter((s) => s !== "summarize");
+  return { fine: steps(fine), coarse: steps(collapse(fine.map((v) => COARSE[v] ?? v))) };
+}
+
+function sequenceAgreement(x: Steps, y: Steps): number {
+  if (!x.seq.length || !y.seq.length) return 0;
+  const lcs = (2 * lcsLength(x.seq, y.seq)) / (x.seq.length + y.seq.length);
+  return 0.5 * lcs + 0.5 * setJaccard(x.set, y.set);
+}
+
+function shapeSimilarity(a: ActionShape, b: ActionShape): number {
+  return 0.5 * sequenceAgreement(a.fine, b.fine) + 0.5 * sequenceAgreement(a.coarse, b.coarse);
 }
 
 /** Order-aware (LCS) and order-free (set overlap) agreement, at fine and coarse granularity. */
 export function actionSimilarity(a: string[], b: string[]): number {
-  const x = a.filter((s) => s !== "summarize");
-  const y = b.filter((s) => s !== "summarize");
-  const coarse = (s: string[]) => collapse(s.map((v) => COARSE[v] ?? v));
-  return 0.5 * sequenceAgreement(x, y) + 0.5 * sequenceAgreement(coarse(x), coarse(y));
+  return shapeSimilarity(actionShape(a), actionShape(b));
 }
 
 export type SimilarityParts = {
@@ -94,18 +120,25 @@ export function opKeys(t: WorkflowTrace): Set<string> {
   return keys;
 }
 
+/** What `similarity` compares in one trace, worked out once instead of for every pair. */
+export type TraceFeatures = { actions: ActionShape; keys: Set<string>; files: Set<string> };
+
+export function traceFeatures(t: WorkflowTrace): TraceFeatures {
+  return { actions: actionShape(t.actionSequence), keys: opKeys(t), files: new Set(t.fileCategories) };
+}
+
 export function similarity(
   a: WorkflowTrace,
   b: WorkflowTrace,
   intentScore: number,
-  keysA: Set<string> = opKeys(a),
-  keysB: Set<string> = opKeys(b),
+  fa: TraceFeatures = traceFeatures(a),
+  fb: TraceFeatures = traceFeatures(b),
 ): SimilarityParts {
   const parts = {
     intent: intentScore,
-    actions: actionSimilarity(a.actionSequence, b.actionSequence),
-    commands: jaccard(keysA, keysB),
-    files: jaccard(a.fileCategories, b.fileCategories),
+    actions: shapeSimilarity(fa.actions, fb.actions),
+    commands: setJaccard(fa.keys, fb.keys),
+    files: setJaccard(fa.files, fb.files),
     repository: a.projectHash && a.projectHash === b.projectHash ? 1 : 0,
   };
   const total =
