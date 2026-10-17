@@ -3,6 +3,7 @@
   "version": "0.5.0",
   "type": "module",
   "description": "Turn repeated Claude Code and Codex workflows into reusable skills, locally.",
+  "license": "MIT",
   "keywords": [
     "claude-code",
     "codex",
@@ -27,7 +28,7 @@
   "scripts": {
     "build": "tsup",
     "typecheck": "tsc -p tsconfig.json",
-    "prepack": "cp ../../README.md ./README.md && pnpm build"
+    "prepack": "cp ../../README.md ../../LICENSE ./ && pnpm build"
   },
   "devDependencies": {
     "@clack/prompts": "^0.11.0",
