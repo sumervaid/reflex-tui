@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { excerpt, findLeaks, redact, redactPath, redactWithReport } from "../src/redact";
+import { excerpt, findLeaks, redact, redactPath, redactTruncated, redactWithReport } from "../src/redact";
 import { assertInside, displayPath, isValidSlug, toSlug } from "../src/paths";
 import { homedir } from "node:os";
 
@@ -87,6 +87,28 @@ describe("redact", () => {
     expect(e).not.toContain("abc ");
     expect(e.length).toBeLessThanOrEqual(80);
     expect(e).not.toContain("\n");
+  });
+});
+
+describe("redactTruncated", () => {
+  const token = "Ab1" + "x9Yz".repeat(15);
+  const key = "sk-ant-api03-" + "Q7wErTyUiOpAsDfG".repeat(3);
+
+  it("redacts a secret that crosses the limit before cutting", () => {
+    for (const secret of [token, key]) {
+      for (const keep of [5, 14, 38]) {
+        const text = "a ".repeat(500) + secret;
+        const max = text.length - secret.length + keep;
+        const out = redactTruncated(text, max);
+        expect(out.length).toBeLessThanOrEqual(max);
+        expect(out).not.toContain(secret.slice(0, keep));
+      }
+    }
+  });
+
+  it("keeps text under the limit as redact would", () => {
+    expect(redactTruncated("run pnpm test", 2000)).toBe("run pnpm test");
+    expect(redactTruncated("x".repeat(3000), 10)).toBe("x".repeat(10));
   });
 });
 

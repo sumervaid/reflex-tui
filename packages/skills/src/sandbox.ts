@@ -2,7 +2,7 @@ import { spawn, spawnSync } from "node:child_process";
 import { mkdir, writeFile } from "node:fs/promises";
 import { realpathSync } from "node:fs";
 import { join, sep } from "node:path";
-import { assertSlug, displayPath, ensureDir, redact, writeNewFile } from "@reflex/safety";
+import { assertSlug, displayPath, ensureDir, redactTruncated, writeNewFile } from "@reflex/safety";
 
 /**
  * A brand-new repository with a realistic CI failure that none of the historical sessions saw:
@@ -172,12 +172,12 @@ export function runClaudeInSandbox(sandbox: Sandbox, skillName: string, timeoutM
       } catch {
         return;
       }
-      if (msg.type === "result" && typeof msg.result === "string") run.finalMessage = redact(msg.result.slice(0, 2000));
+      if (msg.type === "result" && typeof msg.result === "string") run.finalMessage = redactTruncated(msg.result, 2000);
       if (msg.type !== "assistant" || !Array.isArray(msg.message?.content)) return;
       for (const block of msg.message.content as Array<{ type?: string; name?: string; input?: Record<string, unknown> }>) {
         if (block.type !== "tool_use") continue;
         if (block.name === "Skill" && String(block.input?.skill ?? "").replace(/^.*:/, "") === skillName) run.skillUsed = true;
-        if (block.name === "Bash" && typeof block.input?.command === "string") run.commands.push(redact(block.input.command.slice(0, 200)));
+        if (block.name === "Bash" && typeof block.input?.command === "string") run.commands.push(redactTruncated(block.input.command, 200));
         if ((block.name === "Edit" || block.name === "Write") && typeof block.input?.file_path === "string")
           run.editedFiles.push(sandboxRelative(block.input.file_path));
       }
