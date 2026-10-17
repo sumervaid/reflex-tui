@@ -10,6 +10,8 @@ on:
       - "packages/embeddings/**"
       - "packages/analysis/src/**"
       - "apps/cli/src/embeddings.ts"
+      - "apps/cli/src/guard.ts"
+      - "apps/cli/src/commands/model.ts"
       - ".github/workflows/embedding-bench.yml"
   workflow_dispatch:
   schedule:

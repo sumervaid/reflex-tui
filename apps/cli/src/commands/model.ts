@@ -24,6 +24,7 @@ import { duration } from "./scan";
 import { displayPath } from "@reflex/safety";
 import { paths } from "@reflex/storage";
 import { c, confirm, ok, out, rows, spinner, title, warn } from "../ui";
+import { MODEL_HOSTS, allowHosts } from "../guard";
 
 const mb = (bytes: number) => `${(bytes / 1_000_000).toFixed(0)} MB`;
 const gb = (megabytes: number) => (megabytes >= 1000 ? `${(megabytes / 1000).toFixed(1)} GB` : `${megabytes} MB`);
@@ -89,7 +90,7 @@ export async function modelStatusCommand(): Promise<void> {
 
 /**
  * The one command that uses the network: it downloads pinned, checksum-verified model files.
- * main.ts leaves the network guard off for this command only. No transcript data is involved.
+ * The network guard lets it reach Hugging Face only, during the download. No transcript data is involved.
  */
 export async function modelFetch(opts: { yes?: boolean; light?: boolean; model?: string }): Promise<void> {
   const model = chosen(opts);
@@ -124,6 +125,7 @@ export async function modelFetch(opts: { yes?: boolean; light?: boolean; model?:
   const total = modelBytes(model);
   let done = 0;
   let last = 0;
+  const closeNetwork = allowHosts(MODEL_HOSTS);
   try {
     await fetchModel(
       paths.models(),
@@ -142,6 +144,8 @@ export async function modelFetch(opts: { yes?: boolean; light?: boolean; model?:
   } catch (err) {
     spin.stop("Download failed");
     throw err;
+  } finally {
+    closeNetwork();
   }
   await setActiveModel(paths.models(), model);
   spin.stop("Downloaded and verified");
