@@ -54,7 +54,7 @@ function chooseAdapters(opts: ScanOptions): { adapters: TranscriptAdapter[]; mod
     if (opts.cursorDir) adapters.push(new CursorAdapter(opts.cursorDir));
     return { adapters: only(adapters), mode: "custom" };
   }
-  return { adapters: only([new ClaudeCodeAdapter(), new CodexAdapter(), new CursorAdapter()]), mode: "local" };
+  return { adapters: only([new ClaudeCodeAdapter(), new CodexAdapter(), new CursorAdapter(undefined, undefined, { usageLog: paths.cursorUsage() })]), mode: "local" };
 }
 
 export async function scan(opts: ScanOptions): Promise<void> {

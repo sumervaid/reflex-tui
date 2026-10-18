@@ -7,6 +7,7 @@ export { ClaudeCodeAdapter } from "./claude";
 export { CodexAdapter } from "./codex";
 export { CursorAdapter, decodeWorkspace } from "./cursor";
 export { CursorModelIndex, defaultCursorStateDb } from "./cursor-models";
+export { CursorUsageLog } from "./cursor-usage";
 export { readJsonl } from "./jsonl";
 export { conductorWorkspace } from "./common";
 

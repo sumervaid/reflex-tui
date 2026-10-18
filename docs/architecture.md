@@ -80,6 +80,16 @@ Token usage, where recorded, is attached to the session as `{input, output, cach
   falling back to `composerData:<chat id>` (`modelConfig.modelName`). The transcript id is the chat
   id. Names land in `trace.models`, most used first, unpriced. Cached traces scanned before consent
   are re-read once.
+- Cursor, with `reflex cursor-usage on`: Cursor gives hooks the turn's counts (`input_tokens`
+  including cache reads and writes, `output_tokens`, `cache_read_tokens`, `cache_write_tokens`;
+  cumulative per `generation_id`, repeated by `stop` and `afterAgentResponse`). Reflex's hook
+  (`~/.reflex/hooks/cursor-usage.mjs`, run by absolute Node path) appends one line per event with
+  ids, model (`model_id`, else `model`) and counts to `~/.reflex/cursor-usage.jsonl`.
+  `CursorUsageLog` keeps one turn per generation (a `stop` record wins), subtracts the cache figures
+  from `input`, and sums per conversation and model. The adapter joins the chat id and each agent
+  transcript id (agents are conversations of their own) and sets `usage` / `usageByModel`, so
+  pricing and the router treat those chats like any other. A chat's file identity folds in the
+  number of recorded turns and the latest one, so new turns re-read a cached chat.
 
 ## From sessions to suggestions
 
@@ -292,8 +302,9 @@ every load (at start, after a rescan and after each toggle).
 | `router` | Priced sessions by kind of task and main model: average cost and corrections, failed tool calls and repeated commands per request. `autopilot` is the router setting `reflex run` reads |
 | `limits`, `plansFile` | Not recorded, so absent |
 
-Sessions found twice (the same session id in two places) count once in token sums. Cursor records
-no tokens, so a day or window with only Cursor sessions has no token value. More in
+Sessions found twice (the same session id in two places) count once in token sums. Cursor saves
+no tokens in its transcripts, so a day or window with only Cursor sessions has no token value unless
+Reflex's Cursor hook recorded them. More in
 [tui.md](tui.md).
 
 ## Storage

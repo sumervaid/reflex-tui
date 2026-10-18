@@ -7,6 +7,7 @@ import type { DetectionResult, DiscoveryOptions, ParseResult, SessionEvent, Spaw
 import { debug } from "@reflex/core";
 import { displayPath, excerpt } from "@reflex/safety";
 import { CursorModelIndex, defaultCursorStateDb } from "./cursor-models";
+import { CursorUsageLog } from "./cursor-usage";
 import { readJsonl } from "./jsonl";
 
 // eslint-disable-next-line no-control-regex -- stripping control characters is the point
@@ -115,11 +116,19 @@ export class CursorAdapter implements TranscriptAdapter {
   /** Cursor's app database, for model names. Undefined for a custom transcript folder, which reads only that folder. */
   readonly stateDb?: string;
   private models?: CursorModelIndex;
+  /** Token counts recorded by Reflex's Cursor hook, when it was turned on. */
+  private usage?: CursorUsageLog;
 
-  constructor(root?: string, stateDb?: string) {
+  constructor(root?: string, stateDb?: string, opts: { usageLog?: string } = {}) {
     this.root = root ?? process.env.REFLEX_CURSOR_DIR ?? join(homedir(), ".cursor", "projects");
     const custom = root ?? process.env.REFLEX_CURSOR_DIR;
     this.stateDb = stateDb ?? process.env.REFLEX_CURSOR_STATE_DB ?? (custom ? undefined : defaultCursorStateDb());
+    if (opts.usageLog) this.usage = new CursorUsageLog(opts.usageLog);
+  }
+
+  /** The chat's own conversation id plus each launched agent's (their transcripts are named by conversation id). */
+  private async conversationIds(chatFile: string): Promise<string[]> {
+    return [basename(chatFile, ".jsonl"), ...(await agentTranscripts(chatFile)).map((p) => basename(p, ".jsonl"))];
   }
 
   /** Whether the user allowed reading model names from Cursor's app database in this scan. */
@@ -184,6 +193,12 @@ export class CursorAdapter implements TranscriptAdapter {
           f.identity.ctimeMs = Math.max(f.identity.ctimeMs, agent.identity.ctimeMs);
         }
       }
+      // Turns recorded since the last scan change the chat too: its usage is read with it.
+      if (this.usage) {
+        const sig = this.usage.signature(await this.conversationIds(f.path));
+        f.sizeBytes += sig.turns;
+        if (f.identity && sig.latest) f.identity.ctimeMs = Math.max(f.identity.ctimeMs, sig.latest);
+      }
       if (f.modifiedAt >= cutoff) out.push(f);
     }
     return out;
@@ -234,6 +249,11 @@ export class CursorAdapter implements TranscriptAdapter {
     if (delegated.length) b.events.splice(firstSpawn ?? b.events.length, 0, ...delegated.slice(0, Math.max(0, MAX_EVENTS_PER_SESSION - b.events.length)));
 
     b.touch(file.modifiedAt.toISOString());
+    const recorded = this.usage?.usageFor(await this.conversationIds(file.path));
+    if (recorded) {
+      b.usage = recorded.usage;
+      if (Object.keys(recorded.byModel).length) b.usageByModel = recorded.byModel;
+    }
     const session = b.build();
     if (spawned.length || transcripts) session.agents = { spawned, transcripts };
     if (this.models) session.models = this.models.modelsFor(b.nativeId);

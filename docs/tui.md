@@ -95,7 +95,8 @@ heading and `not measured yet`; a missing value inside a block shows `—`.
 | Search | yes | stored traces: `excerpt` and `displaySteps`, each session once. Raw transcripts are not stored, so later prompts and replies are not searchable |
 | Resume | Claude Code, Codex, Cursor (workspace) | native session id from the trace; Claude's folder from the `cwd` in the first 256 KB of its transcript (no symlinks); a Cursor chat's workspace from the folder its transcript sits in |
 
-Cursor records no tokens, so a day with only Cursor sessions has no token value.
+Cursor saves no tokens in its transcripts, so a day with only Cursor sessions has no token value
+unless `reflex cursor-usage` recorded them.
 
 ## Design sources
 
