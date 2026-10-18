@@ -86,9 +86,13 @@ Token usage, where recorded, is attached to the session as `{input, output, cach
   (`~/.reflex/hooks/cursor-usage.mjs`, run by absolute Node path) appends one line per event with
   ids, model (`model_id`, else `model`) and counts to `~/.reflex/cursor-usage.jsonl`.
   `CursorUsageLog` keeps one turn per generation (a `stop` record wins), subtracts the cache figures
-  from `input`, and sums per conversation and model. The adapter joins the chat id and each agent
-  transcript id (agents are conversations of their own) and sets `usage` / `usageByModel`, so
-  pricing and the router treat those chats like any other. A chat's file identity folds in the
+  from `input`, and sums per conversation and model. Cursor's names for Claude models
+  (`claude-4.5-sonnet-thinking`, `sonnet-5.5`) are recorded under Anthropic's (`claude-sonnet-4-5`)
+  when that has a price; Cursor's own models (Composer, Grok) have no list price and stay unpriced.
+  The adapter joins on the chat id only and sets `usage` / `usageByModel`, so pricing and the router
+  treat those chats like any other. Agents a chat launched may report turns of their own; whether
+  the chat's totals already include them isn't known yet, so they are left out rather than possibly
+  counted twice. Not available on Windows yet: the hook command is quoted for a POSIX shell. A chat's file identity folds in the
   number of recorded turns and the latest one, so new turns re-read a cached chat.
 
 ## From sessions to suggestions

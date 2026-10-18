@@ -126,9 +126,13 @@ export class CursorAdapter implements TranscriptAdapter {
     if (opts.usageLog) this.usage = new CursorUsageLog(opts.usageLog);
   }
 
-  /** The chat's own conversation id plus each launched agent's (their transcripts are named by conversation id). */
-  private async conversationIds(chatFile: string): Promise<string[]> {
-    return [basename(chatFile, ".jsonl"), ...(await agentTranscripts(chatFile)).map((p) => basename(p, ".jsonl"))];
+  /**
+   * The conversation ids whose recorded turns belong to this chat: the chat's own. Agents it
+   * launched may report their own turns too, and whether the chat's totals already include them
+   * is not known yet, so they are left out rather than possibly counted twice.
+   */
+  private conversationIds(chatFile: string): string[] {
+    return [basename(chatFile, ".jsonl")];
   }
 
   /** Whether the user allowed reading model names from Cursor's app database in this scan. */
@@ -195,7 +199,7 @@ export class CursorAdapter implements TranscriptAdapter {
       }
       // Turns recorded since the last scan change the chat too: its usage is read with it.
       if (this.usage) {
-        const sig = this.usage.signature(await this.conversationIds(f.path));
+        const sig = this.usage.signature(this.conversationIds(f.path));
         f.sizeBytes += sig.turns;
         if (f.identity && sig.latest) f.identity.ctimeMs = Math.max(f.identity.ctimeMs, sig.latest);
       }
@@ -249,7 +253,7 @@ export class CursorAdapter implements TranscriptAdapter {
     if (delegated.length) b.events.splice(firstSpawn ?? b.events.length, 0, ...delegated.slice(0, Math.max(0, MAX_EVENTS_PER_SESSION - b.events.length)));
 
     b.touch(file.modifiedAt.toISOString());
-    const recorded = this.usage?.usageFor(await this.conversationIds(file.path));
+    const recorded = this.usage?.usageFor(this.conversationIds(file.path));
     if (recorded) {
       b.usage = recorded.usage;
       if (Object.keys(recorded.byModel).length) b.usageByModel = recorded.byModel;

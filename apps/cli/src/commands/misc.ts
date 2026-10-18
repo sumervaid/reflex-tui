@@ -10,7 +10,7 @@ import { Store, paths } from "@reflex/storage";
 import { detectTargets, removeMemory } from "@reflex/skills";
 import { activeModel } from "@reflex/embeddings";
 import { latestAnalysis } from "../analysis";
-import { cursorHooksFile, removeHook } from "../cursor-hook";
+import { cursorHooksFile, hookStatus, removeHook } from "../cursor-hook";
 import { c, confirm, ok, out, plural, rows, shortDate, title, warn } from "../ui";
 
 /** Conductor's default workspace folder (`~/conductor/workspaces`); `REFLEX_CONDUCTOR_DIR` overrides it. */
@@ -62,6 +62,10 @@ export async function doctor(): Promise<void> {
     const found = spawnSync(launch.command, launch.args, { stdio: "ignore", windowsVerbatimArguments: launch.windowsVerbatimArguments }).status === 0;
     out(`  ${found ? c.green("✔") : c.dim("·")} ${bin}`);
   }
+  out();
+  const hook = await hookStatus();
+  out("Cursor token usage");
+  out(`  ${hook.events.length ? c.green("✔") : c.dim("·")} ${"Cursor hook".padEnd(12)} ${hook.events.length ? `recording (${hook.events.join(", ")})` : c.dim("off · reflex cursor-usage on")}`);
   out();
 }
 

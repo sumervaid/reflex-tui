@@ -257,8 +257,8 @@ Threat model and mitigations: [docs/security.md](docs/security.md).
 adds one hook (`stop`, with `afterAgentResponse` as fallback) that appends the chat and turn ids, the
 model and the four token counts to `~/.reflex/cursor-usage.jsonl`; never the prompt or the answer, no
 network. The chat id is the transcript's file name, so `reflex scan` attaches those counts to each
-Cursor chat, agents' turns included, and prices them like other sessions. Only turns from while the
-hook is on are counted; Cursor's command-line agent in `-p` mode sends no end-of-turn hook.
+Cursor chat and prices them like other sessions. Only turns from while the hook is on are counted;
+Cursor's command-line agent in `-p` mode sends no end-of-turn hook. Not available on Windows yet.
 
 **Agents a session launched.** When a Cursor chat launches agents (its `Task` / `Subagent` tool),
 Reflex records each one (kind, model, background or not, its short description) and reads the

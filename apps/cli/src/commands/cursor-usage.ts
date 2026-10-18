@@ -1,7 +1,7 @@
 import { readFile } from "node:fs/promises";
 import { displayPath, pathExists } from "@reflex/safety";
 import { Store, paths } from "@reflex/storage";
-import { HOOK_EVENTS, cursorHooksFile, hookCommand, hookScript, hookStatus, installHook, removeHook } from "../cursor-hook";
+import { HOOK_EVENTS, assertHookSupported, cursorHooksFile, hookCommand, hookScript, hookStatus, installHook, removeHook } from "../cursor-hook";
 import { c, confirm, ok, out, plural, rows, title, warn } from "../ui";
 
 /** What the hook has recorded so far: turns, conversations, the latest time. Counts only. */
@@ -58,6 +58,7 @@ export async function cursorUsageStatus(): Promise<void> {
 
 /** `reflex cursor-usage on`: add the hook to Cursor's hooks file, after asking. */
 export async function cursorUsageOn(opts: { yes?: boolean }): Promise<void> {
+  assertHookSupported();
   const file = cursorHooksFile();
   title("Record Cursor token usage");
   out("  Cursor sends each agent turn's token counts to its hooks. Reflex adds one hook that writes only the chat and turn");

@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { cursorUsageOff, cursorUsageOn, cursorUsageStatus } from "../src/commands/cursor-usage";
-import { hookCommand, hookScript, installHook, stableNode } from "../src/cursor-hook";
+import { assertHookSupported, hookCommand, hookScript, installHook, removeHook, stableNode } from "../src/cursor-hook";
 
 let root: string;
 let hooksFile: string;
@@ -111,6 +111,30 @@ describe("reflex cursor-usage", () => {
     await symlink(join(cellar, "node"), join(bin, "node"));
     expect(stableNode(join(cellar, "node"), `${join(root, "nowhere")}:${bin}`)).toBe(join(bin, "node"));
     expect(stableNode(join(cellar, "node"), join(root, "nowhere"))).toBe(join(cellar, "node"));
+  });
+
+  it("refuses an event entry that isn't a list instead of replacing it", async () => {
+    const odd = join(root, "odd-hooks.json");
+    const content = JSON.stringify({ version: 1, hooks: { stop: { command: "./mine.sh" } } });
+    await writeFile(odd, content);
+    await expect(installHook(odd)).rejects.toThrow(/"stop" that isn't a list/);
+    await expect(removeHook(odd)).rejects.toThrow(/"stop" that isn't a list/);
+    expect(await readFile(odd, "utf8")).toBe(content);
+  });
+
+  it("removes only its own entry, not another tool's script with the same name", async () => {
+    const other = join(root, "other-hooks.json");
+    const theirs = { command: "'/usr/bin/node' '/opt/othertool/cursor-usage.mjs'" };
+    await writeFile(other, JSON.stringify({ version: 1, hooks: { stop: [theirs] } }));
+    await installHook(other);
+    expect((await readJson(other)).hooks.stop).toHaveLength(2);
+    await removeHook(other);
+    expect((await readJson(other)).hooks.stop).toEqual([theirs]);
+  });
+
+  it("isn't installed on Windows, where its command line isn't verified yet", () => {
+    expect(() => assertHookSupported("win32")).toThrow(/isn't available on Windows yet/);
+    expect(() => assertHookSupported("darwin")).not.toThrow();
   });
 
   it("creates the hooks file when Cursor has none", async () => {

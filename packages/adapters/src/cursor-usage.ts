@@ -1,6 +1,6 @@
-import { readFileSync, statSync } from "node:fs";
+import { closeSync, fstatSync, openSync, readSync } from "node:fs";
 import type { TokenUsage } from "@reflex/core";
-import { addUsage } from "@reflex/core";
+import { addUsage, priceOf } from "@reflex/core";
 
 /** Larger logs are read from their last bytes only: recent turns are what scans need. */
 const MAX_LOG_BYTES = 64 * 1024 * 1024;
@@ -8,6 +8,38 @@ const ID = /^[A-Za-z0-9-]{1,80}$/;
 const MODEL = /^[A-Za-z0-9][A-Za-z0-9._:/-]{0,79}$/;
 
 type Turn = { event: string; at: number; model?: string; usage: TokenUsage };
+
+const CLAUDE = /^(?:claude-)?(?:(\d+(?:[.-]\d+)?)-(opus|sonnet|haiku|fable|mythos)|(opus|sonnet|haiku|fable|mythos)-(\d+(?:[.-]\d+)?))(?:-.*)?$/;
+
+/**
+ * Cursor names Claude models its own way ("claude-4.5-sonnet-thinking", "sonnet-5.5") where the
+ * price table uses Anthropic's ("claude-sonnet-4-5"). The Anthropic form is used when it has a
+ * price; any other name is kept as recorded (Cursor's own models have no list price).
+ */
+export function cursorModelName(id: string): string {
+  const m = id.toLowerCase().match(CLAUDE);
+  if (!m) return id;
+  const name = `claude-${m[2] ?? m[3]}-${(m[1] ?? m[4])!.replace(".", "-")}`;
+  return priceOf(name) ? name : id;
+}
+
+/** The last `max` bytes of a file, from the start of a line. Empty when it can't be read. */
+function tail(path: string, max: number): string {
+  let fd: number | undefined;
+  try {
+    fd = openSync(path, "r");
+    const size = fstatSync(fd).size;
+    const start = Math.max(0, size - max);
+    const buf = Buffer.alloc(size - start);
+    readSync(fd, buf, 0, buf.length, start);
+    const text = buf.toString("utf8");
+    return start ? text.slice(text.indexOf("\n") + 1) : text;
+  } catch {
+    return "";
+  } finally {
+    if (fd !== undefined) closeSync(fd);
+  }
+}
 
 const count = (v: unknown): number => (typeof v === "number" && Number.isFinite(v) && v > 0 ? Math.round(v) : 0);
 
@@ -28,15 +60,7 @@ export class CursorUsageLog {
     if (this.turns) return this.turns;
     const turns = new Map<string, Map<string, Turn>>();
     this.turns = turns;
-    let text: string;
-    try {
-      const size = statSync(this.path).size;
-      const all = readFileSync(this.path, "utf8");
-      text = size > MAX_LOG_BYTES ? all.slice(all.length - MAX_LOG_BYTES) : all;
-    } catch {
-      return turns;
-    }
-    for (const line of text.split("\n")) {
+    for (const line of tail(this.path, MAX_LOG_BYTES).split("\n")) {
       let r: Record<string, unknown>;
       try {
         r = JSON.parse(line) as Record<string, unknown>;
@@ -52,7 +76,7 @@ export class CursorUsageLog {
       const turn: Turn = {
         event: r.event === "stop" ? "stop" : "afterAgentResponse",
         at: typeof r.at === "string" ? Date.parse(r.at) || 0 : 0,
-        model: typeof r.model === "string" && MODEL.test(r.model) ? r.model : undefined,
+        model: typeof r.model === "string" && MODEL.test(r.model) ? cursorModelName(r.model) : undefined,
         usage,
       };
       const byGen = turns.get(conv) ?? new Map<string, Turn>();
@@ -63,7 +87,7 @@ export class CursorUsageLog {
     return turns;
   }
 
-  /** Usage for these conversations (a chat and the agents it launched), in total and per model. */
+  /** Usage for these conversations, in total and per model. */
   usageFor(ids: string[]): { usage: TokenUsage; byModel: Record<string, TokenUsage> } | undefined {
     let usage: TokenUsage | undefined;
     const byModel: Record<string, TokenUsage> = {};

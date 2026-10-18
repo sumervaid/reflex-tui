@@ -1,13 +1,21 @@
 import { realpathSync } from "node:fs";
 import { readFile } from "node:fs/promises";
 import { homedir } from "node:os";
-import { delimiter, join } from "node:path";
+import { delimiter, join, sep } from "node:path";
 import { ensureDir, isSymlink, pathExists, replaceOwnedFile, writeNewFile } from "@reflex/safety";
 import { paths } from "@reflex/storage";
 
 /** The Cursor events whose payload carries the turn's token counts. `stop` fires once per turn; `afterAgentResponse` is the fallback. */
 export const HOOK_EVENTS = ["stop", "afterAgentResponse"] as const;
 const SCRIPT_NAME = "cursor-usage.mjs";
+
+/**
+ * The hook command is quoted for a POSIX shell. How Cursor runs hook commands on Windows is not
+ * verified yet, so Reflex doesn't install one there rather than install one that never runs.
+ */
+export function assertHookSupported(platform: NodeJS.Platform = process.platform): void {
+  if (platform === "win32") throw new Error("reflex cursor-usage isn't available on Windows yet: Reflex can't yet write a hook command Cursor runs there.");
+}
 
 /** Cursor's user-level hooks file. */
 export const cursorHooksFile = (): string => process.env.REFLEX_CURSOR_HOOKS_FILE ?? join(homedir(), ".cursor", "hooks.json");
@@ -89,7 +97,16 @@ export function hookCommand(node = stableNode(), script = hookScript()): string 
 type HookEntry = { command?: unknown; [k: string]: unknown };
 type HooksFile = { version?: unknown; hooks?: Record<string, unknown>; [k: string]: unknown };
 
-const ours = (e: unknown): boolean => typeof (e as HookEntry)?.command === "string" && ((e as HookEntry).command as string).includes(`${SCRIPT_NAME}'`);
+/** Reflex's own entry: a command that ends with its script in a `hooks` folder, as `hookCommand` writes it. */
+const ours = (e: unknown): boolean => typeof (e as HookEntry)?.command === "string" && ((e as HookEntry).command as string).endsWith(`${sep}hooks${sep}${SCRIPT_NAME}'`);
+
+/** The entries for one event, refusing a value that isn't a list rather than replacing it. */
+function entries(hooks: Record<string, unknown>, event: string, file: string): unknown[] {
+  const v = hooks[event];
+  if (v === undefined) return [];
+  if (!Array.isArray(v)) throw new Error(`${file} has "${event}" that isn't a list; Reflex won't overwrite it. Fix it, then run this again.`);
+  return [...v];
+}
 
 async function readHooks(file: string): Promise<{ data: HooksFile; raw?: string }> {
   if (await isSymlink(file)) throw new Error(`${file} is a symlink; Reflex won't write through it. Add the hook entry yourself (see reflex cursor-usage status).`);
@@ -135,6 +152,7 @@ async function writeHooks(file: string, data: HooksFile, raw: string | undefined
  * is kept as it was; the previous file is copied to `~/.reflex/backups` first.
  */
 export async function installHook(file = cursorHooksFile()): Promise<{ added: string[]; backup?: string }> {
+  assertHookSupported();
   await ensureDir(paths.home(), 0o700);
   await ensureDir(paths.hooks(), 0o700);
   await replaceOwnedFile(hookScript(), hookSource(paths.cursorUsage()), 0o700);
@@ -143,7 +161,7 @@ export async function installHook(file = cursorHooksFile()): Promise<{ added: st
   const command = hookCommand();
   const added: string[] = [];
   for (const event of HOOK_EVENTS) {
-    const list = Array.isArray(hooks[event]) ? [...(hooks[event] as unknown[])] : [];
+    const list = entries(hooks, event, file);
     if (list.some(ours)) {
       // Refresh the command (Node may have moved since it was installed).
       hooks[event] = list.map((e) => (ours(e) ? { ...(e as HookEntry), command } : e));
@@ -163,8 +181,7 @@ export async function removeHook(file = cursorHooksFile()): Promise<{ removed: s
   const hooks = { ...(data.hooks ?? {}) };
   const removed: string[] = [];
   for (const event of HOOK_EVENTS) {
-    if (!Array.isArray(hooks[event])) continue;
-    const list = hooks[event] as unknown[];
+    const list = entries(hooks, event, file);
     const kept = list.filter((e) => !ours(e));
     if (kept.length === list.length) continue;
     removed.push(event);

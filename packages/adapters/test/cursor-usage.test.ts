@@ -3,7 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { CursorAdapter } from "../src/cursor";
-import { CursorUsageLog } from "../src/cursor-usage";
+import { CursorUsageLog, cursorModelName } from "../src/cursor-usage";
 
 const NOW = new Date("2026-10-17T20:00:00Z");
 const opts = { days: 7, now: NOW };
@@ -45,6 +45,17 @@ describe("CursorUsageLog", () => {
     expect(u.signature(["c1"])).toEqual({ turns: 2, latest: Date.parse("2026-10-17T19:00:00.000Z") });
     expect(new CursorUsageLog(join(root, "missing.jsonl")).usageFor(["c1"])).toBeUndefined();
   });
+
+  it("prices Cursor's names for Claude models under Anthropic's, and keeps other names", async () => {
+    expect(cursorModelName("claude-4.5-sonnet-thinking")).toBe("claude-sonnet-4-5");
+    expect(cursorModelName("claude-5.5-sonnet")).toBe("claude-sonnet-5-5");
+    expect(cursorModelName("sonnet-5.5")).toBe("claude-sonnet-5-5");
+    expect(cursorModelName("claude-opus-4-7")).toBe("claude-opus-4-7");
+    expect(cursorModelName("claude-3-5-sonnet")).toBe("claude-3-5-sonnet");
+    for (const own of ["gpt-5.5", "grok-4.6", "composer-2"]) expect(cursorModelName(own)).toBe(own);
+    await writeFile(log, turn("c1", "g1", "stop", 100, 10, 0, 0, "claude-4.5-sonnet-high") + "\n");
+    expect(Object.keys(new CursorUsageLog(log).usageFor(["c1"])!.byModel)).toEqual(["claude-sonnet-4-5"]);
+  });
 });
 
 describe("CursorAdapter with recorded usage", () => {
@@ -60,14 +71,14 @@ describe("CursorAdapter with recorded usage", () => {
     }
   }
 
-  it("attaches the chat's and its agents' token counts, and re-reads a chat when new turns arrive", async () => {
+  it("attaches the chat's own token counts, not its agents' (they may be in the chat's totals), and re-reads a chat when new turns arrive", async () => {
     await chat("chat-1", ["agent-1"]);
     await writeFile(log, [turn("chat-1", "g1", "stop", 1000, 100, 800, 0), turn("agent-1", "g9", "stop", 200, 20, 0, 0, "composer-2")].join("\n") + "\n");
     const adapter = new CursorAdapter(join(root, "projects"), undefined, { usageLog: log });
     const [file] = await adapter.discover(opts);
     const s = (await adapter.parse(file!, opts)).sessions[0]!;
-    expect(s.usage).toEqual({ input: 400, output: 120, cacheRead: 800, cacheWrite: 0 });
-    expect(Object.keys(s.usageByModel!).sort()).toEqual(["claude-opus-4-7", "composer-2"]);
+    expect(s.usage).toEqual({ input: 200, output: 100, cacheRead: 800, cacheWrite: 0 });
+    expect(Object.keys(s.usageByModel!)).toEqual(["claude-opus-4-7"]);
 
     await appendFile(log, turn("chat-1", "g2", "stop", 50, 5, 0, 0, "claude-opus-4-7", "2026-10-17T19:30:00.000Z") + "\n");
     const [again] = await new CursorAdapter(join(root, "projects"), undefined, { usageLog: log }).discover(opts);
