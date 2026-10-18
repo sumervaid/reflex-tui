@@ -2,7 +2,21 @@ import { chmodSync, existsSync, lstatSync, mkdirSync } from "node:fs";
 import { DatabaseSync } from "node:sqlite";
 import { z } from "zod";
 import type { SourceId, WorkflowTrace } from "@reflex/core";
-import { type AnalysisStats, type BenchResult, DEFAULT_ROUTER_SETTINGS, MAX_EXPLORE, type RouteRun, type RouterSettings, type Suggestion, type WorkflowCost } from "@reflex/analysis";
+import {
+  type AnalysisStats,
+  type BenchResult,
+  DEFAULT_MATCHING,
+  DEFAULT_ROUTER_SETTINGS,
+  MAX_EXPLORE,
+  MAX_SESSIONS,
+  MIN_SESSIONS,
+  type MatchingSettings,
+  type RouteRun,
+  type RouterSettings,
+  STRICTNESS,
+  type Suggestion,
+  type WorkflowCost,
+} from "@reflex/analysis";
 import { paths } from "./paths";
 
 export type SuggestionStatus = "pending" | "approved" | "rejected";
@@ -221,6 +235,7 @@ const SuggestionShape = z.object({ slug: z.string(), title: z.string(), steps: z
 const Source = z.enum(["claude-code", "codex", "cursor"]);
 const SkillChangeShape = z.object({ skill: z.string(), at: z.string(), beforeHash: z.string(), afterHash: z.string(), applied: z.boolean() }).passthrough();
 const RouterSettingsShape = z.object({ autopilot: z.boolean(), explore: z.number(), protect: z.array(z.string()) }).partial();
+const MatchingShape = z.object({ sessions: z.number().int().min(MIN_SESSIONS).max(MAX_SESSIONS), strictness: z.enum(STRICTNESS) }).partial();
 const RouteRunShape = z.object({ at: z.string(), source: Source, mode: z.enum(["pick", "learning", "explore", "default", "manual"]), randomized: z.boolean(), outcome: z.enum(["done", "not-done"]).optional() }).passthrough();
 const BenchResultShape = z.object({ at: z.string(), batch: z.string(), source: Source, model: z.string(), pass: z.boolean(), durationMs: z.number(), timedOut: z.boolean() }).passthrough();
 
@@ -611,6 +626,18 @@ export class Store {
   setRouterSettings(s: RouterSettings): void {
     const value = JSON.stringify({ autopilot: s.autopilot, explore: Math.min(MAX_EXPLORE, Math.max(0, s.explore)), protect: s.protect });
     this.db.prepare("INSERT INTO settings (key, value) VALUES ('router', ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value").run(value);
+  }
+
+  /** What counts as a repeated workflow (`reflex settings matching`); the defaults until changed. */
+  matchingSettings(): MatchingSettings {
+    const row = this.db.prepare("SELECT value FROM settings WHERE key = 'matching'").get() as { value: string } | undefined;
+    const parsed = MatchingShape.safeParse(row ? safeJson(row.value) : {});
+    return parsed.success ? { ...DEFAULT_MATCHING, ...parsed.data } : { ...DEFAULT_MATCHING };
+  }
+
+  setMatchingSettings(m: MatchingSettings): void {
+    const value = JSON.stringify(MatchingShape.parse({ sessions: m.sessions, strictness: m.strictness }));
+    this.db.prepare("INSERT INTO settings (key, value) VALUES ('matching', ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value").run(value);
   }
 
   /** Store a `reflex run`; returns its id for `setRouteRunOutcome`. */

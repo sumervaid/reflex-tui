@@ -137,12 +137,13 @@ export async function scan(opts: ScanOptions): Promise<void> {
     });
     if (embedding) embedSpin.stop(meaning.status === "ok" ? "Compared by meaning" : "Meaning comparison unavailable");
     const skills = await skillSets(store);
-    const analysis = analyze(traces, { ...(meaning.status === "ok" ? { vectors: meaning.vectors } : {}), ...skills });
+    const matching = store.matchingSettings();
+    const analysis = analyze(traces, { ...(meaning.status === "ok" ? { vectors: meaning.vectors } : {}), ...skills, matching });
     suggestions = analysis.suggestions;
     covered = analysis.stats.covered ?? [];
     const scanId = store.latestScan()!.id;
     store.saveSuggestions(scanId, suggestions);
-    store.saveAnalysis(scanId, analysisKey(meaning.status === "ok" ? meaning.model.id : undefined, skills), summarize(analysis, traces));
+    store.saveAnalysis(scanId, analysisKey(meaning.status === "ok" ? meaning.model.id : undefined, skills, matching), summarize(analysis, traces));
     memoryResult = await syncMemory(store);
   } finally {
     store.close();

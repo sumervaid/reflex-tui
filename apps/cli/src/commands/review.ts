@@ -1,5 +1,5 @@
 import { SOURCE_LABELS } from "@reflex/core";
-import type { Suggestion } from "@reflex/analysis";
+import { DEFAULT_MATCHING, type Suggestion, describeMatching, isDefaultMatching } from "@reflex/analysis";
 import { displayPath, excerpt } from "@reflex/safety";
 import { type StoredSuggestion, Store, paths } from "@reflex/storage";
 import { approveSuggestion } from "@reflex/skills";
@@ -34,6 +34,7 @@ export function renderSuggestion(entry: StoredSuggestion): void {
       ["Confidence", `${c.bold(pct(s.confidence))} ${c.dim("ranking heuristic, not a probability")}`],
       ["Window", `${shortDate(s.firstSeen)} → ${shortDate(s.lastSeen)}`],
       ...(s.cost ? ([["Cost", costLine(s)]] as Array<[string, string]>) : []),
+      ...(s.matching ? ([["Matching", `${describeMatching(s.matching)} ${c.dim(`(default: ${describeMatching(DEFAULT_MATCHING)})`)}`]] as Array<[string, string]>) : []),
     ],
     2,
   );
@@ -125,11 +126,14 @@ export async function suggest(opts: { all?: boolean; interactive?: boolean }): P
     const visible = list.filter((s) => opts.all || s.status !== "rejected");
 
     if (!list.length) {
+      const matching = store.matchingSettings();
       title("No repeated workflows found");
-      out(`Reflex looked at ${plural(sessionCount, "session")} and found no behavior repeated in at least 3 independent sessions.`);
+      out(`Reflex looked at ${plural(sessionCount, "session")} and found no behavior repeated in at least ${plural(matching.sessions, "independent session")}.`);
+      if (!isDefaultMatching(matching)) out(c.dim(`Matching settings: ${describeMatching(matching)} (default: ${describeMatching(DEFAULT_MATCHING)}).`));
       out("It does not manufacture suggestions from one-off tasks.");
       out();
       out(`Try a longer history window: ${c.cyan("reflex scan --days 30")}`);
+      if (matching.sessions > 2 || matching.strictness !== "looser") out(`Or match more loosely: ${c.cyan("reflex settings matching --sessions 2 --strictness looser")}`);
       return;
     }
 

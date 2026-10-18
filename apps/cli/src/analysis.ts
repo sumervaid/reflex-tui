@@ -1,5 +1,5 @@
 import { type WorkflowTrace, sha256 } from "@reflex/core";
-import { type Analysis, analyze } from "@reflex/analysis";
+import { type Analysis, type MatchingSettings, analyze } from "@reflex/analysis";
 import { activeModel } from "@reflex/embeddings";
 import { type SavedAnalysis, type Store, paths } from "@reflex/storage";
 import { currentKeys } from "./collect";
@@ -18,11 +18,12 @@ const setKey = (s: ReadonlySet<string>) => sha256([...s].sort().join("\n")).slic
 
 /**
  * What an analysis depends on beyond the stored traces: Reflex's own build, which model (if any)
- * compared requests by meaning, and which skills you have and Reflex generated (a workflow run
- * with your own skills is not suggested again). Rejecting suggestions changes none of these.
+ * compared requests by meaning, which skills you have and Reflex generated (a workflow run with
+ * your own skills is not suggested again), and your matching settings. Rejecting suggestions
+ * changes none of these.
  */
-export function analysisKey(modelId: string | undefined, skills: SkillSets): string {
-  return `${currentKeys().codeKey}|${modelId ?? "words"}|${setKey(skills.ownSkills)}|${setKey(skills.userSkills)}`;
+export function analysisKey(modelId: string | undefined, skills: SkillSets, matching: MatchingSettings): string {
+  return `${currentKeys().codeKey}|${modelId ?? "words"}|${setKey(skills.ownSkills)}|${setKey(skills.userSkills)}|${matching.sessions}-${matching.strictness}`;
 }
 
 export function summarize(a: Analysis, traces: WorkflowTrace[]): SavedAnalysis {
@@ -31,20 +32,21 @@ export function summarize(a: Analysis, traces: WorkflowTrace[]): SavedAnalysis {
 
 /**
  * The latest scan's analysis. Analysis is deterministic, so the one `scan` saved is reused as long
- * as nothing it depends on changed; otherwise (Reflex upgraded, model installed or removed) it is
- * recomputed from the stored traces once and saved again, suggestions included.
+ * as nothing it depends on changed; otherwise (Reflex upgraded, model installed or removed, matching
+ * settings changed) it is recomputed from the stored traces once and saved again, suggestions included.
  */
 export async function latestAnalysis(store: Store): Promise<SavedAnalysis & { reused: boolean }> {
   const scan = store.latestScan();
   if (!scan) throw new Error("No scan yet. Run `reflex scan --days 7` first.");
   const active = await activeModel(paths.models());
   const skills = await skillSets(store);
-  if (scan.analysis && scan.analysisKey === analysisKey(active?.id, skills)) return { ...scan.analysis, reused: true };
+  const matching = store.matchingSettings();
+  if (scan.analysis && scan.analysisKey === analysisKey(active?.id, skills, matching)) return { ...scan.analysis, reused: true };
   const traces = store.traces();
   const meaning = await sessionVectors(traces, store, { cacheOnly: true });
-  const a = analyze(traces, { ...(meaning.status === "ok" ? { vectors: meaning.vectors } : {}), ...skills });
+  const a = analyze(traces, { ...(meaning.status === "ok" ? { vectors: meaning.vectors } : {}), ...skills, matching });
   store.saveSuggestions(scan.id, a.suggestions);
   const saved = summarize(a, traces);
-  store.saveAnalysis(scan.id, analysisKey(meaning.status === "ok" ? meaning.model.id : undefined, skills), saved);
+  store.saveAnalysis(scan.id, analysisKey(meaning.status === "ok" ? meaning.model.id : undefined, skills, matching), saved);
   return { ...saved, reused: false };
 }

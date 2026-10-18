@@ -2,7 +2,7 @@ import type { ActionCategory, SourceId, WorkflowTrace } from "@reflex/core";
 import { SOURCE_IDS, debug, totalTokens } from "@reflex/core";
 import { toSlug } from "@reflex/safety";
 import { FAMILIES } from "./catalog";
-import { CLUSTER_THRESHOLD, MIN_INTENT_COHESION, clusterTraces } from "./cluster";
+import { clusterTraces } from "./cluster";
 import type { SessionVectors } from "./context";
 import { type DedupStats, type WorkflowInstance, deduplicate } from "./dedup";
 import { MODIFY_TARGET_LABEL, STEP_TEXT, type StepKind } from "./steps";
@@ -12,8 +12,9 @@ import { isGenericTrace, usedSkill } from "./trace";
 import { fillerWeights } from "./fillers";
 import { DEVELOPER_WORDS, stem } from "./intents";
 import { isGenericWord } from "./languages";
+import { DEFAULT_MATCHING, type MatchingSettings, isDefaultMatching, thresholds } from "./matching";
 
-export const MIN_INSTANCES = 3;
+export const MIN_INSTANCES = DEFAULT_MATCHING.sessions;
 const MIN_ACTION_COHESION = 0.5;
 const MIN_STEP_SUPPORT = 0.5;
 const MAX_EXAMPLES_PER_STEP = 3;
@@ -102,6 +103,8 @@ export type Suggestion = {
   cost?: WorkflowCost;
   /** Corrections built from the words at least two independent sessions shared. */
   constraints?: Constraint[];
+  /** The matching settings it was found with, when they differ from the defaults. */
+  matching?: MatchingSettings;
 };
 
 /** A repeated workflow most of whose sessions already loaded skills you have: not suggested again. */
@@ -338,12 +341,16 @@ export type AnalyzeOptions = {
    * so a plugin's skill (which `reflex improve` cannot edit) never hides a suggestion.
    */
   userSkills?: ReadonlySet<string>;
+  /** Sessions needed and strictness (`reflex settings matching`); the defaults when absent. */
+  matching?: MatchingSettings;
 };
 
 export function analyze(traces: WorkflowTrace[], opts: AnalyzeOptions = {}): Analysis {
   const { instances, stats: dedup } = deduplicate(traces);
   const candidates = instances.filter((i) => !isGenericTrace(i.primary));
-  const clusters = clusterTraces(candidates.map((i) => i.primary), CLUSTER_THRESHOLD, opts.vectors);
+  const matching = opts.matching ?? DEFAULT_MATCHING;
+  const bar = thresholds(matching.strictness);
+  const clusters = clusterTraces(candidates.map((i) => i.primary), bar.cluster, opts.vectors, bar.intentLink);
   const context = termContext(candidates.map((i) => i.primary));
   debug("clusters formed", { candidates: candidates.length, clusters: clusters.length });
 
@@ -355,9 +362,9 @@ export function analyze(traces: WorkflowTrace[], opts: AnalyzeOptions = {}): Ana
   const general = new Set<string>();
   const usedSlugs = new Set<string>();
   for (const cluster of clusters) {
-    if (cluster.members.length < MIN_INSTANCES) continue;
+    if (cluster.members.length < matching.sessions) continue;
     // Behavior alone is not enough: the requests must also share a purpose, and vice versa.
-    if (cluster.intentCohesion < MIN_INTENT_COHESION || cluster.actionCohesion < MIN_ACTION_COHESION) continue;
+    if (cluster.intentCohesion < bar.intentCohesion || cluster.actionCohesion < MIN_ACTION_COHESION) continue;
     const group = cluster.members.map((i) => candidates[i]!);
     const steps = consensusSteps(group);
     const stepKinds = new Set(steps.map((s) => s.kind));
@@ -454,6 +461,7 @@ export function analyze(traces: WorkflowTrace[], opts: AnalyzeOptions = {}): Ana
       constraints: recurringCorrections(group.map((g) => g.primary.corrections ?? []))
         .filter(isSafeConstraint)
         .slice(0, MAX_CONSTRAINTS),
+      ...(isDefaultMatching(matching) ? {} : { matching }),
     });
   }
 

@@ -42,6 +42,12 @@ their meaning, so "make the login page load faster", "the sign-in screen is real
 least 3 independent sessions with consistent behavior; one-offs, read-and-answer sessions and
 generic "read, edit, test" patterns are not suggested.
 
+`reflex settings matching` changes that bar: `--sessions` from 2 to 5, and `--strictness looser` or
+`stricter`, which lowers or raises the clustering and intent thresholds together by 0.05. A short
+history may need `--sessions 2 --strictness looser`; a long one whose suggestions are too broad,
+`--strictness stricter`. A change redoes the last scan's suggestions at once, and a suggestion found
+at settings other than the defaults says so in `reflex suggest` and `reflex show`.
+
 The skill contains only steps seen in at least half the sessions, in the order they usually
 happened, with example commands that recurred and passed a safety filter. Corrections you gave in
 follow-up messages ("don't change the CI workflow") become constraints when the same correction

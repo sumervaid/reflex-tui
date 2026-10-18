@@ -38,7 +38,8 @@ steps and how often each one appeared. Press **e** for the evidence: the redacte
 actions and outcome of every session behind it. Press **r** to reject it, **a** to approve.
 
 Nothing appears? Reflex only suggests a workflow you have done at least 3 times in separate
-sessions. Try a longer window, or come back after more sessions.
+sessions. Try a longer window, come back after more sessions, or lower the bar with
+`reflex settings matching --sessions 2 --strictness looser`.
 
 ## 4. Approve
 

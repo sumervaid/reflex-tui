@@ -215,4 +215,33 @@ describe("saved analysis", () => {
       store.close();
     }
   });
+
+  it("is redone when the matching settings change, and suggestions say which settings found them", async () => {
+    const { settingsMatching } = await import("../src/commands/settings");
+    vi.spyOn(process.stdout, "write").mockImplementation(() => true);
+    await scan({ claudeDir: claudeRoot, codexDir: codexRoot, yes: true, days: 7 });
+    const read = () => {
+      const store = new Store();
+      try {
+        return { settings: store.matchingSettings(), suggestions: store.suggestions().map((s) => s.data) };
+      } finally {
+        store.close();
+      }
+    };
+    const atDefaults = read();
+    expect(atDefaults.settings).toEqual({ sessions: 3, strictness: "default" });
+    expect(atDefaults.suggestions.length).toBeGreaterThan(0);
+    expect(atDefaults.suggestions.every((s) => s.matching === undefined)).toBe(true);
+
+    await settingsMatching({ sessions: "5", strictness: "stricter" });
+    const strict = read();
+    expect(strict.settings).toEqual({ sessions: 5, strictness: "stricter" });
+    expect(strict.suggestions.length).toBeLessThan(atDefaults.suggestions.length);
+    expect(strict.suggestions.every((s) => s.instances >= 5 && s.matching?.sessions === 5)).toBe(true);
+
+    await settingsMatching({ reset: true });
+    expect(JSON.stringify(read().suggestions)).toBe(JSON.stringify(atDefaults.suggestions));
+    await expect(settingsMatching({ sessions: "1" })).rejects.toThrow(/2 to 5/);
+    await expect(settingsMatching({ strictness: "loose" })).rejects.toThrow(/looser, default, stricter/);
+  });
 });
