@@ -1,5 +1,5 @@
 import { ClaudeCodeAdapter, CodexAdapter, CursorAdapter } from "@reflex/adapters";
-import { SOURCE_IDS, type SourceId, type TokenUsage, type WorkflowTrace, totalTokens } from "@reflex/core";
+import { PRICES_CHECKED, SOURCE_IDS, type SourceId, type TokenUsage, type WorkflowTrace, totalTokens, unknownModels } from "@reflex/core";
 import { displayPath } from "@reflex/safety";
 import { detectTargets, memoryTargets, removeMemory, syncMemory } from "@reflex/skills";
 import { type ScanRecord, Store, reflexHome } from "@reflex/storage";
@@ -224,7 +224,18 @@ function usage(scan: ScanRecord, traces: WorkflowTrace[], now: Date): Pick<TuiDa
   });
   const out: Pick<TuiData, "days" | "window" | "yesterday"> = { days };
   const all = totals(traces);
-  if (all.measured) out.window = { days: scan.days, range: rangeLabel(start, end), sessions: scan.sessions, tokens: all.usage, cursorModels: cursorModels(traces) };
+  if (all.measured) {
+    const unknown = unknownModels(traces.map((t) => t.usageByModel)).map((m) => ({ name: toCells(m.model), sessions: m.sessions }));
+    out.window = {
+      days: scan.days,
+      range: rangeLabel(start, end),
+      sessions: scan.sessions,
+      tokens: all.usage,
+      cursorModels: cursorModels(traces),
+      pricesChecked: PRICES_CHECKED,
+      ...(unknown.length ? { unknownModels: unknown } : {}),
+    };
+  }
   const y0 = dayStart(now, -1);
   const t0 = dayStart(now);
   if (start.getTime() <= y0.getTime() && end.getTime() >= t0.getTime()) {

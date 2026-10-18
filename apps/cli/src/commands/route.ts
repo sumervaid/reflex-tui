@@ -23,7 +23,7 @@ import {
   trials,
   typicalCost,
 } from "@reflex/analysis";
-import { SOURCE_LABELS, type SourceId, type WorkflowTrace, costOf } from "@reflex/core";
+import { PRICES_CHECKED, SOURCE_LABELS, type SourceId, type WorkflowTrace, costOf, unknownModels } from "@reflex/core";
 import { agentLaunch, displayPath, ensureDir } from "@reflex/safety";
 import { benchTools, cloneRepo, hasUncommitted, headCommit, removeCopy, repoRoot, runClaudeBench, runUserCommand } from "@reflex/skills";
 import { Store, paths } from "@reflex/storage";
@@ -129,7 +129,7 @@ export async function runRouted(words: string[], opts: RunOptions): Promise<void
     if (!store.latestScan()) out(c.dim("\n  No scan yet: run `reflex scan` so the router can learn from your history."));
     if (decision.arms.length) {
       out();
-      out(c.dim("  Your sessions of this kind (average per session, at API list prices):"));
+      out(c.dim(`  Your sessions of this kind (average per session, at API list prices of ${PRICES_CHECKED}):`));
       for (const a of decision.arms.slice(0, 5)) out(`    ${armLine(a, a === decision.pick && decision.mode !== "default")}`);
     }
     out();
@@ -213,8 +213,13 @@ export async function routeStatus(): Promise<void> {
       for (const a of b.arms) out(`    ${a.model.padEnd(26)} ${`${a.passed}/${a.runs} passed`.padEnd(12)} ${usd(a.usd).padStart(7)}  ${c.dim(`${Math.round(a.durationMs / 1000)}s`)}`);
     }
     out();
-    out(c.dim("Costs are API list prices for whole sessions. Trials compare only runs where the exploration coin was flipped, so"));
-    out(c.dim("both sides saw the same mix of tasks. Small samples are noisy: this shows what happened, it does not predict."));
+    out(c.dim(`Costs are API list prices of ${PRICES_CHECKED} for whole sessions. Trials compare only runs where the exploration coin`));
+    out(c.dim("was flipped, so both sides saw the same mix of tasks. Small samples are noisy: this shows what happened, it does not predict."));
+    const unknown = unknownModels(traces.map((t) => t.usageByModel));
+    if (unknown.length) {
+      const list = unknown.map((m) => `${m.model} (${plural(m.sessions, "session")})`).join(", ");
+      warn(`Unknown model, left out of every cost above: ${list}. Add its price in ~/.reflex/prices.json.`);
+    }
   } finally {
     store.close();
   }
@@ -300,7 +305,7 @@ export async function bench(words: string[], opts: BenchOptions): Promise<void> 
       [
         "Estimated cost",
         known.length
-          ? `about ${usd(estimate)} ${c.dim("(your average session on each model at API list prices; this task may differ)")}`
+          ? `about ${usd(estimate)} ${c.dim(`(your average session on each model at API list prices of ${PRICES_CHECKED}; this task may differ)`)}`
           : c.dim("unknown: no sessions on these models in the last scan"),
       ],
     ]);

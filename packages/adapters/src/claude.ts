@@ -163,11 +163,14 @@ export class ClaudeCodeAdapter implements TranscriptAdapter {
         const messageId = rec.message?.id;
         if (usage && messageId && !countedMessages.has(messageId)) {
           countedMessages.add(messageId);
+          // `cache_creation` splits the writes by how long they are cached; 1-hour writes cost more.
+          const hour = tokens((usage.cache_creation as Record<string, unknown> | undefined)?.ephemeral_1h_input_tokens);
           const u = {
             input: tokens(usage.input_tokens),
             output: tokens(usage.output_tokens),
             cacheRead: tokens(usage.cache_read_input_tokens),
             cacheWrite: tokens(usage.cache_creation_input_tokens),
+            ...(hour ? { cacheWrite1h: hour } : {}),
           };
           b.usage = addUsage(b.usage, u);
           // "<synthetic>" marks messages Claude Code wrote itself; they carry no billed usage.

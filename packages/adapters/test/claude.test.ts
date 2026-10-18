@@ -145,6 +145,16 @@ describe("ClaudeCodeAdapter", () => {
     expect(skills).toEqual(["review-pr", undefined]);
   });
 
+  it("records which cache writes were for 1 hour", async () => {
+    const usage = { input_tokens: 1, output_tokens: 1, cache_creation_input_tokens: 30, cache_creation: { ephemeral_5m_input_tokens: 10, ephemeral_1h_input_tokens: 20 } };
+    await writeSession("s1", [
+      user("review this PR"),
+      { type: "assistant", sessionId: "s1", timestamp: "2026-10-10T10:00:01.000Z", message: { role: "assistant", id: "m1", model: "claude-opus-5-5", usage, content: [{ type: "text", text: "Ok." }] } },
+    ]);
+    const [result] = await parseOnly(new ClaudeCodeAdapter(root));
+    expect(result!.sessions[0]!.usage).toEqual({ input: 1, output: 1, cacheRead: 0, cacheWrite: 30, cacheWrite1h: 20 });
+  });
+
   it("leaves usage undefined when no record carries it", async () => {
     await writeSession("s1", [user("hello there")]);
     const [result] = await parseOnly(new ClaudeCodeAdapter(root));
