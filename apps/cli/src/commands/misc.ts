@@ -170,7 +170,7 @@ export async function reset(opts: { yes?: boolean }): Promise<void> {
   // Agent memory lives in the agents' own files: take Reflex's block out before its database goes.
   for (const w of await removeMemory()) if (w.changed) ok(`Removed Reflex's memory block from ${displayPath(w.path)}`);
   // Only remove what Reflex creates, never the whole directory: REFLEX_HOME may point anywhere.
-  for (const child of ["reflex.db", "reflex.db-journal", "skills", "validation"]) {
+  for (const child of ["reflex.db", "reflex.db-journal", "reflex.db-wal", "reflex.db-shm", "skills", "validation"]) {
     await rm(join(home, child), { recursive: true, force: true });
   }
   ok("Reset.");
