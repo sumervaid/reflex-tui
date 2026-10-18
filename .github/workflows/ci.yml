@@ -30,3 +30,18 @@ jobs:
       - run: pnpm typecheck
       - run: pnpm build
       - run: pnpm test
+
+  # Agent CLIs installed with npm are .cmd launchers on Windows; check they start with their
+  # arguments intact (packages/safety/src/spawn.ts).
+  windows:
+    name: Windows agent launch
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22.13"
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm vitest run packages/safety/test/spawn.test.ts
