@@ -129,4 +129,5 @@ yet on real Codex history.
 
 ## License
 
-MIT. See [LICENSE](https://github.com/sumervaid/reflex-tui/blob/main/LICENSE).
+MIT. See [LICENSE](https://github.com/sumervaid/reflex-tui/blob/main/LICENSE). The npm package also ships
+`dist/THIRD_PARTY_NOTICES.md` with the licenses of the libraries bundled into it.
