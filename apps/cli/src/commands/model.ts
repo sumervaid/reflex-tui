@@ -101,8 +101,14 @@ export async function modelFetch(opts: { yes?: boolean; light?: boolean; model?:
     ok(`${model.label} is already installed and verified at ${displayPath(dir)}; scans now use it.`);
     return;
   }
-  out(`Reflex can compare requests by meaning, so "make the login page load faster" matches`);
-  out(`"the sign-in screen is really slow"${model.reads === "all" ? ` and "로그인 화면이 너무 느려"` : ""}. This needs a local model.`);
+  if (model.reads === "all") {
+    out(`Reflex can compare requests by meaning, in any language, so "the sign-in screen is really slow"`);
+    out(`matches "로그인 화면이 너무 느려", "ログイン画面がすごく遅い" and "la pantalla de inicio de sesión va muy lenta".`);
+    out(`This needs a local model.`);
+  } else {
+    out(`Reflex can compare requests by meaning, so "make the login page load faster" matches`);
+    out(`"the sign-in screen is really slow". This needs a local model.`);
+  }
   out();
   rows([
     ["Model", model.label],

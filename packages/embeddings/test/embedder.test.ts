@@ -2,6 +2,7 @@ import { existsSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { loadEmbedder } from "../src/embedder";
 import { BGE_M3, MINILM, type ModelSpec, modelDir } from "../src/model";
+import { centerOnReference } from "../src/reference";
 
 // Needs the real model files: set REFLEX_TEST_MODELS to a models folder holding them
 // (for example ~/.reflex/models after `reflex model fetch`). Each model runs only if present.
@@ -52,5 +53,23 @@ describe.skipIf(!dirOf(BGE_M3))("embedder (bge-m3)", () => {
     ]);
     expect(dot(en!, ko!)).toBeGreaterThan(dot(en!, other!) + 0.15);
     expect(dot(ko!, mixed!)).toBeGreaterThan(dot(ko!, other!) + 0.15);
+  });
+
+  it("matches the docs' example in every language they show, after centering", async () => {
+    const e = await loadEmbedder(dirOf(BGE_M3)!, BGE_M3);
+    const texts = [
+      "the sign-in screen is really slow",
+      "로그인 화면이 너무 느려",
+      "ログイン画面がすごく遅い",
+      "登录页面加载太慢了",
+      "la pantalla de inicio de sesión va muy lenta",
+      "rename getUserById to findUser",
+      "다크 모드 추가해줘",
+      "把依赖升级到最新版本",
+    ];
+    const [en, ...rest] = (await e.embed(texts)).map((v) => centerOnReference(v, BGE_M3));
+    const same = rest.slice(0, 4).map((v) => dot(en!, v));
+    const unrelated = rest.slice(4).map((v) => dot(en!, v));
+    for (const s of same) expect(s).toBeGreaterThan(Math.max(...unrelated) + 0.3);
   });
 });

@@ -37,8 +37,9 @@ phrases and a small concept lexicon) in any language: Japanese, Chinese and Thai
 words, Korean particles are stripped (배포를 → 배포), filler words are dropped (published lists plus
 everyday fillers, `casual-stopwords.ts`) and words your own history uses across unrelated kinds of
 work are quieted, more so as the history grows; with the optional model (`reflex model fetch`) it also compares
-their meaning, so "make the login page load faster", "the sign-in screen is really slow" and
-"로그인 화면이 너무 느려" match. A cluster becomes a suggestion only if it has at
+their meaning, so "make the login page load faster" and "the sign-in screen is really slow" match,
+and so do "로그인 화면이 너무 느려", "ログイン画面がすごく遅い", "登录页面加载太慢了" and
+"la pantalla de inicio de sesión va muy lenta". A cluster becomes a suggestion only if it has at
 least 3 independent sessions with consistent behavior; one-offs, read-and-answer sessions and
 generic "read, edit, test" patterns are not suggested.
 
