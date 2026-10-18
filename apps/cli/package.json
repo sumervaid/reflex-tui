@@ -1,6 +1,6 @@
 {
   "name": "reflex-skills",
-  "version": "0.5.1",
+  "version": "0.6.0",
   "type": "module",
   "description": "Turn repeated Claude Code and Codex workflows into reusable skills, locally.",
   "license": "MIT",
