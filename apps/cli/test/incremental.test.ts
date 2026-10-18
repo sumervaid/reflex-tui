@@ -245,3 +245,48 @@ describe("saved analysis", () => {
     await expect(settingsMatching({ strictness: "loose" })).rejects.toThrow(/looser, default, stricter/);
   });
 });
+
+describe("forgetting", () => {
+  const working = () => {
+    const store = new Store();
+    try {
+      return { traces: store.traces(), suggestions: store.suggestions().map((s) => s.data), kept: store.forgetPlan({ missing: true }) };
+    } finally {
+      store.close();
+    }
+  };
+
+  it("forgets a session whose transcript was deleted, with its evidence", async () => {
+    const { forget } = await import("../src/commands/forget");
+    vi.spyOn(process.stdout, "write").mockImplementation(() => true);
+    const opts = { claudeDir: claudeRoot, codexDir: codexRoot, yes: true, days: 7 };
+    await scan(opts);
+    const [gone] = await claudeFiles();
+    await rm(gone!);
+    await scan(opts);
+    const before = working();
+    expect(before.kept.paths).toEqual([gone]);
+
+    await forget({ missing: true, yes: true });
+    const after = working();
+    expect(after.kept.paths).toEqual([]);
+    expect(after.traces.length).toBe(before.traces.length - before.kept.sessionIds.length);
+    // A session copied into another transcript that still exists stays, through that copy.
+    const elsewhere = new Set(after.traces.map((t) => t.sessionId));
+    const left = new Set([...after.suggestions.flatMap((s) => s.sourceSessions), ...after.suggestions.flatMap((s) => s.evidence.map((e) => e.sessionId))]);
+    for (const id of before.kept.sessionIds.filter((i) => !elsewhere.has(i))) expect(left.has(id)).toBe(false);
+    await expect(forget({})).rejects.toThrow(/--older-than <days>, --missing/);
+  });
+
+  it("applies the retention setting after each scan", async () => {
+    const { settingsRetention } = await import("../src/commands/forget");
+    vi.spyOn(process.stdout, "write").mockImplementation(() => true);
+    await settingsRetention("2");
+    await scan({ claudeDir: claudeRoot, codexDir: codexRoot, yes: true, days: 7 });
+    const cutoff = Date.now() - 2 * 24 * 60 * 60 * 1000;
+    const { traces } = working();
+    expect(traces.length).toBeGreaterThan(0);
+    for (const t of traces) expect(t.endedAt === undefined || Date.parse(t.endedAt) >= cutoff).toBe(true);
+    await expect(settingsRetention("0")).rejects.toThrow(/whole number of days/);
+  });
+});

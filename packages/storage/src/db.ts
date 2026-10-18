@@ -130,6 +130,17 @@ export type SkillChange = {
   backup?: string;
 };
 
+/** What `forget` would remove, from `forgetPlan`. */
+export type ForgetPlan = {
+  paths: string[];
+  sessionIds: string[];
+  /** Of `paths`, transcripts that have been deleted. */
+  missingFiles: number;
+  bySource: Partial<Record<SourceId, number>>;
+  oldest?: string;
+  newest?: string;
+};
+
 const SCHEMA_VERSION = 4;
 
 const SCHEMA = `
@@ -362,6 +373,82 @@ export class Store {
    */
   markMissing(path: string): void {
     this.db.prepare("UPDATE transcript_files SET missing = 1, checked_at = ? WHERE path = ?").run(new Date().toISOString(), path);
+  }
+
+  /**
+   * Cached transcripts to forget: those whose transcript is gone (`missing`) and/or whose sessions
+   * all ended before `before` (ISO time). A session with no end time is never forgotten by age.
+   */
+  forgetPlan(opts: { before?: string; missing?: boolean }): ForgetPlan {
+    const rows = this.db
+      .prepare("SELECT f.path, f.missing, f.mtime_ms, t.session_id, t.source, t.ended_at FROM transcript_files f LEFT JOIN traces t ON t.path = f.path ORDER BY f.path")
+      .all() as Array<{ path: string; missing: number; mtime_ms: number; session_id: string | null; source: string | null; ended_at: string | null }>;
+    const byPath = new Map<string, typeof rows>();
+    for (const r of rows) byPath.set(r.path, [...(byPath.get(r.path) ?? []), r]);
+    const plan: ForgetPlan = { paths: [], sessionIds: [], missingFiles: 0, bySource: {} };
+    for (const [path, rs] of byPath) {
+      const gone = Number(rs[0]!.missing) === 1;
+      const sessions = rs.filter((r) => r.session_id);
+      const ends = sessions.map((r) => r.ended_at);
+      const old =
+        opts.before !== undefined &&
+        (sessions.length ? ends.every((e) => e !== null && e < opts.before!) : new Date(Number(rs[0]!.mtime_ms)).toISOString() < opts.before);
+      if (!((opts.missing && gone) || old)) continue;
+      plan.paths.push(path);
+      if (gone) plan.missingFiles++;
+      for (const r of sessions) {
+        plan.sessionIds.push(r.session_id!);
+        plan.bySource[r.source as SourceId] = (plan.bySource[r.source as SourceId] ?? 0) + 1;
+        if (r.ended_at && (!plan.oldest || r.ended_at < plan.oldest)) plan.oldest = r.ended_at;
+        if (r.ended_at && (!plan.newest || r.ended_at > plan.newest)) plan.newest = r.ended_at;
+      }
+    }
+    return plan;
+  }
+
+  /**
+   * Remove what Reflex keeps for these transcripts: their sessions (also from the latest scan's
+   * working set) and the files' cache entries, and those sessions' evidence in stored suggestions.
+   * The latest analysis is marked stale so it is redone. Embeddings are pruned by the caller.
+   */
+  forget(plan: Pick<ForgetPlan, "paths" | "sessionIds">): void {
+    const gone = new Set(plan.sessionIds);
+    this.db.exec("BEGIN IMMEDIATE");
+    try {
+      for (const path of plan.paths) {
+        this.db.prepare("DELETE FROM scan_sessions WHERE trace_row IN (SELECT row_id FROM traces WHERE path = ?)").run(path);
+        this.db.prepare("DELETE FROM traces WHERE path = ?").run(path);
+        this.db.prepare("DELETE FROM transcript_files WHERE path = ?").run(path);
+      }
+      const update = this.db.prepare("UPDATE suggestions SET data_json = ? WHERE slug = ?");
+      for (const r of this.db.prepare("SELECT slug, data_json FROM suggestions").all() as Array<{ slug: string; data_json: string }>) {
+        const data = JSON.parse(r.data_json) as Suggestion;
+        const evidence = data.evidence.filter((e) => !gone.has(e.sessionId));
+        const sourceSessions = data.sourceSessions.filter((id) => !gone.has(id));
+        if (evidence.length !== data.evidence.length || sourceSessions.length !== data.sourceSessions.length)
+          update.run(JSON.stringify({ ...data, evidence, sourceSessions }), r.slug);
+      }
+      const latest = this.db.prepare("SELECT id FROM scans ORDER BY id DESC LIMIT 1").get() as { id: number } | undefined;
+      if (latest)
+        this.db
+          .prepare("UPDATE scans SET analysis_key = NULL, sessions = (SELECT COUNT(*) FROM scan_sessions WHERE scan_id = ?) WHERE id = ?")
+          .run(latest.id, latest.id);
+      this.db.exec("COMMIT");
+    } catch (err) {
+      this.db.exec("ROLLBACK");
+      throw err;
+    }
+  }
+
+  /** Days of sessions to keep, applied after every scan; undefined keeps everything (the default). */
+  retentionDays(): number | undefined {
+    const row = this.db.prepare("SELECT value FROM settings WHERE key = 'retention'").get() as { value: string } | undefined;
+    const days = (safeJson(row?.value ?? "{}") as { days?: unknown } | undefined)?.days;
+    return typeof days === "number" && Number.isInteger(days) && days > 0 ? days : undefined;
+  }
+
+  setRetentionDays(days: number | undefined): void {
+    this.db.prepare("INSERT INTO settings (key, value) VALUES ('retention', ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value").run(JSON.stringify({ days: days ?? null }));
   }
 
   /** Rewrite a kept trace in place (re-redaction after the rules or the user's identity changed). */

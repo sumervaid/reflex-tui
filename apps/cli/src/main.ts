@@ -24,6 +24,7 @@ import { improve } from "./commands/improve";
 import { type HandbookOptions, handbook, handbookAsk, handbookExport, handbookShow } from "./commands/handbook";
 import { bench, routeAutopilot, routeExplore, routeStatus, runRouted } from "./commands/route";
 import { settingsMatching } from "./commands/settings";
+import { forget, settingsRetention } from "./commands/forget";
 import { tui } from "./commands/tui";
 
 /** apps/cli/package.json's version, set at build time (tsup.config.ts). */
@@ -210,7 +211,7 @@ route
   .option("--protect <kind...>", "kinds of task never explored: review, ci, debug, feature, edit, research, explore")
   .action(run(async (value: string, o: { protect?: string[] }) => routeExplore(value, o)));
 
-const settings = program.command("settings").description("your settings for what Reflex suggests");
+const settings = program.command("settings").description("your settings for what Reflex suggests and keeps");
 settings
   .command("matching")
   .description("what counts as a repeated workflow: sessions needed and how alike they must be")
@@ -218,6 +219,18 @@ settings
   .option("--strictness <level>", "how alike their requests and steps must be: looser, default or stricter")
   .option("--reset", "go back to 3 sessions and default strictness")
   .action(run(settingsMatching));
+settings
+  .command("retention [days]")
+  .description("how many days of sessions to keep; older ones are forgotten after each scan (off keeps all, the default)")
+  .action(run(settingsRetention));
+
+program
+  .command("forget")
+  .description("remove kept sessions from Reflex's database: older ones, or ones whose transcript was deleted (asks first)")
+  .option("--older-than <days>", "sessions that ended more than this many days ago")
+  .option("--missing", "sessions whose transcript has been deleted")
+  .option("-y, --yes", "forget without asking")
+  .action(run(forget));
 
 program
   .command("bench <task...>")
