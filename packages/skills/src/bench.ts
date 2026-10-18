@@ -2,7 +2,7 @@ import { spawn, spawnSync } from "node:child_process";
 import { mkdir, rm } from "node:fs/promises";
 import { join } from "node:path";
 import { type TokenUsage } from "@reflex/core";
-import { assertInside, writeNewFile } from "@reflex/safety";
+import { agentLaunch, assertInside, writeNewFile } from "@reflex/safety";
 
 /** The top folder of the git repository `dir` is in, or undefined. */
 export function repoRoot(dir: string): string | undefined {
@@ -96,9 +96,10 @@ export function runClaudeBench(dir: string, task: string, model: string | undefi
     "--allowedTools",
     ...tools,
   ];
+  const launch = agentLaunch("claude", args);
   const started = Date.now();
   return new Promise((resolve) => {
-    const child = spawn("claude", args, { cwd: dir, stdio: ["ignore", "pipe", "ignore"] });
+    const child = spawn(launch.command, launch.args, { cwd: dir, stdio: ["ignore", "pipe", "ignore"], windowsVerbatimArguments: launch.windowsVerbatimArguments });
     const run: BenchAgentRun = { exitCode: null, timedOut: false, durationMs: 0 };
     let buffer = "";
     const timer = setTimeout(() => {
@@ -117,7 +118,8 @@ export function runClaudeBench(dir: string, task: string, model: string | undefi
       const input = num(u.input_tokens);
       const output = num(u.output_tokens);
       if (input !== undefined && output !== undefined) {
-        run.usage = { input, output, cacheWrite: num(u.cache_creation_input_tokens) ?? 0, cacheRead: num(u.cache_read_input_tokens) ?? 0 };
+        const hour = num((u.cache_creation as Record<string, unknown> | undefined)?.ephemeral_1h_input_tokens);
+        run.usage = { input, output, cacheWrite: num(u.cache_creation_input_tokens) ?? 0, cacheRead: num(u.cache_read_input_tokens) ?? 0, ...(hour ? { cacheWrite1h: hour } : {}) };
       }
       run.reportedUsd = num(msg.total_cost_usd);
       if (typeof msg.result === "string") run.finalText = msg.result.slice(0, 50_000);

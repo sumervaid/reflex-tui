@@ -1,4 +1,5 @@
 import { spawnSync } from "node:child_process";
+import { agentLaunch } from "@reflex/safety";
 import type { TuiData } from "../model";
 import { S, toRow } from "../render/text";
 import { compose } from "../shell";
@@ -119,7 +120,12 @@ export function runTui(opts: RunOptions): Promise<void> {
     const resume = async (c: ResumeCommand): Promise<void> => {
       let error: Error | undefined;
       await term.suspend(() => {
-        error = spawnSync(c.cmd, c.args, { stdio: "inherit", cwd: c.cwd }).error;
+        try {
+          const launch = agentLaunch(c.cmd, c.args);
+          error = spawnSync(launch.command, launch.args, { stdio: "inherit", cwd: c.cwd, windowsVerbatimArguments: launch.windowsVerbatimArguments }).error;
+        } catch (e) {
+          error = e instanceof Error ? e : new Error(String(e));
+        }
       });
       term.invalidate();
       await reload();

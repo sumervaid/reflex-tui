@@ -1,8 +1,9 @@
 <!--
   README TEMPLATE NOTES (delete once filled in)
   Sections marked TEMPLATE are commented out until there is something real to put in them:
-  logo, license badge, CI badge, community links, related projects, contributors, star history.
-  Image URLs point at the main branch so they also render on npm; they show up after merging.
+  logo, community links, related projects, contributors, star history.
+  Links and images use full GitHub URLs because this file is also the npm page, where relative
+  links would resolve against apps/cli.
 -->
 
 <div align="center">
@@ -19,12 +20,8 @@
   <a href="https://www.npmjs.com/package/reflex-skills"><img src="https://img.shields.io/npm/v/reflex-skills?style=flat-square" alt="npm version"></a>
   <a href="https://www.npmjs.com/package/reflex-skills"><img src="https://img.shields.io/npm/dm/reflex-skills?style=flat-square" alt="npm downloads"></a>
   <img src="https://img.shields.io/node/v/reflex-skills?style=flat-square" alt="node version">
-  <!-- TEMPLATE: license badge, once a LICENSE file exists
-  <a href="LICENSE"><img src="https://img.shields.io/npm/l/reflex-skills?style=flat-square" alt="license"></a>
-  -->
-  <!-- TEMPLATE: CI badge, once there is a test workflow
-  <a href="https://github.com/sumervaid/reflex-tui/actions"><img src="https://img.shields.io/github/actions/workflow/status/sumervaid/reflex-tui/ci.yml?style=flat-square" alt="CI"></a>
-  -->
+  <a href="https://github.com/sumervaid/reflex-tui/blob/main/LICENSE"><img src="https://img.shields.io/npm/l/reflex-skills?style=flat-square" alt="license"></a>
+  <a href="https://github.com/sumervaid/reflex-tui/actions/workflows/ci.yml"><img src="https://img.shields.io/github/actions/workflow/status/sumervaid/reflex-tui/ci.yml?branch=main&style=flat-square&label=CI" alt="CI"></a>
 </p>
 
 <p>
@@ -81,7 +78,7 @@ reflex                    # open the terminal UI over the last scan
 
 <img src="https://raw.githubusercontent.com/sumervaid/reflex-tui/docs/readme-revamp/docs/assets/quickstart.gif" alt="reflex scan, suggest, approve and install on synthetic history" width="800">
 
-If a short window finds nothing, try a longer one. [docs/demo.md](docs/demo.md) walks through the
+If a short window finds nothing, try a longer one. [docs/demo.md](https://github.com/sumervaid/reflex-tui/blob/main/docs/demo.md) walks through the
 whole loop on your own history.
 
 ## How it works
@@ -100,28 +97,34 @@ whole loop on your own history.
 4. **Install.** An approved skill is written to `~/.reflex/skills` and copied into the agents you
    choose. Installs never overwrite an existing file.
 
-Details: [How detection works](docs/how-detection-works.md).
+Details: [How detection works](https://github.com/sumervaid/reflex-tui/blob/main/docs/guide.md#how-detection-works).
 
 ## Features
 
 - **Skills from your own repeats.** Only steps seen in at least half the sessions, with example
   commands that recurred and passed a safety filter. No transcript excerpts.
 - **A terminal UI.** `reflex` opens seven views over your last scan: Dashboard, Morning, Tokens,
-  Skills, Workflows, Router and Search. `space` installs or removes a skill. [docs/tui.md](docs/tui.md)
+  Skills, Workflows, Router and Search. `space` installs or removes a skill. [docs/tui.md](https://github.com/sumervaid/reflex-tui/blob/main/docs/tui.md)
 - **Token and cost view.** Tokens from the last scan and what they would cost at API list prices,
-  per day, tool, model and project, and what caching saved.
+  per day, tool, model and project, and what caching saved. Add or correct prices in
+  `~/.reflex/prices.json` ([how](https://github.com/sumervaid/reflex-tui/blob/main/docs/guide.md#prices)).
 - **A model router and bench.** `reflex run` starts Claude Code or Codex on the cheapest model that
   needed fixing about as rarely as the most reliable one for that kind of task; `reflex bench` runs
   one task on several models and scores them with your check command.
-  [Routing, improve and impact](docs/routing-and-improve.md)
+  [Routing tasks to models](https://github.com/sumervaid/reflex-tui/blob/main/docs/guide.md#routing-tasks-to-models)
 - **Improve skills you already have.** `reflex improve <skill>` compares a skill with the sessions
   that loaded it and proposes an edit, asking before it reads or changes anything.
 - **Memory.** Corrections you gave in at least 2 independent sessions, written as a marked block into
   `~/.claude/CLAUDE.md` and `~/.codex/AGENTS.md` once you run `reflex memory on`.
+- **A handbook per repository.** `reflex handbook` lists the commands that worked in a repository,
+  the ones that kept failing and the corrections you repeated, with the sessions behind each.
+  Read-only, so agents can call it; `export` writes one for a teammate.
+- **Cursor token counts.** Cursor saves none in its transcripts; `reflex cursor-usage on` records
+  them through a Cursor hook from then on, so Cursor sessions get a cost too.
 
 ## Terminal UI
 
-Run `reflex` after a scan. You can do the whole loop from here (Skills, Workflows), and also see what your agent usage costs and reopen old sessions. Keys `0`-`6` switch views. More: [docs/tui.md](docs/tui.md).
+Run `reflex` after a scan. You can do the whole loop from here (Skills, Workflows), and also see what your agent usage costs and reopen old sessions. Keys `0`-`6` switch views. More: [docs/tui.md](https://github.com/sumervaid/reflex-tui/blob/main/docs/tui.md).
 
 ### Skills: review and install
 
@@ -179,11 +182,13 @@ Every scanned session's opening request and steps. Enter reopens it in Claude Co
 | | `reflex route` | Picks per kind of task, autopilot, exploration and bench results |
 | | `reflex bench "<task>" --check "<cmd>"` | Run one task on several models, scored by your check command |
 | **Memory** | `reflex memory on` · `off` | Tell new sessions the corrections you keep repeating, via `CLAUDE.md` / `AGENTS.md` |
+| | `reflex handbook` | How work is done in this repository: commands that worked, ones that failed, repeated corrections |
 | **Setup** | `reflex model fetch` | Optional local model for matching requests by meaning (`--light` for 23 MB) |
+| | `reflex cursor-usage on` | Record Cursor's token counts through a Cursor hook (not on Windows yet) |
 | | `reflex reset` | Delete Reflex's own data (not installed skills) |
 
 Prompts default to No; without a terminal nothing is read or written unless you pass `--yes`.
-Every option: [docs/commands.md](docs/commands.md).
+Every option: [docs/commands.md](https://github.com/sumervaid/reflex-tui/blob/main/docs/commands.md).
 
 ## Supported agents
 
@@ -191,18 +196,19 @@ Every option: [docs/commands.md](docs/commands.md).
 | --- | :---: | :---: | --- |
 | Claude Code | ✓ | ✓ | Tested on fixtures matching real files; skill use verified with `validate --run` |
 | Codex | ✓ | ✓ | Tested on fixtures; not yet run against real rollouts or a live Codex session |
-| Cursor | ✓ | ✓ | Tested on fixtures and real agent transcripts. No tool results or tokens, so no pass/fail outcome or cost |
+| Cursor | ✓ | ✓ | Tested on fixtures and real agent transcripts. No tool results, so no pass/fail outcome; tokens and cost once `reflex cursor-usage on` |
 <!-- TEMPLATE: add a row per new agent, e.g. | OpenCode | – | – | Planned | -->
 
 Sessions run through Conductor are read with Claude Code and Codex. Locations and overrides:
-[docs/sources.md](docs/sources.md).
+[Sources in detail](https://github.com/sumervaid/reflex-tui/blob/main/docs/guide.md#sources-in-detail).
 
 ## Privacy
 
 - Transcripts are read locally; scans make no network connections. The only command that uses the
   network is `reflex model fetch`, which you run yourself to download an optional model.
 - Secrets, emails, home paths and your user name are redacted before anything is stored or shown.
-- Nothing is written outside `~/.reflex` until you install a skill. Details: [docs/security.md](docs/security.md)
+- Nothing is written outside `~/.reflex` until you install a skill, turn on memory or the Cursor hook,
+  or apply a `reflex improve` edit, each after asking. Details: [docs/security.md](https://github.com/sumervaid/reflex-tui/blob/main/docs/security.md)
 
 ## FAQ
 
@@ -229,17 +235,19 @@ and quick retries count once. Try a longer window (`reflex scan --days 30`). Wit
 </details>
 
 <details>
-<summary><b>Will it change my CLAUDE.md, AGENTS.md or existing skills?</b></summary>
+<summary><b>Will it change my CLAUDE.md, AGENTS.md, Cursor hooks or existing skills?</b></summary>
 
 Only if you ask. `reflex memory on` writes a marked block into `~/.claude/CLAUDE.md` and
 `~/.codex/AGENTS.md` and leaves the rest of each file as it was; `reflex memory off` removes it.
-Installs never overwrite a file, and `reflex improve` asks before it changes a skill and keeps a backup.
+`reflex cursor-usage on` adds Reflex's hook to `~/.cursor/hooks.json`, keeps your other hooks and
+backs the file up first; `off` removes it. Installs never overwrite a file, and `reflex improve` asks
+before it changes a skill and keeps a backup.
 </details>
 
 <details>
 <summary><b>How do I remove everything?</b></summary>
 
-`reflex reset` deletes Reflex's own data. Installed skills stay; in `reflex tui`, `space` on an
+`reflex reset` deletes Reflex's own data and its Cursor hook. Installed skills stay; in `reflex tui`, `space` on an
 installed skill removes the copies Reflex wrote, unless you edited them.
 </details>
 
@@ -253,16 +261,15 @@ Known gaps, from the current docs:
 - [ ] Read agents launched from Claude Code sessions (Cursor's are read today)
 - [ ] Read Cursor and OpenCode sessions run through Conductor
 - [ ] Measure usage limits in the TUI (shows `not measured yet` today)
+- [ ] Record Cursor's token counts on Windows (`reflex cursor-usage` is macOS and Linux only)
 <!-- TEMPLATE: add planned features here, or link a GitHub project board / milestones. -->
 
 ## Docs
 
-- [Commands](docs/commands.md): every command and option
-- [How detection works](docs/how-detection-works.md) and its limitations
-- [Routing, improve and impact](docs/routing-and-improve.md)
-- [Sources and targets](docs/sources.md): history locations, Conductor, environment variables
-- [Embedding models](docs/embedding-models.md): optional matching by meaning
-- [Terminal UI](docs/tui.md) · [Security](docs/security.md) · [Architecture](docs/architecture.md) · [Walkthrough](docs/demo.md)
+- [Commands](https://github.com/sumervaid/reflex-tui/blob/main/docs/commands.md): every command and option
+- [Guide](https://github.com/sumervaid/reflex-tui/blob/main/docs/guide.md): how detection works, matching by meaning, improving your skills, measuring a skill, routing tasks to models, prices, sources and limitations
+- [Terminal UI](https://github.com/sumervaid/reflex-tui/blob/main/docs/tui.md) · [Security](https://github.com/sumervaid/reflex-tui/blob/main/docs/security.md) · [Architecture](https://github.com/sumervaid/reflex-tui/blob/main/docs/architecture.md) · [Walkthrough](https://github.com/sumervaid/reflex-tui/blob/main/docs/demo.md)
+- [Development](https://github.com/sumervaid/reflex-tui/blob/main/docs/development.md): building from source and running the tests
 
 ## Status
 
@@ -288,7 +295,7 @@ The monorepo uses pnpm workspaces and Turborepo with strict TypeScript, Zod for 
 and built-in `node:sqlite` for storage, so there are no native dependencies. The optional embedding
 model runs on onnxruntime-web's WebAssembly backend for the same reason. Packages live in
 `packages/*`; the CLI in `apps/cli`. `packages/test-fixtures` holds synthetic transcripts used only
-by the tests; it is not part of the published CLI. Internals: [docs/architecture.md](docs/architecture.md).
+by the tests; it is not part of the published CLI. More in [docs/development.md](https://github.com/sumervaid/reflex-tui/blob/main/docs/development.md); internals: [docs/architecture.md](https://github.com/sumervaid/reflex-tui/blob/main/docs/architecture.md).
 
 The README recordings are reproducible on synthetic data: `vhs docs/assets/tui-tour.tape` and
 `vhs docs/assets/quickstart.tape`.
@@ -317,6 +324,4 @@ See [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## License
 
-<!-- TEMPLATE: the repository has no LICENSE file yet. Once it does, replace this line with e.g.
-[MIT](LICENSE) © <name> -->
-No license file yet.
+[MIT](https://github.com/sumervaid/reflex-tui/blob/main/LICENSE) © The Reflex contributors

@@ -3,7 +3,7 @@
 // or a dim "—"; token counts are always measured, money may not be.
 import type { Bar, TuiData } from "../model";
 import { big, hb, hbars, vchart } from "../render/charts";
-import { BOLD, S, fmt, hcat, rp, tr, usd } from "../render/text";
+import { BOLD, S, fmt, hcat, llen, rp, tr, usd } from "../render/text";
 import type { Line, Seg, UiState, ViewOut } from "../types";
 
 const notMeasured = (): Line => [S("not measured yet", "dim")];
@@ -34,12 +34,15 @@ export function renderTokens(w: number, h: number, data: TuiData, _ui: UiState):
   const L: Line[] = [];
   const u = win.usd;
   const allTime = data.money?.allTime.usd;
-  L.push([
+  const top: Line = [
     S(`LAST ${win.days} DAYS`, "dim", BOLD),
     S(`   ${win.range}   ${fmt(win.sessions)} sessions`, "dim"),
     S("   all time ", "dim"),
     allTime != null ? S(usd(allTime), "fg") : S("—", "dim"),
-  ]);
+  ];
+  const checked = u && win.pricesChecked ? `   API list prices of ${win.pricesChecked}` : "";
+  if (checked && llen(top) + checked.length <= w) top.push(S(checked, "dim"));
+  L.push(top);
 
   if (u) {
     const bw = Math.max(16, w - 65);
@@ -83,7 +86,11 @@ export function renderTokens(w: number, h: number, data: TuiData, _ui: UiState):
   if (u) hit.push(S(" of tokens, ", "dim"), S(Math.round((u.output / (u.total || 1)) * 100) + "%", "fg"), S(" of cost", "dim"));
   else hit.push(S(" of tokens", "dim"));
   L.push(hit);
-  L.push([]);
+  // Takes the blank line's place: the view has no row to spare at 40 rows.
+  if (win.unknownModels?.length) {
+    const list = win.unknownModels.map((m) => `${m.name} (${m.sessions} sess)`).join(", ");
+    L.push([S("unknown model ", "warn"), S(tr(`${list}: no price, so not in any cost. Add it in ~/.reflex/prices.json`, Math.max(1, w - 14)), "dim")]);
+  } else L.push([]);
 
   const tbw = Math.max(10, w - 66);
   if (data.tools.length) {

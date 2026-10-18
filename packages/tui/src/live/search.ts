@@ -1,7 +1,8 @@
 import { closeSync, constants, existsSync, lstatSync, openSync, readSync, readdirSync, statSync } from "node:fs";
-import { basename, delimiter, join } from "node:path";
+import { basename, join } from "node:path";
 import { ClaudeCodeAdapter, CursorAdapter, decodeWorkspace } from "@reflex/adapters";
 import type { SourceId } from "@reflex/core";
+import { findOnPath } from "@reflex/safety";
 import type { SearchIndex, SessionContext, Turn } from "../model";
 import { toCells } from "../render/text";
 import type { ActionResult, ResumeCommand, ToolFilter } from "../types";
@@ -112,8 +113,6 @@ function cursorWorkspace(nativeId: string): string | undefined {
   return dir ? decodeWorkspace(dir) : undefined;
 }
 
-const onPath = (cmd: string): boolean => (process.env.PATH ?? "").split(delimiter).some((d) => d && existsSync(join(d, cmd)));
-
 /** How to reopen a search hit in the tool that recorded it, or why that is not possible. */
 export function resumeCommand(ref: SessionRef | undefined): ResumeCommand | ActionResult {
   if (!ref || !SESSION_ID.test(ref.nativeId)) return { ok: false, message: "this session cannot be resumed", tone: "dim" };
@@ -128,7 +127,7 @@ export function resumeCommand(ref: SessionRef | undefined): ResumeCommand | Acti
   const dir = cursorWorkspace(id);
   if (!dir) return { ok: false, message: "this Cursor chat has no workspace folder on this machine", tone: "dim" };
   const done = `opened ${toCells(basename(dir))} in Cursor · the chat is in its agent history`;
-  if (onPath("cursor")) return { cmd: "cursor", args: [dir], done };
+  if (findOnPath("cursor")) return { cmd: "cursor", args: [dir], done };
   if (process.platform === "darwin") return { cmd: "open", args: ["-a", "Cursor", dir], done };
   return { ok: false, message: `open ${toCells(dir)} in Cursor; the chat is in its agent history`, tone: "dim" };
 }

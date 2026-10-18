@@ -1,9 +1,8 @@
 import { installNetworkGuard, quietSqliteWarning } from "./guard";
 quietSqliteWarning();
-// `reflex model fetch` downloads the optional embedding model and is the only command allowed to
-// use the network; it never reads transcripts. Every other command runs with sockets blocked.
-const fetchingModel = process.argv[2] === "model" && process.argv[3] === "fetch";
-if (!fetchingModel) installNetworkGuard();
+// Every command runs with the network blocked. `reflex model fetch` lets the download through to
+// Hugging Face only, while it downloads; it never reads transcripts.
+installNetworkGuard();
 process.stdout.on("error", (err: NodeJS.ErrnoException) => {
   if (err.code === "EPIPE") process.exit(0);
   throw err;
@@ -11,7 +10,8 @@ process.stdout.on("error", (err: NodeJS.ErrnoException) => {
 
 import { Command, Option } from "commander";
 import type { SourceId } from "@reflex/core";
-import { fail } from "./ui";
+import { loadPriceFile } from "@reflex/storage";
+import { c, fail } from "./ui";
 import { parseDays, parseEmbedMinutes, scan } from "./commands/scan";
 import { approve, evidence, reject, show, suggest } from "./commands/review";
 import { explain, installCommand, listSkills, showSkill, validate } from "./commands/skills";
@@ -19,9 +19,14 @@ import { agents, doctor, reset, sessions, stats } from "./commands/misc";
 import { memoryAdd, memoryForget, memoryOff, memoryOn, memoryRemember, memoryStatus } from "./commands/memory";
 import { modelFetch, modelRemove, modelStatusCommand, modelUse } from "./commands/model";
 import { impact } from "./commands/impact";
+import { cursorUsageOff, cursorUsageOn, cursorUsageStatus } from "./commands/cursor-usage";
 import { improve } from "./commands/improve";
+import { type HandbookOptions, handbook, handbookAsk, handbookExport, handbookShow } from "./commands/handbook";
 import { bench, routeAutopilot, routeExplore, routeStatus, runRouted } from "./commands/route";
 import { tui } from "./commands/tui";
+
+/** apps/cli/package.json's version, set at build time (tsup.config.ts). */
+declare const __REFLEX_VERSION__: string;
 
 function run<A extends unknown[]>(fn: (...args: A) => Promise<void>) {
   return async (...args: A) => {
@@ -35,11 +40,15 @@ function run<A extends unknown[]>(fn: (...args: A) => Promise<void>) {
   };
 }
 
+// Prices you add in ~/.reflex/prices.json come before the built-in ones. Problems go to stderr so
+// JSON output stays parseable.
+for (const problem of loadPriceFile()) process.stderr.write(`${c.yellow("!")} ${problem}\n`);
+
 const program = new Command();
 program
   .name("reflex")
   .description("Find workflows you keep re-teaching Claude Code, Codex and Cursor, and turn proven repeats into reusable skills. Everything runs locally.")
-  .version("0.5.0")
+  .version(__REFLEX_VERSION__)
   .allowExcessArguments()
   .action(
     run(async () => {
@@ -71,6 +80,31 @@ program
 
 program.command("sessions").description("list sessions from the last scan (redacted)").action(run(sessions));
 program.command("agents").description("sessions that launched agents (Cursor), what kinds, and how much work the agents did").action(run(agents));
+
+const handbookCmd = program
+  .command("handbook")
+  .description("how work is done in this repository, learned from past sessions (read-only, safe for agents)")
+  .option("--project <name>", "a repository by name instead of the current folder")
+  .option("--all", "every repository")
+  .option("--json", "machine-readable output")
+  .action(run(async (o: HandbookOptions) => handbook(o)));
+handbookCmd
+  .command("show <id>")
+  .description("one practice and the sessions behind it")
+  .option("--json", "machine-readable output")
+  .action(run(async (id: string, _o: HandbookOptions, cmd: Command) => handbookShow(id, cmd.optsWithGlobals())));
+handbookCmd
+  .command("ask <question...>")
+  .description("practices that answer a question, with their sources")
+  .option("--project <name>", "a repository by name instead of the current folder")
+  .option("--json", "machine-readable output")
+  .action(run(async (q: string[], _o: HandbookOptions, cmd: Command) => handbookAsk(q, cmd.optsWithGlobals())));
+handbookCmd
+  .command("export")
+  .description("a Markdown handbook for a teammate or new hire (no request text)")
+  .option("--project <name>", "a repository by name instead of the current folder")
+  .option("--all", "every repository")
+  .action(run(async (_o: HandbookOptions, cmd: Command) => handbookExport(cmd.optsWithGlobals())));
 
 program
   .command("suggest")
@@ -186,6 +220,15 @@ program
   .option("--keep", "keep the copies for inspection")
   .option("-y, --yes", "start without asking")
   .action(run(async (words: string[], o: Parameters<typeof bench>[1]) => bench(words, o)));
+
+const cursorUsage = program.command("cursor-usage").description("record Cursor's token counts locally through a Cursor hook (Cursor saves none in its transcripts)");
+cursorUsage.command("status", { isDefault: true }).description("whether the hook is on and what it has recorded").action(run(cursorUsageStatus));
+cursorUsage
+  .command("on")
+  .description("add Reflex's hook to ~/.cursor/hooks.json (asks first; keeps your other hooks)")
+  .option("-y, --yes", "add it without prompting")
+  .action(run(cursorUsageOn));
+cursorUsage.command("off").description("remove Reflex's hook; recorded counts stay").action(run(cursorUsageOff));
 
 program.command("stats").description("defensible counts from local data").action(run(stats));
 program

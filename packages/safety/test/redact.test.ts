@@ -1,5 +1,5 @@
-import { describe, expect, it } from "vitest";
-import { excerpt, findLeaks, redact, redactPath, redactWithReport } from "../src/redact";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { excerpt, findLeaks, redact, redactPath, redactTruncated, redactWithReport } from "../src/redact";
 import { assertInside, displayPath, isValidSlug, toSlug } from "../src/paths";
 import { homedir } from "node:os";
 
@@ -87,6 +87,66 @@ describe("redact", () => {
     expect(e).not.toContain("abc ");
     expect(e.length).toBeLessThanOrEqual(80);
     expect(e).not.toContain("\n");
+  });
+});
+
+describe("redactTruncated", () => {
+  const token = "Ab1" + "x9Yz".repeat(15);
+  const key = "sk-ant-api03-" + "Q7wErTyUiOpAsDfG".repeat(3);
+
+  it("redacts a secret that crosses the limit before cutting", () => {
+    for (const secret of [token, key]) {
+      for (const keep of [5, 14, 38]) {
+        const text = "a ".repeat(500) + secret;
+        const max = text.length - secret.length + keep;
+        const out = redactTruncated(text, max);
+        expect(out.length).toBeLessThanOrEqual(max);
+        expect(out).not.toContain(secret.slice(0, keep));
+      }
+    }
+  });
+
+  it("keeps text under the limit as redact would", () => {
+    expect(redactTruncated("run pnpm test", 2000)).toBe("run pnpm test");
+    expect(redactTruncated("x".repeat(3000), 10)).toBe("x".repeat(10));
+  });
+});
+
+describe("the current user", () => {
+  // The rules are built when the module loads, so each case loads it again with that user name.
+  async function redactAs(name: string) {
+    vi.stubEnv("REFLEX_REDACT_USER", name);
+    vi.resetModules();
+    return import("../src/redact");
+  }
+
+  afterEach(() => {
+    vi.unstubAllEnvs();
+    vi.resetModules();
+  });
+
+  it("redacts a distinctive login name anywhere", async () => {
+    const { redact, redactPath } = await redactAs("nihar");
+    expect(redact("ask Nihar to review /srv/nihar/app")).toBe("ask <user> to review /srv/<user>/app");
+    expect(redactPath("/srv/nihar/app")).toBe("/srv/<user>/app");
+  });
+
+  it("leaves everyday words alone when the login name is one of them", async () => {
+    for (const name of ["root", "test", "build", "will", "admin", "dev"]) {
+      const { redact } = await redactAs(name);
+      const text = `Apply the smallest focused change that addresses the root cause. It will build, then run the test as admin in dev.`;
+      expect(redact(text)).toBe(text);
+    }
+  });
+
+  it("still redacts the home folder, wherever it is", async () => {
+    for (const home of ["/root", "/var/lib/jenkins"]) {
+      vi.stubEnv("HOME", home);
+      const { redact, redactPath } = await redactAs(home === "/root" ? "root" : "jenkins");
+      expect(redact(`cat ${home}/.zshrc`)).toBe("cat ~/.zshrc");
+      expect(redactPath(`${home}/.claude/skills`)).toBe("~/.claude/skills");
+      expect(redact(`ls ${home}fs/bin ${home}.bak`)).toBe(`ls ${home}fs/bin ${home}.bak`);
+    }
   });
 });
 

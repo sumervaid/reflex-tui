@@ -80,6 +80,20 @@ Token usage, where recorded, is attached to the session as `{input, output, cach
   falling back to `composerData:<chat id>` (`modelConfig.modelName`). The transcript id is the chat
   id. Names land in `trace.models`, most used first, unpriced. Cached traces scanned before consent
   are re-read once.
+- Cursor, with `reflex cursor-usage on`: Cursor gives hooks the turn's counts (`input_tokens`
+  including cache reads and writes, `output_tokens`, `cache_read_tokens`, `cache_write_tokens`;
+  cumulative per `generation_id`, repeated by `stop` and `afterAgentResponse`). Reflex's hook
+  (`~/.reflex/hooks/cursor-usage.mjs`, run by absolute Node path) appends one line per event with
+  ids, model (`model_id`, else `model`) and counts to `~/.reflex/cursor-usage.jsonl`.
+  `CursorUsageLog` keeps one turn per generation (a `stop` record wins), subtracts the cache figures
+  from `input`, and sums per conversation and model. Cursor's names for Claude models
+  (`claude-4.5-sonnet-thinking`, `sonnet-5.5`) are recorded under Anthropic's (`claude-sonnet-4-5`)
+  when that has a price; Cursor's own models (Composer, Grok) have no list price and stay unpriced.
+  The adapter joins on the chat id only and sets `usage` / `usageByModel`, so pricing and the router
+  treat those chats like any other. Agents a chat launched may report turns of their own; whether
+  the chat's totals already include them isn't known yet, so they are left out rather than possibly
+  counted twice. Not available on Windows yet: the hook command is quoted for a POSIX shell. A chat's file identity folds in the
+  number of recorded turns and the latest one, so new turns re-read a cached chat.
 
 ## From sessions to suggestions
 
@@ -211,6 +225,31 @@ tests passing.
 - **Record.** `skill_changes` holds one JSON row per proposal: hashes, counts, check result,
   applied, backup path.
 
+## Handbook
+
+`buildHandbook` (`@reflex/analysis` `handbook.ts`) turns the stored traces into practices, on demand;
+nothing is persisted. Copies, resumes and retries count once (`deduplicate`).
+
+- **Commands.** Per repository (`projectHash`) and per verify action (`run-tests`, `run-build`,
+  `run-lint`), the normalized command that ran without failing in the most sessions becomes a practice
+  once it did so in at least 2. A different command for the same action that only ever failed, in at
+  least 2 sessions, is named as the one not to use. Commands must pass `isSafeExample`.
+- **Rules.** `recurringCorrectionsBySession` over all instances (the same matching as memory). A rule
+  whose sessions are all in one repository belongs to it; otherwise it applies everywhere. A situation
+  (`when`) is attached when a file category is in at least 2/3 of the rule's sessions and at least 2
+  times as common there as in the scope's other sessions (add-one-half smoothing). Rules must pass
+  `isSafeConstraint`; rules forgotten with `reflex memory forget` are left out.
+- **Evidence.** Each practice keeps its session count, the latest session's start, and up to 5 sources
+  (date, tool, redacted first request). Ids are a hash of kind, repository and wording, so they hold
+  across scans.
+- **Ask.** `askHandbook` scores practices by stemmed word overlap with the question, including words
+  for the situation and the command kind, and ranks the current repository's practices above others.
+  No model and no network.
+- **CLI.** `reflex handbook` resolves the repository by walking up from the current folder to a
+  session `cwd` hash (or `--project <name>`). Every subcommand only reads the database. `export`
+  prints Markdown without request text, for sharing. When memory is on, its block tells agents the
+  command exists.
+
 ## Router
 
 `@reflex/analysis` `routing.ts` is shared by the CLI and the TUI.
@@ -267,8 +306,9 @@ every load (at start, after a rescan and after each toggle).
 | `router` | Priced sessions by kind of task and main model: average cost and corrections, failed tool calls and repeated commands per request. `autopilot` is the router setting `reflex run` reads |
 | `limits`, `plansFile` | Not recorded, so absent |
 
-Sessions found twice (the same session id in two places) count once in token sums. Cursor records
-no tokens, so a day or window with only Cursor sessions has no token value. More in
+Sessions found twice (the same session id in two places) count once in token sums. Cursor saves
+no tokens in its transcripts, so a day or window with only Cursor sessions has no token value unless
+Reflex's Cursor hook recorded them. More in
 [tui.md](tui.md).
 
 ## Storage
@@ -334,4 +374,4 @@ peak plus 3 GB embeds nothing new and says so.
 | `REFLEX_CLAUDE_SKILLS_DIR`, `REFLEX_CODEX_SKILLS_DIR`, `REFLEX_CURSOR_SKILLS_DIR` | Install targets |
 | `REFLEX_EMBED_THREADS` | WebAssembly threads for embedding (default: cores, up to 4) |
 | `REFLEX_DEBUG=1` | Local counters on stderr (counts only, never content) |
-| `REFLEX_REDACT_USER` | Extra user name to redact |
+| `REFLEX_REDACT_USER` | User name to redact instead of the login name |

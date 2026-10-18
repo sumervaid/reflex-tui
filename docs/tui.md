@@ -16,8 +16,9 @@ tool, model and project, the most expensive sessions, what caching saved), gener
 suggestions waiting for review, every repeated workflow with the evidence behind it, router
 suggestions (which model was cheapest and about as reliable, per kind of task), and a search over
 each session's opening request and steps. Enter reopens a Claude Code or Codex session, or opens a
-Cursor chat's workspace in Cursor. Cursor records no tokens, so its sessions have no cost; if you
-allow it, Reflex reads which model each Cursor chat used and Tokens counts Cursor sessions per
+Cursor chat's workspace in Cursor. Cursor saves no tokens in its transcripts, so its sessions have
+no cost unless you turn on `reflex cursor-usage`; if you allow it, Reflex reads which model each
+Cursor chat used and Tokens counts Cursor sessions per
 model. Usage limits are not recorded, so that block says `not measured yet`. Run `reflex scan` again (or press
 `r`) after upgrading: costs need the model of each session, which older scans did not store.
 
@@ -113,7 +114,8 @@ heading and `not measured yet`; a missing value inside a block shows `—`.
 | Search | yes | stored traces: `excerpt` and `displaySteps`, each session once. Raw transcripts are not stored, so later prompts and replies are not searchable |
 | Resume | Claude Code, Codex, Cursor (workspace) | native session id from the trace; Claude's folder from the `cwd` in the first 256 KB of its transcript (no symlinks); a Cursor chat's workspace from the folder its transcript sits in |
 
-Cursor records no tokens, so a day with only Cursor sessions has no token value.
+Cursor saves no tokens in its transcripts, so a day with only Cursor sessions has no token value
+unless `reflex cursor-usage` recorded them.
 
 ## Design sources
 

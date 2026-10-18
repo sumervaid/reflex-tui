@@ -11,7 +11,8 @@ README revamp on 2026-10-15. Nothing here is decided; tick or delete items as th
 
 ## Decisions for the team
 
-- [ ] **License.** The repo has no LICENSE file. Popular repos all have one, and some people and
+- [x] **License.** Done on main (#31): MIT, "The Reflex contributors", badge and License line filled in.
+  Original note: the repo had no LICENSE file. Popular repos all have one, and some people and
   companies won't use code without one. MIT is the usual choice for CLIs like this; Apache-2.0 adds
   a patent grant. Without a license nobody else may legally use, copy or modify the code. Everyone
   who has committed code should agree (as of 2026-10-15: Nihar Shah, Sumer Vaid, Gio Jung). Also
@@ -44,8 +45,8 @@ README revamp on 2026-10-15. Nothing here is decided; tick or delete items as th
 Each is an HTML comment marked `TEMPLATE`, invisible on the page until uncommented.
 
 - [ ] Logo (see above)
-- [ ] License badge and License line (see above)
-- [ ] CI badge: needs a workflow that runs `pnpm test` on pushes and PRs (today the only workflow is
+- [x] License badge and License line (see above)
+- [x] CI badge: points at `.github/workflows/ci.yml` (added on main, #30). Original note: needs a workflow that runs `pnpm test` on pushes and PRs (today the only workflow is
   the embedding benchmark). Then point the badge at that workflow file.
 - [ ] `CONTRIBUTING.md`: how to set up, run tests, commit style, what PRs are welcome
 - [ ] Community: GitHub Discussions, Discord, X/Bluesky, whichever the team uses
@@ -73,8 +74,7 @@ crush and delta.
 
 - **TUI wording:** the dashboard says "1 corrections your agents could remember" (plural with 1).
 - **TUI branding:** the title bar says "Reflex AI"; everything else says "Reflex".
-- **npm description:** the `apps/cli/package.json` description says "Claude Code and Codex" and
-  leaves out Cursor.
+- ~~**npm description:**~~ fixed on main (#52): the description now names Cursor.
 - **Model size:** `reflex model fetch --help` says bge-m3 is "about 590 MB"; the README, the docs and
   `reflex scan`'s tip say 587 MB.
 - **Router task names:** the docs say "debugging, features and tests, edits, research, questions";
@@ -82,7 +82,7 @@ crush and delta.
   `explore`). Noted in `docs/routing-and-improve.md`.
 - **Undocumented environment variables:** the source reads `REFLEX_CLAUDE_MEMORY_FILE`,
   `REFLEX_CODEX_MEMORY_FILE` and `REFLEX_CURSOR_STATE_DB`, which no doc mentions.
-- **Links on npm:** the npm package copies `README.md` at publish time, and relative `docs/...` links
+- ~~**Links on npm:**~~ fixed: every README link is now a full GitHub URL (as #52 did on main). The npm package copies `README.md` at publish time, and relative `docs/...` links
   don't work there. Images already use absolute URLs; links could too
   (`https://github.com/sumervaid/reflex-tui/blob/main/docs/...`).
 
@@ -113,6 +113,12 @@ and discuss these separately.
 A paste-ready FYI for the team was drafted on 2026-10-15: what changed, the four decisions above,
 the before-merging step, and the problems spotted. Update this file rather than re-sending the
 whole list when things are decided.
+
+## Docs layout
+
+- Merged with main on 2026-10-17. The detail pages this branch had split out (`how-detection-works.md`,
+  `routing-and-improve.md`, `sources.md`, `embedding-models.md`) are folded into main's `docs/guide.md`
+  (#52), which held the same text and was newer. `docs/commands.md` stays as the full options table.
 
 ## Recordings
 

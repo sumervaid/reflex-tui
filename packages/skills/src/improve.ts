@@ -94,6 +94,8 @@ export async function applyToOwnSkill(path: string, readHash: string, next: stri
   const stat = await lstat(path);
   if (!stat.isFile()) throw new Error("Not a regular file.");
   // A file you made read-only stays yours to change: the replace below would otherwise succeed.
+  // Its mode says so even for root, whom the access check always lets write.
+  if ((stat.mode & 0o222) === 0) throw new Error("You can't write to this skill file, so Reflex won't change it.");
   await access(path, constants.W_OK).catch(() => {
     throw new Error("You can't write to this skill file, so Reflex won't change it.");
   });

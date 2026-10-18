@@ -10,4 +10,9 @@ export const paths = {
   db: () => join(reflexHome(), "reflex.db"),
   skills: () => join(reflexHome(), "skills"),
   models: () => join(reflexHome(), "models"),
+  /** Token counts Reflex's Cursor hook records (`reflex cursor-usage on`). */
+  cursorUsage: () => join(reflexHome(), "cursor-usage.jsonl"),
+  hooks: () => join(reflexHome(), "hooks"),
+  /** Model prices the user adds or corrects, used ahead of the built-in ones. */
+  prices: () => join(reflexHome(), "prices.json"),
 };

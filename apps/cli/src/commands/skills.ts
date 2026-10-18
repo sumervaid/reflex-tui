@@ -2,7 +2,7 @@ import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { spawnSync } from "node:child_process";
 import { SOURCE_LABELS } from "@reflex/core";
-import { assertSlug, displayPath, isValidSlug, pathExists } from "@reflex/safety";
+import { agentLaunch, assertSlug, displayPath, isValidSlug, pathExists } from "@reflex/safety";
 import { Store, paths } from "@reflex/storage";
 import {
   FIX_CI_TASK,
@@ -245,7 +245,8 @@ export async function validate(name: string, opts: { run?: boolean; yes?: boolea
     out(c.dim(`  Or let Reflex run it: reflex validate ${name} --run`));
     return;
   }
-  if (spawnSync("claude", ["--version"], { stdio: "ignore" }).status !== 0) {
+  const claude = agentLaunch("claude", ["--version"]);
+  if (spawnSync(claude.command, claude.args, { stdio: "ignore", windowsVerbatimArguments: claude.windowsVerbatimArguments }).status !== 0) {
     fail("The `claude` CLI was not found on PATH.");
     return;
   }

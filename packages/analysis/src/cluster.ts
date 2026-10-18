@@ -2,7 +2,7 @@ import type { WorkflowTrace } from "@reflex/core";
 import { type SessionVectors, dotProduct } from "./context";
 import { fillerWeights } from "./fillers";
 import { concepts, cosine, termSimilarities } from "./intents";
-import { opKeys, similarity } from "./similarity";
+import { similarity, traceFeatures } from "./similarity";
 
 export const CLUSTER_THRESHOLD = 0.45;
 
@@ -27,7 +27,39 @@ export type Cluster = {
   actionCohesion: number;
 };
 
-type Matrices = { total: number[][]; intent: number[][]; actions: number[][] };
+/**
+ * A symmetric similarity matrix that stores each pair once (the upper triangle), with 1 on the
+ * diagonal: half the memory of a full n × n table.
+ */
+export class PairMatrix {
+  private readonly values: Float64Array;
+
+  constructor(readonly size: number) {
+    this.values = new Float64Array((size * (size - 1)) / 2);
+  }
+
+  private index(i: number, j: number): number {
+    const a = i < j ? i : j;
+    const b = i < j ? j : i;
+    return (a * (2 * this.size - a - 1)) / 2 + b - a - 1;
+  }
+
+  get(i: number, j: number): number {
+    return i === j ? 1 : this.values[this.index(i, j)]!;
+  }
+
+  set(i: number, j: number, value: number): void {
+    this.values[this.index(i, j)] = value;
+  }
+
+  copy(): PairMatrix {
+    const m = new PairMatrix(this.size);
+    m.values.set(this.values);
+    return m;
+  }
+}
+
+type Matrices = { total: PairMatrix; intent: PairMatrix; actions: PairMatrix };
 
 /**
  * Embedding cosine at or below which two sessions count as unrelated in meaning, when the vectors do
@@ -63,35 +95,29 @@ export function intentSimilarities(traces: WorkflowTrace[], vectors?: SessionVec
   };
 }
 
-/** Pairwise similarity matrices. O(n^2), fine for hundreds of sessions. */
+/** Pairwise similarity matrices: O(n^2) pairs, each trace's features worked out once. */
 export function similarityMatrices(traces: WorkflowTrace[], vectors?: SessionVectors): Matrices {
   const intentOf = intentSimilarities(traces, vectors);
-  const keys = traces.map(opKeys);
+  const features = traces.map(traceFeatures);
   const n = traces.length;
-  const make = () => Array.from({ length: n }, () => new Array<number>(n).fill(1));
-  const m: Matrices = { total: make(), intent: make(), actions: make() };
+  const m: Matrices = { total: new PairMatrix(n), intent: new PairMatrix(n), actions: new PairMatrix(n) };
   for (let i = 0; i < n; i++) {
     for (let j = i + 1; j < n; j++) {
-      const s = similarity(traces[i]!, traces[j]!, intentOf(i, j), keys[i], keys[j]);
-      for (const [name, v] of [
-        ["total", s.total],
-        ["intent", s.intent],
-        ["actions", s.actions],
-      ] as const) {
-        m[name][i]![j] = v;
-        m[name][j]![i] = v;
-      }
+      const s = similarity(traces[i]!, traces[j]!, intentOf(i, j), features[i], features[j]);
+      m.total.set(i, j, s.total);
+      m.intent.set(i, j, s.intent);
+      m.actions.set(i, j, s.actions);
     }
   }
   return m;
 }
 
-function meanPairwise(matrix: number[][], members: number[]): number {
+function meanPairwise(matrix: PairMatrix, members: number[]): number {
   let total = 0;
   let pairs = 0;
   for (let x = 0; x < members.length; x++)
     for (let y = x + 1; y < members.length; y++) {
-      total += matrix[members[x]!]![members[y]!]!;
+      total += matrix.get(members[x]!, members[y]!);
       pairs++;
     }
   return pairs ? total / pairs : 1;
@@ -111,39 +137,64 @@ export function clusterTraces(
   const sim = similarityMatrices(traces, vectors);
   const n = traces.length;
   const members: (number[] | null)[] = traces.map((_, i) => [i]);
-  // link[i][j] / intentLink[i][j] = average total / intent similarity between clusters i and j (Lance-Williams update).
-  const link = sim.total.map((row) => [...row]);
-  const intentLink = sim.intent.map((row) => [...row]);
+  // link / intentLink = average total / intent similarity between clusters i and j (Lance-Williams update).
+  const link = sim.total.copy();
+  const intentLink = sim.intent.copy();
+
+  // Each cluster's best partner among the clusters after it: the first j with the highest link
+  // that may merge. Merging changes only a few rows, so the best pair overall is found from these
+  // n entries instead of from all n^2 pairs, in the same order as scanning every pair.
+  const bestJ = new Int32Array(n).fill(-1);
+  const bestLink = new Float64Array(n).fill(-1);
+  const findBest = (i: number) => {
+    bestJ[i] = -1;
+    bestLink[i] = -1;
+    for (let j = i + 1; j < n; j++) {
+      if (!members[j] || intentLink.get(i, j) < minIntent) continue;
+      const v = link.get(i, j);
+      if (v > bestLink[i]!) {
+        bestLink[i] = v;
+        bestJ[i] = j;
+      }
+    }
+  };
+  for (let i = 0; i < n; i++) findBest(i);
 
   for (;;) {
     let best = -1;
     let bi = -1;
-    let bj = -1;
     for (let i = 0; i < n; i++) {
-      if (!members[i]) continue;
-      for (let j = i + 1; j < n; j++) {
-        if (!members[j] || intentLink[i]![j]! < minIntent) continue;
-        if (link[i]![j]! > best) {
-          best = link[i]![j]!;
-          bi = i;
-          bj = j;
-        }
+      if (members[i] && bestJ[i]! >= 0 && bestLink[i]! > best) {
+        best = bestLink[i]!;
+        bi = i;
       }
     }
     if (bi < 0 || best < threshold) break;
+    const bj = bestJ[bi]!;
     const a = members[bi]!;
     const b = members[bj]!;
     for (let k = 0; k < n; k++) {
       if (!members[k] || k === bi || k === bj) continue;
-      const v = (a.length * link[bi]![k]! + b.length * link[bj]![k]!) / (a.length + b.length);
-      link[bi]![k] = v;
-      link[k]![bi] = v;
-      const w = (a.length * intentLink[bi]![k]! + b.length * intentLink[bj]![k]!) / (a.length + b.length);
-      intentLink[bi]![k] = w;
-      intentLink[k]![bi] = w;
+      link.set(bi, k, (a.length * link.get(bi, k) + b.length * link.get(bj, k)) / (a.length + b.length));
+      intentLink.set(bi, k, (a.length * intentLink.get(bi, k) + b.length * intentLink.get(bj, k)) / (a.length + b.length));
     }
     members[bi] = [...a, ...b].sort((x, y) => x - y);
     members[bj] = null;
+    bestJ[bj] = -1;
+
+    findBest(bi);
+    // Rows before bi now have a new link to bi; rows before bj may have pointed at bj.
+    for (let k = 0; k < bj; k++) {
+      if (!members[k] || k === bi) continue;
+      if (bestJ[k] === bi || bestJ[k] === bj) findBest(k);
+      else if (k < bi && intentLink.get(k, bi) >= minIntent) {
+        const v = link.get(k, bi);
+        if (v > bestLink[k]! || (v === bestLink[k]! && bi < bestJ[k]!)) {
+          bestLink[k] = v;
+          bestJ[k] = bi;
+        }
+      }
+    }
   }
 
   return members

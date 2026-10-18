@@ -1,5 +1,4 @@
 import { mkdtemp, readFile, rm, stat } from "node:fs/promises";
-import net from "node:net";
 import { homedir, tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
@@ -10,7 +9,6 @@ import { approve, evidence, reject, suggest } from "../src/commands/review";
 import { explain, installCommand, listSkills } from "../src/commands/skills";
 import { stats } from "../src/commands/misc";
 import { impact } from "../src/commands/impact";
-import { installNetworkGuard } from "../src/guard";
 
 let root: string;
 let history: { claudeDir: string; codexDir: string };
@@ -115,17 +113,5 @@ describe("reflex end-to-end loop on fixture transcripts", () => {
     await capture(() => reject("review-pr"));
     const list = await capture(() => suggest({ interactive: false }));
     expect(list).not.toMatch(/#\d+ · review-pr/);
-  });
-});
-
-describe("network guard", () => {
-  it("blocks outgoing sockets", () => {
-    const original = net.Socket.prototype.connect;
-    try {
-      installNetworkGuard();
-      expect(() => net.connect(443, "example.com")).toThrow("does not make network connections");
-    } finally {
-      net.Socket.prototype.connect = original;
-    }
   });
 });

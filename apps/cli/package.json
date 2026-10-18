@@ -1,15 +1,22 @@
 {
   "name": "reflex-skills",
-  "version": "0.5.0",
+  "version": "0.5.2",
   "type": "module",
-  "description": "Turn repeated Claude Code and Codex workflows into reusable skills, locally.",
+  "description": "Turn repeated Claude Code, Codex and Cursor workflows into reusable skills, locally.",
+  "license": "MIT",
   "keywords": [
     "claude-code",
     "codex",
+    "cursor",
+    "agent-skills",
     "skills",
     "cli",
     "ai-agents"
   ],
+  "homepage": "https://github.com/sumervaid/reflex-tui#readme",
+  "bugs": {
+    "url": "https://github.com/sumervaid/reflex-tui/issues"
+  },
   "repository": {
     "type": "git",
     "url": "git+https://github.com/sumervaid/reflex-tui.git",
@@ -27,7 +34,7 @@
   "scripts": {
     "build": "tsup",
     "typecheck": "tsc -p tsconfig.json",
-    "prepack": "cp ../../README.md ./README.md && pnpm build"
+    "prepack": "cp ../../README.md ../../LICENSE ./ && pnpm build"
   },
   "devDependencies": {
     "@clack/prompts": "^0.11.0",

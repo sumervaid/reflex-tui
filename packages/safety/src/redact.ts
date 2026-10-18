@@ -82,31 +82,58 @@ const RULES: Rule[] = [
   },
 ];
 
-function currentUserPattern(): RegExp | undefined {
-  let name: string | undefined;
+/**
+ * Login names that are also everyday words or generic accounts. They identify no one, and replacing
+ * every "root cause", "run the test" or "will" in free text would reword requests and skills and skew
+ * the words matching depends on, so for these only the home folder is redacted.
+ */
+const COMMON_NAMES = new Set([
+  // System, CI and container accounts
+  ...["root", "admin", "administrator", "user", "guest", "test", "tester", "dev", "developer", "build", "builder"],
+  ...["runner", "deploy", "app", "node", "git", "www", "web", "server", "ubuntu", "debian", "centos", "fedora"],
+  ...["alpine", "vagrant", "docker", "jenkins", "codespace", "vscode", "coder", "gitpod", "default", "owner"],
+  ...["local", "home", "work", "ops", "operator", "service", "bot", "agent", "demo", "sandbox", "main", "master"],
+  // Given names that are also everyday words
+  ...["will", "mark", "max", "bill", "rob", "pat", "sue", "may", "june", "april", "august", "art", "grant"],
+  ...["hunter", "chase", "rose", "frank", "gene", "ray", "jack", "joy", "hope", "grace", "dawn", "summer", "guy"],
+]);
+
+function currentUserName(): string | undefined {
   try {
-    name = process.env.REFLEX_REDACT_USER ?? userInfo().username;
+    return process.env.REFLEX_REDACT_USER ?? userInfo().username;
   } catch {
-    name = undefined;
+    return undefined;
   }
-  if (!name || name.length < 3) return undefined;
-  const escaped = name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-  return new RegExp(`\\b${escaped}\\b`, "gi");
 }
 
-const userPattern = currentUserPattern();
+const escapeRegExp = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
+/**
+ * The current user's home folder wherever a path starts with it, including homes outside /home and
+ * /Users (`/root`, `/var/lib/jenkins`), and their login name as a word anywhere, unless it is in
+ * COMMON_NAMES.
+ */
+function userRules(): Rule[] {
+  const rules: Rule[] = [];
+  const name = currentUserName();
+  const homeFolder = homedir().replace(/[\\/]+$/, "");
+  if (homeFolder.length >= 2) {
+    rules.push({ name: "home", pattern: new RegExp(`(?<![\\w.-])${escapeRegExp(homeFolder)}(?![\\w.-])`, "g"), replace: "~" });
+  }
+  if (name && name.length >= 3 && !COMMON_NAMES.has(name.toLowerCase())) {
+    rules.push({ name: "username", pattern: new RegExp(`\\b${escapeRegExp(name)}\\b`, "gi"), replace: "<user>" });
+  }
+  return rules;
+}
+
+const USER_RULES = userRules();
 
 /**
  * What user-specific redaction depends on (the user name and home folder), hashed. Stored traces
  * record it so a change can be detected; the rules themselves change only with Reflex's code.
  */
 export function redactionFingerprint(): string {
-  let name = "";
-  try {
-    name = process.env.REFLEX_REDACT_USER ?? userInfo().username;
-  } catch {
-    name = "";
-  }
+  const name = currentUserName() ?? "";
   return createHash("sha256").update(`${name}\n${homedir()}`).digest("hex").slice(0, 16);
 }
 
@@ -126,7 +153,7 @@ export function redactWithReport(input: string): RedactionResult {
   let text = input;
   let redactions = 0;
   const rules = new Set<string>();
-  for (const rule of RULES) {
+  for (const rule of [...RULES, ...USER_RULES]) {
     text = text.replace(rule.pattern, (...args: unknown[]) => {
       redactions++;
       rules.add(rule.name);
@@ -136,13 +163,6 @@ export function redactWithReport(input: string): RedactionResult {
       return rule.replace(...groups);
     });
   }
-  if (userPattern) {
-    text = text.replace(userPattern, () => {
-      redactions++;
-      rules.add("username");
-      return "<user>";
-    });
-  }
   return { text, redactions, rules: [...rules] };
 }
 
@@ -150,16 +170,24 @@ export function redact(input: string): string {
   return redactWithReport(input).text;
 }
 
-const PATH_RULES = new Set(["macos-home", "linux-home", "windows-home", "encoded-home", "email"]);
+const PATH_RULES = new Set(["macos-home", "linux-home", "windows-home", "encoded-home", "email", "home", "username"]);
 
 /** Redaction for file paths we generated ourselves: strip home directories and user names only. */
 export function redactPath(input: string): string {
   let text = input;
-  for (const rule of RULES) {
+  for (const rule of [...RULES, ...USER_RULES]) {
     if (!PATH_RULES.has(rule.name) || typeof rule.replace !== "string") continue;
     text = text.replace(rule.pattern, rule.replace);
   }
-  return userPattern ? text.replace(userPattern, "<user>") : text;
+  return text;
+}
+
+/** Text past a length limit that is redacted too, so a secret crossing the limit is still seen whole. */
+const REDACT_MARGIN = 1024;
+
+/** Redact, then cut to `max` characters. Cutting first could leave a piece of a secret too short to match. */
+export function redactTruncated(input: string, max: number): string {
+  return redact(input.slice(0, max + REDACT_MARGIN)).slice(0, max);
 }
 
 /** Redact, collapse whitespace and truncate for display. */
