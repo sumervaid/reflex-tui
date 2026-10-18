@@ -10,7 +10,8 @@ import { Store, paths } from "@reflex/storage";
 import { detectTargets, removeMemory } from "@reflex/skills";
 import { activeModel } from "@reflex/embeddings";
 import { latestAnalysis } from "../analysis";
-import { c, confirm, ok, out, plural, rows, shortDate, title } from "../ui";
+import { cursorHooksFile, hookStatus, removeHook } from "../cursor-hook";
+import { c, confirm, ok, out, plural, rows, shortDate, title, warn } from "../ui";
 
 /** Conductor's default workspace folder (`~/conductor/workspaces`); `REFLEX_CONDUCTOR_DIR` overrides it. */
 const conductorRoot = (): string => process.env.REFLEX_CONDUCTOR_DIR ?? join(homedir(), "conductor", "workspaces");
@@ -61,6 +62,10 @@ export async function doctor(): Promise<void> {
     const found = spawnSync(launch.command, launch.args, { stdio: "ignore", windowsVerbatimArguments: launch.windowsVerbatimArguments }).status === 0;
     out(`  ${found ? c.green("✔") : c.dim("·")} ${bin}`);
   }
+  out();
+  const hook = await hookStatus();
+  out("Cursor token usage");
+  out(`  ${hook.events.length ? c.green("✔") : c.dim("·")} ${"Cursor hook".padEnd(12)} ${hook.events.length ? `recording (${hook.events.join(", ")})` : c.dim("off · reflex cursor-usage on")}`);
   out();
 }
 
@@ -165,13 +170,20 @@ export async function reset(opts: { yes?: boolean }): Promise<void> {
     out("Nothing to reset.");
     return;
   }
-  out(`This deletes Reflex's own data in ${displayPath(home)}: the local database (including sessions kept from deleted transcripts), generated skills and validation sandboxes.`);
+  out(`This deletes Reflex's own data in ${displayPath(home)}: the local database (including sessions kept from deleted transcripts), generated skills, validation sandboxes and recorded Cursor token counts.`);
   out(c.dim("Skills you installed into Claude Code, Codex or Cursor are not touched; Reflex's agent-memory block is removed. The embedding model is kept (`reflex model remove`)."));
   if (!(await confirm("Delete Reflex data?", opts))) return;
   // Agent memory lives in the agents' own files: take Reflex's block out before its database goes.
   for (const w of await removeMemory()) if (w.changed) ok(`Removed Reflex's memory block from ${displayPath(w.path)}`);
+  // The Cursor hook points at a script in this folder: take it out of Cursor's hooks file first.
+  try {
+    const { removed } = await removeHook();
+    if (removed.length) ok(`Removed Reflex's hook from ${displayPath(cursorHooksFile())}`);
+  } catch (e) {
+    warn(`Could not remove Reflex's Cursor hook: ${e instanceof Error ? e.message : String(e)}`);
+  }
   // Only remove what Reflex creates, never the whole directory: REFLEX_HOME may point anywhere.
-  for (const child of ["reflex.db", "reflex.db-journal", "reflex.db-wal", "reflex.db-shm", "skills", "validation"]) {
+  for (const child of ["reflex.db", "reflex.db-journal", "reflex.db-wal", "reflex.db-shm", "skills", "validation", "cursor-usage.jsonl", "hooks"]) {
     await rm(join(home, child), { recursive: true, force: true });
   }
   ok("Reset.");

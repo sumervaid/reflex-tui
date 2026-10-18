@@ -56,6 +56,7 @@ alias reflex="node $PWD/apps/cli/dist/reflex.js"
 | `improve [skill]` | For skills you already have: lists them with the sessions that loaded each; with a name, compares the skill with those sessions and proposes an edit (asks before reading the skill and before changing it; keeps a backup). `--file`, `--yes` |
 | `agents` | Sessions that launched agents (Cursor): how many, which kinds, and how many tool calls the agents made |
 | `handbook` | How work is done in the current repository, learned from past sessions: test, build and lint commands that worked (and ones that kept failing), and corrections you repeated, with the situation they came up in and the sessions behind each. `show <id>`, `ask "<question>"`, `export` (Markdown for a teammate, no request text), `--project`, `--all`, `--json`. Read-only, so agents can call it |
+| `cursor-usage [on\|off]` | Record Cursor's token counts locally through a Cursor hook, since Cursor saves none in its transcripts. `on` adds Reflex's hook to `~/.cursor/hooks.json` (asks first, keeps your other hooks, backs the file up); `off` removes it |
 | `stats` | Counts from local data |
 | `reset` | Delete Reflex's own data (not installed skills or the model) |
 | `model [status\|fetch\|use\|remove]` | Optional local embedding model for matching requests by meaning. `fetch` downloads bge-m3 (multilingual, 587 MB); `fetch --light` the English-only all-MiniLM-L6-v2 (23 MB); `use <name>` switches between installed ones |
@@ -76,9 +77,9 @@ tool, model and project, the most expensive sessions, what caching saved), gener
 suggestions waiting for review, every repeated workflow with the evidence behind it, router
 suggestions (which model was cheapest and about as reliable, per kind of task), and a search over
 each session's opening request and steps. Enter reopens a Claude Code or Codex session, or opens a
-Cursor chat's workspace in Cursor. Cursor records no tokens, so its sessions have no cost; if you
-allow it, Reflex reads which model each Cursor chat used and Tokens counts Cursor sessions per
-model. Usage
+Cursor chat's workspace in Cursor. Cursor saves no tokens in its transcripts, so its sessions have
+no cost unless you turn on `reflex cursor-usage` (below); if you allow it, Reflex reads which model
+each Cursor chat used and Tokens counts Cursor sessions per model. Usage
 limits are not recorded, so that block says `not measured yet`. Run `reflex scan` again (or press
 `r`) after upgrading: costs need the model of each session, which older scans did not store.
 
@@ -184,7 +185,8 @@ both sides have at least 3 runs, and never predicts savings in advance.
 
 - Tokens are whole-session totals as Claude Code and Codex record them, cache reads included, so
   other work in the same session counts too.
-- Cursor doesn't record tokens. Cursor runs count tool calls only.
+- Cursor saves no tokens in its transcripts. Cursor runs count tool calls only, unless
+  `reflex cursor-usage` was on during them.
 - The skill's own cost is shown as an estimate from its file size (4 characters per token).
 
 ## Routing tasks to models
@@ -249,6 +251,14 @@ Threat model and mitigations: [docs/security.md](docs/security.md).
 | Claude Code | `~/.claude/projects/*/*.jsonl` | `~/.claude/skills/<name>/SKILL.md` | Parser tested on fixtures matching real files; skill use verified with `validate --run` |
 | Codex | `$CODEX_HOME/sessions/YYYY/MM/DD/rollout-*.jsonl` | `~/.codex/skills/<name>/SKILL.md` | Parser follows the Codex protocol types and is tested on fixtures; not yet run against real rollouts or a live Codex session |
 | Cursor | `~/.cursor/projects/*/agent-transcripts/*/*.jsonl` | `~/.cursor/skills/<name>/SKILL.md` | Parser tested on fixtures and on real agent transcripts. Cursor doesn't record tool results, so pass/fail outcomes aren't available for its sessions |
+
+**Cursor token usage.** Cursor's transcripts and app database have no token counts (every
+`tokenCount` is 0), but Cursor passes each agent turn's counts to its hooks. `reflex cursor-usage on`
+adds one hook (`stop`, with `afterAgentResponse` as fallback) that appends the chat and turn ids, the
+model and the four token counts to `~/.reflex/cursor-usage.jsonl`; never the prompt or the answer, no
+network. The chat id is the transcript's file name, so `reflex scan` attaches those counts to each
+Cursor chat and prices them like other sessions. Only turns from while the hook is on are counted;
+Cursor's command-line agent in `-p` mode sends no end-of-turn hook. Not available on Windows yet.
 
 **Agents a session launched.** When a Cursor chat launches agents (its `Task` / `Subagent` tool),
 Reflex records each one (kind, model, background or not, its short description) and reads the

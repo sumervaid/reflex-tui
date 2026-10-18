@@ -186,11 +186,11 @@ function totals(traces: WorkflowTrace[]): Totals {
   return { sessions: traces.length, usage, measured: traces.length === 0 || recorded > 0 };
 }
 
-/** Cursor sessions by the model they mostly used. */
-function cursorModels(traces: WorkflowTrace[]): Array<{ name: string; sessions: number }> | undefined {
+/** Cursor sessions without token counts, by the model they mostly used. Sessions with counts are in "by model". */
+export function cursorModels(traces: WorkflowTrace[]): Array<{ name: string; sessions: number }> | undefined {
   const counts = new Map<string, number>();
   for (const t of traces) {
-    const m = t.source === "cursor" ? t.models?.[0] : undefined;
+    const m = t.source === "cursor" && !t.usage ? t.models?.[0] : undefined;
     if (m) counts.set(m, (counts.get(m) ?? 0) + 1);
   }
   if (!counts.size) return undefined;

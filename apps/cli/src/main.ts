@@ -18,6 +18,7 @@ import { agents, doctor, reset, sessions, stats } from "./commands/misc";
 import { memoryAdd, memoryForget, memoryOff, memoryOn, memoryRemember, memoryStatus } from "./commands/memory";
 import { modelFetch, modelRemove, modelStatusCommand, modelUse } from "./commands/model";
 import { impact } from "./commands/impact";
+import { cursorUsageOff, cursorUsageOn, cursorUsageStatus } from "./commands/cursor-usage";
 import { improve } from "./commands/improve";
 import { type HandbookOptions, handbook, handbookAsk, handbookExport, handbookShow } from "./commands/handbook";
 import { bench, routeAutopilot, routeExplore, routeStatus, runRouted } from "./commands/route";
@@ -211,6 +212,15 @@ program
   .option("--keep", "keep the copies for inspection")
   .option("-y, --yes", "start without asking")
   .action(run(async (words: string[], o: Parameters<typeof bench>[1]) => bench(words, o)));
+
+const cursorUsage = program.command("cursor-usage").description("record Cursor's token counts locally through a Cursor hook (Cursor saves none in its transcripts)");
+cursorUsage.command("status", { isDefault: true }).description("whether the hook is on and what it has recorded").action(run(cursorUsageStatus));
+cursorUsage
+  .command("on")
+  .description("add Reflex's hook to ~/.cursor/hooks.json (asks first; keeps your other hooks)")
+  .option("-y, --yes", "add it without prompting")
+  .action(run(cursorUsageOn));
+cursorUsage.command("off").description("remove Reflex's hook; recorded counts stay").action(run(cursorUsageOff));
 
 program.command("stats").description("defensible counts from local data").action(run(stats));
 program
