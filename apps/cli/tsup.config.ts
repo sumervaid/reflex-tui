@@ -6,6 +6,8 @@ import { defineConfig } from "tsup";
 // onnxruntime-web loads its WebAssembly runtime from files at run time, so ship them next to the bundle.
 const ORT_FILES = ["ort-wasm-simd-threaded.wasm", "ort-wasm-simd-threaded.mjs"];
 const ortDir = dirname(createRequire(new URL("../../packages/embeddings/package.json", import.meta.url)).resolve("onnxruntime-web"));
+// package.json is the one place the version is written; `reflex --version` prints it from here.
+const { version } = createRequire(import.meta.url)("./package.json") as { version: string };
 
 export default defineConfig({
   entry: { reflex: "src/main.ts" },
@@ -19,6 +21,7 @@ export default defineConfig({
   removeNodeProtocol: false,
   // Ship one self-contained file: workspace packages and npm dependencies are inlined.
   noExternal: [/.*/],
+  define: { __REFLEX_VERSION__: JSON.stringify(version) },
   async onSuccess() {
     for (const f of ORT_FILES) await copyFile(join(ortDir, f), join("dist", f));
   },

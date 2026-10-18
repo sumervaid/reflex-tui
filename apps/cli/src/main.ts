@@ -25,6 +25,9 @@ import { type HandbookOptions, handbook, handbookAsk, handbookExport, handbookSh
 import { bench, routeAutopilot, routeExplore, routeStatus, runRouted } from "./commands/route";
 import { tui } from "./commands/tui";
 
+/** apps/cli/package.json's version, set at build time (tsup.config.ts). */
+declare const __REFLEX_VERSION__: string;
+
 function run<A extends unknown[]>(fn: (...args: A) => Promise<void>) {
   return async (...args: A) => {
     try {
@@ -45,7 +48,7 @@ const program = new Command();
 program
   .name("reflex")
   .description("Find workflows you keep re-teaching Claude Code, Codex and Cursor, and turn proven repeats into reusable skills. Everything runs locally.")
-  .version("0.5.2")
+  .version(__REFLEX_VERSION__)
   .allowExcessArguments()
   .action(
     run(async () => {
