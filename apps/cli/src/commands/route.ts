@@ -24,7 +24,7 @@ import {
   typicalCost,
 } from "@reflex/analysis";
 import { SOURCE_LABELS, type SourceId, type WorkflowTrace, costOf } from "@reflex/core";
-import { displayPath, ensureDir } from "@reflex/safety";
+import { agentLaunch, displayPath, ensureDir } from "@reflex/safety";
 import { benchTools, cloneRepo, hasUncommitted, headCommit, removeCopy, repoRoot, runClaudeBench, runUserCommand } from "@reflex/skills";
 import { Store, paths } from "@reflex/storage";
 import { requestVectors } from "../embeddings";
@@ -154,7 +154,8 @@ export async function runRouted(words: string[], opts: RunOptions): Promise<void
   if (!run) return;
   const model = run.model ? ["--model", run.model] : [];
   const args = run.source === "claude-code" ? [...model, "--session-id", run.nativeId!, request] : [...model, request];
-  const res = spawnSync(CLI[run.source as Routable], args, { stdio: "inherit" });
+  const launch = agentLaunch(CLI[run.source as Routable], args);
+  const res = spawnSync(launch.command, launch.args, { stdio: "inherit", windowsVerbatimArguments: launch.windowsVerbatimArguments });
   if (res.error) throw new Error(`Could not start ${CLI[run.source as Routable]}: ${res.error.message}`);
   process.exitCode = res.status ?? 0;
   if (opts.ask !== false && interactive()) await askOutcome(runId);

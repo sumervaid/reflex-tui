@@ -5,7 +5,7 @@ import { join } from "node:path";
 import { SOURCE_LABELS, totalTokens } from "@reflex/core";
 import { createAdapters } from "@reflex/adapters";
 import { deduplicate, isGenericTrace } from "@reflex/analysis";
-import { displayPath, excerpt, pathExists } from "@reflex/safety";
+import { agentLaunch, displayPath, excerpt, pathExists } from "@reflex/safety";
 import { Store, paths } from "@reflex/storage";
 import { detectTargets, removeMemory } from "@reflex/skills";
 import { activeModel } from "@reflex/embeddings";
@@ -57,7 +57,8 @@ export async function doctor(): Promise<void> {
   out();
   out("Agent CLIs (for fresh-task validation)");
   for (const bin of ["claude", "codex"]) {
-    const found = spawnSync(bin, ["--version"], { stdio: "ignore" }).status === 0;
+    const launch = agentLaunch(bin, ["--version"]);
+    const found = spawnSync(launch.command, launch.args, { stdio: "ignore", windowsVerbatimArguments: launch.windowsVerbatimArguments }).status === 0;
     out(`  ${found ? c.green("✔") : c.dim("·")} ${bin}`);
   }
   out();

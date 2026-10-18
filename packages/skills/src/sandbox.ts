@@ -2,7 +2,7 @@ import { spawn, spawnSync } from "node:child_process";
 import { mkdir, writeFile } from "node:fs/promises";
 import { realpathSync } from "node:fs";
 import { join, sep } from "node:path";
-import { assertSlug, displayPath, ensureDir, redactTruncated, writeNewFile } from "@reflex/safety";
+import { agentLaunch, assertSlug, displayPath, ensureDir, redactTruncated, writeNewFile } from "@reflex/safety";
 
 /**
  * A brand-new repository with a realistic CI failure that none of the historical sessions saw:
@@ -149,8 +149,9 @@ export function runClaudeInSandbox(sandbox: Sandbox, skillName: string, timeoutM
     "--allowedTools",
     ...ALLOWED_TOOLS,
   ];
+  const launch = agentLaunch("claude", args);
   return new Promise((resolve) => {
-    const child = spawn("claude", args, { cwd: sandbox.dir, stdio: ["ignore", "pipe", "ignore"] });
+    const child = spawn(launch.command, launch.args, { cwd: sandbox.dir, stdio: ["ignore", "pipe", "ignore"], windowsVerbatimArguments: launch.windowsVerbatimArguments });
     let buffer = "";
     let timedOut = false;
     const run: AgentRun = { exitCode: null, skillUsed: false, commands: [], editedFiles: [], testsPass: false, timedOut: false };
