@@ -62,6 +62,16 @@ describe("tokens view", () => {
       expect(t.some((l) => /by model/.test(l))).toBe(true);
       expect(t.some((l) => /by project/.test(l))).toBe(true);
     });
+
+    it(`says when prices were checked and which models have none at ${W}x${H}`, () => {
+      const data = designData();
+      Object.assign(data.window!, { pricesChecked: "11 Oct 2026", unknownModels: [{ name: "acme-large", sessions: 3 }] });
+      const out = renderTokens(r.w, r.h, data, designUi("tokens"));
+      expect(out.lines.length).toBeLessThanOrEqual(r.h);
+      const t = texts(out.lines).map((l) => l.trimEnd());
+      expect(t[0]).toMatch(/all time \$[\d,.]+ {3}API list prices of 11 Oct 2026$/);
+      expect(t).toContain("unknown model acme-large (3 sess): no price, so not in any cost. Add it in ~/.reflex/prices.json");
+    });
   }
 
   it("uses the wide variant at 140+ columns", () => {

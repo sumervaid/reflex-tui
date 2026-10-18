@@ -22,6 +22,8 @@ export type TokenUsage = {
   output: number;
   cacheRead: number;
   cacheWrite: number;
+  /** Of `cacheWrite`, the tokens cached for 1 hour instead of 5 minutes, which cost more. */
+  cacheWrite1h?: number;
 };
 
 export function totalTokens(u: TokenUsage): number {
@@ -30,7 +32,14 @@ export function totalTokens(u: TokenUsage): number {
 
 export function addUsage(a: TokenUsage | undefined, b: TokenUsage): TokenUsage {
   if (!a) return { ...b };
-  return { input: a.input + b.input, output: a.output + b.output, cacheRead: a.cacheRead + b.cacheRead, cacheWrite: a.cacheWrite + b.cacheWrite };
+  const cacheWrite1h = (a.cacheWrite1h ?? 0) + (b.cacheWrite1h ?? 0);
+  return {
+    input: a.input + b.input,
+    output: a.output + b.output,
+    cacheRead: a.cacheRead + b.cacheRead,
+    cacheWrite: a.cacheWrite + b.cacheWrite,
+    ...(cacheWrite1h ? { cacheWrite1h } : {}),
+  };
 }
 
 export type SessionEvent =

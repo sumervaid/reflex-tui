@@ -166,6 +166,28 @@ models by how hard the task looks. Two ways to get fair evidence:
 
 Cursor isn't routed: it records no tokens to compare, and its editor takes no model from outside.
 
+## Prices
+
+Costs are what the same tokens would cost on the Anthropic or OpenAI API at list prices, not what a
+subscription charges. The built-in prices were checked on 11 Oct 2026; the Tokens view and
+`reflex route` show that date. Claude Code's cache writes are priced by how long they are cached:
+5-minute writes at 1.25x the input price, 1-hour writes at 2x.
+
+A model Reflex has no price for is left out of every cost and named as an unknown model in the
+Tokens view and `reflex route`. To add one, or to correct a price that has changed, create
+`~/.reflex/prices.json` with dollars per million tokens:
+
+```json
+{
+  "my-new-model": { "input": 5, "output": 25, "cacheWrite": 6.25, "cacheRead": 0.5, "cacheWrite1h": 10 },
+  "acme-*": { "input": 1, "output": 4, "cacheWrite": 1, "cacheRead": 0.1 }
+}
+```
+
+Keys are model ids, or prefixes ending in `*`, and come before the built-in prices. `cacheWrite1h`
+is optional; without it, 1-hour writes cost the same as `cacheWrite`. An entry with a missing or
+negative price is skipped, with a warning when Reflex starts.
+
 ## Sources in detail
 
 **Cursor token usage.** Cursor's transcripts and app database have no token counts (every
@@ -203,5 +225,7 @@ Override locations with `REFLEX_CLAUDE_DIR`, `REFLEX_CODEX_DIR`, `REFLEX_CURSOR_
   model, requests in other scripts (Korean, Japanese, ...) are matched by words only. Clusters
   found only by meaning may get a generic name.
 - Each source reads at most its 2,000 most recent files per scan.
+- Long-context rates (Haiku 5.5 above 100K prompt tokens) aren't modeled; those prompts are priced
+  at the standard rate.
 - Sponsor integrations (Alike, Darwin) are not included: no public API documentation was available
   to build against, and the product works without them.

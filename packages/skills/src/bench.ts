@@ -118,7 +118,8 @@ export function runClaudeBench(dir: string, task: string, model: string | undefi
       const input = num(u.input_tokens);
       const output = num(u.output_tokens);
       if (input !== undefined && output !== undefined) {
-        run.usage = { input, output, cacheWrite: num(u.cache_creation_input_tokens) ?? 0, cacheRead: num(u.cache_read_input_tokens) ?? 0 };
+        const hour = num((u.cache_creation as Record<string, unknown> | undefined)?.ephemeral_1h_input_tokens);
+        run.usage = { input, output, cacheWrite: num(u.cache_creation_input_tokens) ?? 0, cacheRead: num(u.cache_read_input_tokens) ?? 0, ...(hour ? { cacheWrite1h: hour } : {}) };
       }
       run.reportedUsd = num(msg.total_cost_usd);
       if (typeof msg.result === "string") run.finalText = msg.result.slice(0, 50_000);

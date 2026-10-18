@@ -31,6 +31,7 @@ finds nothing, try a longer window (`--days 30`).
   filter, and corrections you gave more than once. No transcript excerpts.
 - **Tokens and cost.** Per day, tool, model and project at API list prices, the most expensive
   sessions, and what caching saved. `reflex impact` compares a workflow before and after its skill.
+  Add or correct prices in `~/.reflex/prices.json` ([how](https://github.com/sumervaid/reflex-tui/blob/main/docs/guide.md#prices)).
 - **Model routing.** `reflex run` starts Claude Code or Codex on the cheapest model that has been
   about as reliable for that kind of task, and `reflex bench` runs one task on several models.
 - **Skills you already have.** `reflex improve` compares one of your skills with the sessions that

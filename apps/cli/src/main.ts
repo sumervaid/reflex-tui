@@ -10,7 +10,8 @@ process.stdout.on("error", (err: NodeJS.ErrnoException) => {
 
 import { Command, Option } from "commander";
 import type { SourceId } from "@reflex/core";
-import { fail } from "./ui";
+import { loadPriceFile } from "@reflex/storage";
+import { c, fail } from "./ui";
 import { parseDays, parseEmbedMinutes, scan } from "./commands/scan";
 import { approve, evidence, reject, show, suggest } from "./commands/review";
 import { explain, installCommand, listSkills, showSkill, validate } from "./commands/skills";
@@ -35,6 +36,10 @@ function run<A extends unknown[]>(fn: (...args: A) => Promise<void>) {
     }
   };
 }
+
+// Prices you add in ~/.reflex/prices.json come before the built-in ones. Problems go to stderr so
+// JSON output stays parseable.
+for (const problem of loadPriceFile()) process.stderr.write(`${c.yellow("!")} ${problem}\n`);
 
 const program = new Command();
 program
