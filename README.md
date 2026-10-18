@@ -9,7 +9,7 @@
 <div align="center">
 
 <!-- TEMPLATE: logo. Uncomment once docs/assets/logo.svg exists.
-<img src="https://raw.githubusercontent.com/sumervaid/reflex-tui/docs/readme-revamp/docs/assets/logo.svg" alt="Reflex logo" width="120">
+<img src="https://raw.githubusercontent.com/sumervaid/reflex-tui/main/docs/assets/logo.svg" alt="Reflex logo" width="120">
 -->
 
 <h1>Reflex</h1>
@@ -36,7 +36,7 @@
   <a href="#docs">Docs</a>
 </p>
 
-<img src="https://raw.githubusercontent.com/sumervaid/reflex-tui/docs/readme-revamp/docs/assets/tui-tour.gif" alt="The Reflex terminal UI: dashboard, tokens, skills, workflows, router and search views" width="900">
+<img src="https://raw.githubusercontent.com/sumervaid/reflex-tui/main/docs/assets/tui-tour.gif" alt="The Reflex terminal UI: dashboard, tokens, skills, workflows, router and search views" width="900">
 
 <sub>The terminal UI, opened with <code>reflex</code>. <a href="#terminal-ui">What each view does</a>. Recorded on the synthetic test history in <code>packages/test-fixtures</code>, not real sessions.</sub>
 
@@ -76,7 +76,7 @@ reflex install <name>     # copy an approved skill into Claude Code, Codex and/o
 reflex                    # open the terminal UI over the last scan
 ```
 
-<img src="https://raw.githubusercontent.com/sumervaid/reflex-tui/docs/readme-revamp/docs/assets/quickstart.gif" alt="reflex scan, suggest, approve and install on synthetic history" width="800">
+<img src="https://raw.githubusercontent.com/sumervaid/reflex-tui/main/docs/assets/quickstart.gif" alt="reflex scan, suggest, approve and install on synthetic history" width="800">
 
 If a short window finds nothing, try a longer one, or match more loosely with
 `reflex settings matching --sessions 2 --strictness looser`. [docs/demo.md](https://github.com/sumervaid/reflex-tui/blob/main/docs/demo.md) walks through the
@@ -85,8 +85,8 @@ whole loop on your own history.
 ## How it works
 
 <picture>
-  <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/sumervaid/reflex-tui/docs/readme-revamp/docs/assets/how-it-works-dark.svg">
-  <img src="https://raw.githubusercontent.com/sumervaid/reflex-tui/docs/readme-revamp/docs/assets/how-it-works-light.svg" alt="How Reflex works: your agent history, Reflex finds tasks repeated in at least 3 sessions, you review and approve, the skill is installed, and the next session already knows the steps" width="900">
+  <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/sumervaid/reflex-tui/main/docs/assets/how-it-works-dark.svg">
+  <img src="https://raw.githubusercontent.com/sumervaid/reflex-tui/main/docs/assets/how-it-works-light.svg" alt="How Reflex works: your agent history, Reflex finds tasks repeated in at least 3 sessions, you review and approve, the skill is installed, and the next session already knows the steps" width="900">
 </picture>
 
 1. **Scan.** Reflex asks per source, then reads your agents' history locally. Secrets, emails, home
@@ -131,13 +131,13 @@ Run `reflex` after a scan. You can do the whole loop from here (Skills, Workflow
 
 Suggested skills with the `SKILL.md` they would write. `space` approves one and installs it into every agent Reflex detects, or removes it again. The same loop as `reflex suggest` and `reflex install`, in one keypress.
 
-<img src="https://raw.githubusercontent.com/sumervaid/reflex-tui/docs/readme-revamp/docs/assets/tui-skills.png" alt="Skills view of the Reflex terminal UI" width="900">
+<img src="https://raw.githubusercontent.com/sumervaid/reflex-tui/main/docs/assets/tui-skills.png" alt="Skills view of the Reflex terminal UI" width="900">
 
 ### Workflows: the evidence
 
 Every repeated workflow Reflex found: each step with how many sessions had it, corrections you repeated, cost per run, and the sessions themselves.
 
-<img src="https://raw.githubusercontent.com/sumervaid/reflex-tui/docs/readme-revamp/docs/assets/tui-workflows.png" alt="Workflows view of the Reflex terminal UI" width="900">
+<img src="https://raw.githubusercontent.com/sumervaid/reflex-tui/main/docs/assets/tui-workflows.png" alt="Workflows view of the Reflex terminal UI" width="900">
 
 <details>
 <summary><b>More views: Tokens, Router, Search</b></summary>
@@ -146,19 +146,19 @@ Every repeated workflow Reflex found: each step with how many sessions had it, c
 
 Tokens from the last scan and what they would cost at API list prices, per day, tool, model and project, plus how much caching saved and your most expensive sessions.
 
-<img src="https://raw.githubusercontent.com/sumervaid/reflex-tui/docs/readme-revamp/docs/assets/tui-tokens.png" alt="Tokens view of the Reflex terminal UI" width="900">
+<img src="https://raw.githubusercontent.com/sumervaid/reflex-tui/main/docs/assets/tui-tokens.png" alt="Tokens view of the Reflex terminal UI" width="900">
 
 ### Router: which model to use
 
 For each kind of task, the cheapest model that needed fixing about as rarely as the most reliable one. `space` turns autopilot on for `reflex run`.
 
-<img src="https://raw.githubusercontent.com/sumervaid/reflex-tui/docs/readme-revamp/docs/assets/tui-router.png" alt="Router view of the Reflex terminal UI" width="900">
+<img src="https://raw.githubusercontent.com/sumervaid/reflex-tui/main/docs/assets/tui-router.png" alt="Router view of the Reflex terminal UI" width="900">
 
 ### Search: find and reopen a session
 
 Every scanned session's opening request and steps. Enter reopens it in Claude Code or Codex, or opens a Cursor chat's workspace.
 
-<img src="https://raw.githubusercontent.com/sumervaid/reflex-tui/docs/readme-revamp/docs/assets/tui-search.png" alt="Search view of the Reflex terminal UI" width="900">
+<img src="https://raw.githubusercontent.com/sumervaid/reflex-tui/main/docs/assets/tui-search.png" alt="Search view of the Reflex terminal UI" width="900">
 
 </details>
 

@@ -5,7 +5,7 @@ README revamp on 2026-10-15. Nothing here is decided; tick or delete items as th
 
 ## Before merging
 
-- [ ] **Revert the temporary preview commit** (`TEMP: point README images at this branch`) so README
+- [x] **Revert the temporary preview commit** (done: README images point at `main`) (`TEMP: point README images at this branch`) so README
   images point at `main` again. Don't `git revert` it (images added later also use the branch URL); replace `reflex-tui/docs/readme-revamp/docs/assets`
   with `reflex-tui/main/docs/assets` in `README.md`.
 
@@ -129,4 +129,5 @@ whole list when things are decided.
 - No background around the recordings (the owner didn't like the purple margin). Possible later: a light-theme version.
 - `how-it-works-light.svg` / `-dark.svg` are generated SVGs (a simple 4-step flow; the owner preferred this over a detailed architecture diagram); the README picks one with `<picture>` by
   GitHub theme (npm shows the light one). Edit both when the flow changes.
-- The README images point at `main`, so they only show on GitHub after this branch is merged.
+- The README images point at `main`.
+- Keeping the docs up to date: see `AGENTS.md` (Claude Code reads it through `CLAUDE.md`).
