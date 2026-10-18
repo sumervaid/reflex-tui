@@ -53,6 +53,29 @@ describe("evaluation set", () => {
     expect(r.clusterF1).toBeGreaterThan(0.65);
     expect(r.clean).toBeGreaterThanOrEqual(6);
   });
+
+  // `reflex settings matching` at the ends of each range. Most tasks here have 4 sessions, so at 5
+  // only a few suggestions remain, among them the 2 mixed ones also found at the defaults.
+  it.each([
+    ["looser", 2],
+    ["looser", 5],
+    ["stricter", 2],
+    ["stricter", 5],
+  ] as const)("lexical matching, %s with %i sessions", (strictness, sessions) => {
+    const r = evaluate(en, { matching: { strictness, sessions } });
+    report(`lexical ${strictness} ${sessions}`, r);
+    expect(r.clusterF1).toBeGreaterThan(0.55);
+    expect(r.suggestions).toBeGreaterThan(0);
+    expect(r.impure).toBeLessThanOrEqual(sessions === 2 ? 4 : 2);
+  });
+
+  it("finds more with fewer sessions and looser matching, and less the other way", () => {
+    const count = (strictness: "looser" | "default" | "stricter", sessions: number) => evaluate(en, { matching: { strictness, sessions } }).suggestions;
+    expect(count("default", 2)).toBeGreaterThan(count("default", 3));
+    expect(count("default", 5)).toBeLessThan(count("default", 3));
+    expect(count("stricter", 4)).toBeLessThan(count("default", 4));
+    expect(evaluate(en, { matching: { strictness: "looser", sessions: 3 } }).clusterF1).toBeGreaterThanOrEqual(evaluate(en).clusterF1);
+  });
 });
 
 const root = process.env.REFLEX_TEST_MODELS;

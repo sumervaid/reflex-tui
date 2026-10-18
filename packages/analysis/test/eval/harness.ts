@@ -1,8 +1,9 @@
 import type { NormalizedSession, WorkflowTrace } from "@reflex/core";
 import { EVAL_SESSIONS, type FixtureSession, evalTask, fixtureUuid } from "@reflex/test-fixtures";
-import { CLUSTER_THRESHOLD, clusterTraces, similarityMatrices } from "../../src/cluster";
+import { clusterTraces, similarityMatrices } from "../../src/cluster";
 import type { SessionVectors } from "../../src/context";
 import { deduplicate } from "../../src/dedup";
+import { DEFAULT_MATCHING, thresholds } from "../../src/matching";
 import { type AnalyzeOptions, analyze } from "../../src/suggest";
 import { buildTrace, isGenericTrace } from "../../src/trace";
 import { fixtureSessions } from "../helpers";
@@ -31,7 +32,7 @@ export type EvalResult = {
   intentGap: number;
   /** Pairwise F1 of the clusters against the task labels. */
   clusterF1: number;
-  /** Task families (with at least 3 independent sessions) that came out as one clean suggestion. */
+  /** Task families (with at least the sessions a suggestion needs) that came out as one clean suggestion. */
   recovered: number;
   recoverable: number;
   /** Suggestions made of one task only (what a user wants to see). */
@@ -85,13 +86,15 @@ export function evaluate(data: EvalData, opts: AnalyzeOptions = {}): EvalResult 
       total[k].push(m.total.get(i, j));
     }
 
-  const clusters = clusterTraces(candidates, CLUSTER_THRESHOLD, opts.vectors).map((c) => c.members);
+  const matching = opts.matching ?? DEFAULT_MATCHING;
+  const bar = thresholds(matching.strictness);
+  const clusters = clusterTraces(candidates, bar.cluster, opts.vectors, bar.intentLink).map((c) => c.members);
 
   const { suggestions } = analyze(data.traces, opts);
   const index = new Map(candidates.map((t, i) => [t.sessionId, i]));
   const sizeOf = new Map<string, number>();
   for (const l of labels) sizeOf.set(l, (sizeOf.get(l) ?? 0) + 1);
-  const recoverable = [...sizeOf].filter(([, n]) => n >= 3).map(([t]) => t);
+  const recoverable = [...sizeOf].filter(([, n]) => n >= matching.sessions).map(([t]) => t);
 
   let impure = 0;
   let clean = 0;

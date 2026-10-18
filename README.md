@@ -22,7 +22,8 @@ reflex                    # full-screen terminal UI over the last scan
 ```
 
 Suggestions need the same kind of task in at least 3 independent sessions. If a week of history
-finds nothing, try a longer window (`--days 30`).
+finds nothing, try a longer window (`--days 30`), or match more loosely with
+`reflex settings matching --sessions 2 --strictness looser`.
 
 ## What it does
 
@@ -68,6 +69,7 @@ finds nothing, try a longer window (`--days 30`).
 | `agents` | Sessions that launched agents (Cursor): how many, which kinds, and how many tool calls the agents made |
 | `handbook` | How work is done in the current repository, learned from past sessions: commands that worked (and ones that kept failing) and corrections you repeated, with the sessions behind each. `show <id>`, `ask "<question>"`, `export`, `--project`, `--all`, `--json`. Read-only, so agents can call it |
 | `cursor-usage [on\|off]` | Record Cursor's token counts locally through a Cursor hook. `on` adds Reflex's hook to `~/.cursor/hooks.json` (asks first, keeps your other hooks, backs the file up); `off` removes it. Not available on Windows yet |
+| `settings matching` | What counts as a repeated workflow: `--sessions <2-5>` (default 3) and `--strictness looser\|default\|stricter`, `--reset`. A change redoes the last scan's suggestions, and each one shows the settings when they aren't the defaults |
 | `stats` | Counts from local data |
 | `reset` | Delete Reflex's own data (not installed skills or the model) |
 | `model [status\|fetch\|use\|remove]` | Optional local embedding model for matching requests by meaning. `fetch` downloads bge-m3 (multilingual, 587 MB); `fetch --light` the English-only all-MiniLM-L6-v2 (23 MB); `use <name>` switches between installed ones |
