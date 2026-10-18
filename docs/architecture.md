@@ -42,8 +42,16 @@ skip bad lines, cap line size and events per session).
   duplicate-uuid records are dropped.
 - Codex: `$CODEX_HOME/sessions/YYYY/MM/DD/rollout-*.jsonl`. `{timestamp, type, payload}` lines:
   `session_meta`, `response_item` (messages, `shell`/`exec_command` calls, `local_shell_call`,
-  `apply_patch`, outputs with exit codes), `event_msg`. The parser follows the Codex protocol types;
-  it has been tested on fixtures, not on real rollouts (no Codex history on the development machine).
+  `apply_patch`, outputs with exit codes), `event_msg`. Requests are the user messages Codex itself
+  treats as typed: a message with any part Codex adds on its own (`# AGENTS.md instructions`,
+  `<environment_context>`, `<user_shell_command>`, `<turn_aborted>`, notifications, hook output) is
+  left out, as in Codex's `is_contextual_user_fragment`. Paginated rollouts' `item_completed`
+  `UserMessage` events are the fallback. Threads Codex starts itself (`source.subagent`:
+  launched agents, reviews, compaction; `source.internal`: guardian and memory) are not sessions you
+  started and are skipped. Failed commands are read from `metadata.exit_code` (old `shell`),
+  "Exit code: N" and "Process exited with code N" (`exec_command`). Checked against Codex's
+  source (openai/codex, October 2026) and tests in that format; not yet run on real Codex history.
+  `REFLEX_DEBUG=1` prints each file's skipped lines by record type, so a format change shows.
 - Cursor: `~/.cursor/projects/<encoded-workspace>/agent-transcripts/<id>/<id>.jsonl`. `{role, message:
   {content: [text | tool_use]}}` lines plus `turn_ended` markers. The developer's request is the
   `<user_query>` block; session time comes from Cursor's `<timestamp>` tag. Tools map onto the same
@@ -73,7 +81,7 @@ Token usage, where recorded, is attached to the session as `{input, output, cach
   skipped, so subagent tokens are not included.
 - Codex: the last cumulative `event_msg` `token_count.info.total_token_usage`. `input_tokens`
   includes `cached_input_tokens`, so the cached part is moved into `cacheRead`. Like the rest of the
-  Codex parser, this follows the protocol types and is tested on fixtures only.
+  Codex parser, this is checked against Codex's source, not yet on real history.
 - Cursor: no usage in its transcripts. Its app database (`state.vscdb`, table `cursorDiskKV`) has
   per-message `tokenCount` fields, but they are always 0. With a second consent, Reflex reads the
   model names instead: `bubbleId:<chat id>:*` rows (`modelInfo.modelName`, counted per message),

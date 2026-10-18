@@ -52,6 +52,51 @@ const TokenCount = z
   })
   .passthrough();
 
+/**
+ * Text Codex sends in the user role itself: instructions, environment, notifications, hook output.
+ * Mirrors Codex's own `is_contextual_user_fragment` (codex-rs/core/src/context); a user message
+ * with any of these parts is not something you typed.
+ */
+const CODEX_CONTEXT = [
+  "# AGENTS.md instructions",
+  "<user_instructions>",
+  "<environment_context>",
+  "<user_shell_command>",
+  "<turn_aborted>",
+  "<subagent_notification>",
+  "<agent_message_board_notification>",
+  "<recommended_plugins>",
+  "<codex_internal_context",
+  "<goal_context>",
+  "<hook_prompt",
+  "<skill",
+  "Warning: apply_patch was requested via ",
+  "Warning: The maximum number of unified exec processes",
+  "Warning: Your account was flagged",
+];
+const isCodexContext = (text: string): boolean => {
+  const t = text.trimStart();
+  return CODEX_CONTEXT.some((p) => t.startsWith(p));
+};
+
+/** Older Codex builds prefixed the typed request in `user_message` events. */
+const USER_MESSAGE_BEGIN = "## My request for Codex:";
+const typedText = (text: string): string => {
+  const i = text.indexOf(USER_MESSAGE_BEGIN);
+  return i < 0 ? text : text.slice(i + USER_MESSAGE_BEGIN.length).trim();
+};
+
+/**
+ * Threads Codex started on its own rather than for something you typed: agents a session launched,
+ * reviews and compaction (`source: { subagent: … }`), guardian checks and memory consolidation
+ * (`source: { internal: … }`). Their first message is written by Codex or the parent agent.
+ */
+export function startedByCodex(meta: Record<string, unknown>): boolean {
+  const source = meta.source;
+  if (source && typeof source === "object" && ("subagent" in source || "internal" in source)) return true;
+  return ["subagent", "guardian_review", "memory_consolidation"].includes(String(meta.thread_source));
+}
+
 const SHELL_TOOLS = new Set(["shell", "container.exec", "local_shell", "exec_command", "shell_command", "unified_exec"]);
 
 function shellText(command: unknown): string | undefined {
@@ -65,14 +110,26 @@ function shellText(command: unknown): string | undefined {
   return undefined;
 }
 
+/** Tool output as text: a string, or (newer builds) a list of content items. */
+function outputText(output: unknown): string | undefined {
+  if (typeof output === "string") return output;
+  if (!Array.isArray(output)) return undefined;
+  return output.map((c) => (c && typeof c === "object" && typeof (c as { text?: unknown }).text === "string" ? (c as { text: string }).text : "")).join("\n");
+}
+
+/**
+ * Whether a command failed. The old `shell` tool returned JSON with `metadata.exit_code`; later
+ * builds write "Exit code: 1", and `exec_command` (unified exec) "Process exited with code 1".
+ */
 function exitFailed(output: unknown): boolean {
-  if (typeof output !== "string") return false;
+  const text = outputText(output);
+  if (text === undefined) return false;
   try {
-    const parsed = JSON.parse(output) as { metadata?: { exit_code?: number } };
+    const parsed = JSON.parse(text) as { metadata?: { exit_code?: number } };
     const code = parsed?.metadata?.exit_code;
     return typeof code === "number" && code !== 0;
   } catch {
-    return /exit code:?\s*[1-9]/i.test(output.slice(0, 400));
+    return /(exit code:?|exited with code)\s*[1-9]/i.test(text.slice(0, 400));
   }
 }
 
@@ -109,6 +166,13 @@ export class CodexAdapter implements TranscriptAdapter {
     const b = new SessionBuilder(this.id, basename(file.path, ".jsonl").replace(/^rollout-/, "").slice(0, 80), file);
     let totalRecords = 0;
     let skippedRecords = 0;
+    // REFLEX_DEBUG=1 shows these per file, so a change in Codex's format is visible.
+    const skippedByType: Record<string, number> = {};
+    const skip = (type: string) => {
+      skippedRecords++;
+      skippedByType[type] = (skippedByType[type] ?? 0) + 1;
+    };
+    let codexThread = false;
     let sawResponseUserMessage = false;
     const eventUserMessages: Array<{ text: string; at?: string }> = [];
     let model: string | undefined;
@@ -117,12 +181,12 @@ export class CodexAdapter implements TranscriptAdapter {
       for await (const line of readJsonl(file.path)) {
         totalRecords++;
         if (line.error) {
-          skippedRecords++;
+          skip("invalid JSON");
           continue;
         }
         const wrapped = RolloutLine.safeParse(line.value);
         if (!wrapped.success) {
-          skippedRecords++;
+          skip("unknown shape");
           continue;
         }
         const at = wrapped.data.timestamp;
@@ -131,6 +195,10 @@ export class CodexAdapter implements TranscriptAdapter {
         b.touch(at);
 
         if (kind === "session_meta") {
+          if (startedByCodex(body)) {
+            codexThread = true;
+            break;
+          }
           const meta = Item.safeParse({ type: "session_meta", ...body });
           if (meta.success) {
             if (meta.data.id) b.nativeId = meta.data.id.slice(0, 80);
@@ -148,13 +216,21 @@ export class CodexAdapter implements TranscriptAdapter {
 
         const parsed = Item.safeParse(body);
         if (!parsed.success) {
-          if (kind === "response_item" || kind === "event_msg") skippedRecords++;
+          if (kind === "response_item" || kind === "event_msg") skip(`${kind} without a type`);
           continue;
         }
         const item = parsed.data;
 
         if (kind === "event_msg") {
-          if (item.type === "user_message" && item.message) eventUserMessages.push({ text: item.message, at });
+          if (item.type === "user_message" && item.message) eventUserMessages.push({ text: typedText(item.message), at });
+          // Paginated rollouts record what you typed as a completed `UserMessage` item instead.
+          if (item.type === "item_completed") {
+            const done = (body as { item?: { type?: unknown; content?: unknown } }).item;
+            if (done?.type === "UserMessage" && Array.isArray(done.content)) {
+              const text = done.content.map((c) => (c && typeof c === "object" && (c as { type?: unknown }).type === "text" ? String((c as { text?: unknown }).text ?? "") : "")).join("\n").trim();
+              if (text) eventUserMessages.push({ text, at });
+            }
+          }
           const total = item.type === "token_count" ? TokenCount.safeParse(body).data?.info?.total_token_usage : undefined;
           if (total) {
             // OpenAI-style counts: input_tokens includes cached input, output_tokens includes reasoning.
@@ -168,6 +244,8 @@ export class CodexAdapter implements TranscriptAdapter {
 
         switch (item.type) {
           case "message": {
+            const texts = (item.content ?? []).map((raw) => ContentItem.safeParse(raw).data?.text ?? "");
+            if (item.role === "user" && texts.some(isCodexContext)) break;
             for (const raw of item.content ?? []) {
               const c = ContentItem.safeParse(raw);
               if (!c.success || !c.data.text) continue;
@@ -227,12 +305,16 @@ export class CodexAdapter implements TranscriptAdapter {
       return { sessions: [], skippedRecords, totalRecords, unreadable: true, error: "unreadable" };
     }
 
+    if (codexThread) {
+      debug("file parsed", { adapter: this.id, records: totalRecords, sessions: 0, startedByCodex: true });
+      return { sessions: [], skippedRecords, totalRecords, unreadable: false };
+    }
     // Some Codex versions only record the typed prompt as an event message.
     if (!sawResponseUserMessage) for (const m of eventUserMessages) b.addRequest(m.text, m.at);
     if (!b.endedAt) b.touch(file.modifiedAt.toISOString());
     const session = b.build();
     const sessions = session.requests.length > 0 && (!session.endedAt || session.endedAt >= cutoff) ? [session] : [];
-    debug("file parsed", { adapter: this.id, records: totalRecords, skipped: skippedRecords, sessions: sessions.length });
+    debug("file parsed", { adapter: this.id, records: totalRecords, skipped: skippedRecords, skippedByType: Object.entries(skippedByType).map(([t, n]) => `${t}:${n}`).join(",") || undefined, sessions: sessions.length });
     return { sessions, skippedRecords, totalRecords, unreadable: false };
   }
 }

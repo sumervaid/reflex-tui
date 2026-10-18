@@ -260,7 +260,7 @@ installed skill removes the copies Reflex wrote, unless you edited them.
 
 Known gaps, from the current docs:
 
-- [ ] Run the Codex parser against real rollouts and a live Codex session
+- [ ] Run the Codex parser against real rollouts and a live Codex session (it is checked against Codex's source today)
 - [ ] Read agents launched from Claude Code sessions (Cursor's are read today)
 - [ ] Read Cursor and OpenCode sessions run through Conductor
 - [ ] Measure usage limits in the TUI (shows `not measured yet` today)
