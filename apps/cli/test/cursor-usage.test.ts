@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { cursorUsageOff, cursorUsageOn, cursorUsageStatus } from "../src/commands/cursor-usage";
-import { hookCommand, hookScript, installHook } from "../src/cursor-hook";
+import { hookCommand, hookScript, installHook, stableNode } from "../src/cursor-hook";
 
 let root: string;
 let hooksFile: string;
@@ -100,6 +100,17 @@ describe("reflex cursor-usage", () => {
     await symlink(real, link);
     await expect(installHook(link)).rejects.toThrow(/symlink/);
     expect(JSON.parse(await readFile(real, "utf8"))).toEqual(MINE);
+  });
+
+  it("runs Node by a path that survives upgrades when PATH has one for the same binary", async () => {
+    const cellar = join(root, "Cellar", "node", "1.2.3", "bin");
+    const bin = join(root, "bin");
+    await mkdir(cellar, { recursive: true });
+    await mkdir(bin, { recursive: true });
+    await writeFile(join(cellar, "node"), "");
+    await symlink(join(cellar, "node"), join(bin, "node"));
+    expect(stableNode(join(cellar, "node"), `${join(root, "nowhere")}:${bin}`)).toBe(join(bin, "node"));
+    expect(stableNode(join(cellar, "node"), join(root, "nowhere"))).toBe(join(cellar, "node"));
   });
 
   it("creates the hooks file when Cursor has none", async () => {

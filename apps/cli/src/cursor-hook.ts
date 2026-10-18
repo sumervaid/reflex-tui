@@ -1,6 +1,7 @@
+import { realpathSync } from "node:fs";
 import { readFile } from "node:fs/promises";
 import { homedir } from "node:os";
-import { join } from "node:path";
+import { delimiter, join } from "node:path";
 import { ensureDir, isSymlink, pathExists, replaceOwnedFile, writeNewFile } from "@reflex/safety";
 import { paths } from "@reflex/storage";
 
@@ -55,8 +56,32 @@ process.stdin.on("end", () => {
 `;
 }
 
+/**
+ * This Node by a path that survives upgrades: `process.execPath` is often a versioned folder
+ * (`/opt/homebrew/Cellar/node/26.10.0_2/bin/node`) that disappears with the next upgrade. A `node`
+ * on PATH that resolves to the same binary (`/opt/homebrew/bin/node`) keeps working.
+ */
+export function stableNode(execPath = process.execPath, pathEnv = process.env.PATH ?? ""): string {
+  let real: string;
+  try {
+    real = realpathSync(execPath);
+  } catch {
+    return execPath;
+  }
+  for (const dir of pathEnv.split(delimiter)) {
+    if (!dir) continue;
+    const candidate = join(dir, "node");
+    try {
+      if (candidate !== execPath && realpathSync(candidate) === real) return candidate;
+    } catch {
+      continue;
+    }
+  }
+  return execPath;
+}
+
 /** The command Cursor runs: this machine's Node and the script, both absolute, single-quoted for the shell. */
-export function hookCommand(node = process.execPath, script = hookScript()): string {
+export function hookCommand(node = stableNode(), script = hookScript()): string {
   for (const p of [node, script]) if (p.includes("'")) throw new Error(`Reflex can't quote the path ${p} for a hook command.`);
   return `'${node}' '${script}'`;
 }
