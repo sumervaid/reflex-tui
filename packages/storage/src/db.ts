@@ -230,6 +230,12 @@ function parseJson<T>(raw: string, shape: z.ZodType, what: string): T {
   return result.data as T;
 }
 
+/**
+ * How long a write waits for another process's write to finish. Write transactions start with
+ * BEGIN IMMEDIATE, so they wait here too instead of failing when another process wrote after they began.
+ */
+const BUSY_TIMEOUT_MS = 10_000;
+
 export class Store {
   private db: DatabaseSync;
 
@@ -239,6 +245,12 @@ export class Store {
     mkdirSync(dir, { recursive: true, mode: 0o700 });
     this.db = new DatabaseSync(file);
     chmodSync(file, 0o600);
+    // Several Reflex processes can use the database at once (a scan, the TUI and its rescan, an
+    // agent running `reflex handbook`). WAL lets readers and a writer work side by side, and a
+    // second writer waits for the first instead of failing with "database is locked". The -wal and
+    // -shm files take the database file's mode.
+    this.db.exec(`PRAGMA busy_timeout = ${BUSY_TIMEOUT_MS}`);
+    this.db.exec("PRAGMA journal_mode = WAL");
     const version = Number((this.db.prepare("PRAGMA user_version").get() as { user_version: number }).user_version);
     // The old per-scan session copies are derived data; `reflex scan` rebuilds them into the cache.
     if (version < 4) this.db.exec("DROP TABLE IF EXISTS sessions");
@@ -256,7 +268,7 @@ export class Store {
 
   /** Record a scan and make the given cached traces its working set (what suggest, stats and the TUI see). */
   saveScan(scan: Omit<ScanRecord, "id">, traceRows: number[]): number {
-    this.db.exec("BEGIN");
+    this.db.exec("BEGIN IMMEDIATE");
     try {
       const res = this.db
         .prepare(
@@ -304,7 +316,7 @@ export class Store {
 
   /** Replace what is cached for one file (its identity and its traces) atomically. */
   saveFile(file: Omit<CachedFile, "missing" | "checkedAt">, traces: WorkflowTrace[]): CachedTrace[] {
-    this.db.exec("BEGIN");
+    this.db.exec("BEGIN IMMEDIATE");
     try {
       this.db.prepare("DELETE FROM traces WHERE path = ?").run(file.path);
       this.db
@@ -339,7 +351,7 @@ export class Store {
 
   /** Rewrite a kept trace in place (re-redaction after the rules or the user's identity changed). */
   updateKeptTraces(path: string, traces: CachedTrace[], keys: { codeKey: string; redactionKey: string }): void {
-    this.db.exec("BEGIN");
+    this.db.exec("BEGIN IMMEDIATE");
     try {
       const update = this.db.prepare("UPDATE traces SET trace_json = ? WHERE row_id = ?");
       for (const t of traces) update.run(JSON.stringify(t.trace), t.row);
@@ -391,7 +403,7 @@ export class Store {
   /** Store the current suggestions, keeping any earlier approve/reject decision for the same slug. */
   saveSuggestions(scanId: number, suggestions: Suggestion[]): void {
     const now = new Date().toISOString();
-    this.db.exec("BEGIN");
+    this.db.exec("BEGIN IMMEDIATE");
     try {
       this.db.prepare("UPDATE suggestions SET rank = NULL").run();
       const upsert = this.db.prepare(
@@ -509,7 +521,7 @@ export class Store {
   saveEmbeddings(model: string, entries: Iterable<[string, Float32Array]>): void {
     // Some Node versions bind a zero-length view as NULL; COALESCE keeps the empty "unreadable" marker.
     const put = this.db.prepare("INSERT OR REPLACE INTO embeddings (key, model, vector) VALUES (?,?,COALESCE(?, zeroblob(0)))");
-    this.db.exec("BEGIN");
+    this.db.exec("BEGIN IMMEDIATE");
     try {
       for (const [key, v] of entries) put.run(key, model, new Uint8Array(v.buffer, v.byteOffset, v.byteLength));
       this.db.exec("COMMIT");
@@ -527,7 +539,7 @@ export class Store {
   /** Replace the mined memory with the latest result. User decisions (forgotten, added) are kept. */
   syncMinedMemory(rules: Array<{ text: string; sessions: number }>): void {
     const now = new Date().toISOString();
-    this.db.exec("BEGIN");
+    this.db.exec("BEGIN IMMEDIATE");
     try {
       const keep = new Set(rules.map((r) => r.text));
       for (const row of this.db.prepare("SELECT text FROM memory_entries WHERE origin = 'mined' AND status = 'active'").all() as Array<{ text: string }>) {
