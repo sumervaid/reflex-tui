@@ -140,7 +140,9 @@ Token usage, where recorded, is attached to the session as `{input, output, cach
    0.61 F1 and 5 clean suggestions to 0.92, 0.70 and 7; by words only, F1 from 0.63 to 0.67.
 5. **Gates.** A cluster becomes a suggestion only with ≥ 3 independent sessions, intent cohesion
    ≥ 0.2, action cohesion ≥ 0.5, and a non-generic trace (≥ 3 distinct actions). Read-and-answer
-   sessions and generic "read, edit, test" behavior do not pass.
+   sessions and generic "read, edit, test" behavior do not pass. `reflex settings matching` sets
+   the sessions needed (2-5) and a strictness that moves the cluster threshold (0.45), the intent
+   needed to merge (0.35) and to suggest (0.2) together by ±0.05 (`matching.ts`).
 6. **Consensus.** Steps seen in at least half the sessions, ordered by pairwise precedence (A before B
    if most sessions containing both did A first). Different kinds of patch collapse into one
    "patch the root cause" step with the observed variants. Example commands must recur in two

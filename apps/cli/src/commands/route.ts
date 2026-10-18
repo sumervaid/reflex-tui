@@ -180,7 +180,7 @@ export async function routeStatus(): Promise<void> {
     ]);
     out();
     if (!table.length) {
-      out(c.dim("  No priced Claude Code or Codex sessions in the last scan. Run `reflex scan` first; Cursor records no tokens."));
+      out(c.dim("  No priced Claude Code or Codex sessions in the last scan. Run `reflex scan` first. Cursor isn't routed: `reflex run` starts Claude Code or Codex."));
       out();
     }
     for (const k of table) {

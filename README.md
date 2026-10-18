@@ -78,7 +78,8 @@ reflex                    # open the terminal UI over the last scan
 
 <img src="https://raw.githubusercontent.com/sumervaid/reflex-tui/docs/readme-revamp/docs/assets/quickstart.gif" alt="reflex scan, suggest, approve and install on synthetic history" width="800">
 
-If a short window finds nothing, try a longer one. [docs/demo.md](https://github.com/sumervaid/reflex-tui/blob/main/docs/demo.md) walks through the
+If a short window finds nothing, try a longer one, or match more loosely with
+`reflex settings matching --sessions 2 --strictness looser`. [docs/demo.md](https://github.com/sumervaid/reflex-tui/blob/main/docs/demo.md) walks through the
 whole loop on your own history.
 
 ## How it works
@@ -185,6 +186,7 @@ Every scanned session's opening request and steps. Enter reopens it in Claude Co
 | | `reflex handbook` | How work is done in this repository: commands that worked, ones that failed, repeated corrections |
 | **Setup** | `reflex model fetch` | Optional local model for matching requests by meaning (`--light` for 23 MB) |
 | | `reflex cursor-usage on` | Record Cursor's token counts through a Cursor hook (not on Windows yet) |
+| | `reflex settings matching` | How many sessions make a repeat (2-5) and how strictly they must match |
 | | `reflex reset` | Delete Reflex's own data (not installed skills) |
 
 Prompts default to No; without a terminal nothing is read or written unless you pass `--yes`.
@@ -196,7 +198,7 @@ Every option: [docs/commands.md](https://github.com/sumervaid/reflex-tui/blob/ma
 | --- | :---: | :---: | --- |
 | Claude Code | ✓ | ✓ | Tested on fixtures matching real files; skill use verified with `validate --run` |
 | Codex | ✓ | ✓ | Tested on fixtures; not yet run against real rollouts or a live Codex session |
-| Cursor | ✓ | ✓ | Tested on fixtures and real agent transcripts. No tool results, so no pass/fail outcome; tokens and cost once `reflex cursor-usage on` |
+| Cursor | ✓ | ✓ | Tested on fixtures and real agent transcripts. No command results, so no pass/fail outcome; tokens and cost only while `reflex cursor-usage` is on. `reflex doctor` lists what is missing |
 <!-- TEMPLATE: add a row per new agent, e.g. | OpenCode | – | – | Planned | -->
 
 Sessions run through Conductor are read with Claude Code and Codex. Locations and overrides:
@@ -230,7 +232,8 @@ Scanning, suggesting and installing don't. Commands that start an agent do, afte
 <summary><b>Why didn't it suggest anything?</b></summary>
 
 A workflow needs the same kind of task in at least 3 independent sessions; copies, resumed sessions
-and quick retries count once. Try a longer window (`reflex scan --days 30`). With the optional model
+and quick retries count once. Try a longer window (`reflex scan --days 30`), or lower the bar with
+`reflex settings matching --sessions 2 --strictness looser`. With the optional model
 (`reflex model fetch`), requests worded differently can match too.
 </details>
 
@@ -324,4 +327,5 @@ See [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## License
 
-[MIT](https://github.com/sumervaid/reflex-tui/blob/main/LICENSE) © The Reflex contributors
+[MIT](https://github.com/sumervaid/reflex-tui/blob/main/LICENSE) © The Reflex contributors. The npm package also ships
+`dist/THIRD_PARTY_NOTICES.md` with the licenses of the libraries bundled into it.

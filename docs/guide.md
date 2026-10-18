@@ -42,6 +42,12 @@ their meaning, so "make the login page load faster", "the sign-in screen is real
 least 3 independent sessions with consistent behavior; one-offs, read-and-answer sessions and
 generic "read, edit, test" patterns are not suggested.
 
+`reflex settings matching` changes that bar: `--sessions` from 2 to 5, and `--strictness looser` or
+`stricter`, which lowers or raises the clustering and intent thresholds together by 0.05. A short
+history may need `--sessions 2 --strictness looser`; a long one whose suggestions are too broad,
+`--strictness stricter`. A change redoes the last scan's suggestions at once, and a suggestion found
+at settings other than the defaults says so in `reflex suggest` and `reflex show`.
+
 The skill contains only steps seen in at least half the sessions, in the order they usually
 happened, with example commands that recurred and passed a safety filter. Corrections you gave in
 follow-up messages ("don't change the CI workflow") become constraints when the same correction
@@ -165,7 +171,8 @@ models by how hard the task looks. Two ways to get fair evidence:
   bench runs never show up in your history. Each run uses your Claude account; before you confirm,
   bench estimates the cost from your average session on each model.
 
-Cursor isn't routed: it records no tokens to compare, and its editor takes no model from outside.
+Cursor isn't routed: `reflex run` can't choose the model for Cursor's editor, so the router only
+compares Claude Code and Codex sessions.
 
 ## Prices
 
@@ -198,6 +205,12 @@ negative price is skipped, with a warning when Reflex starts.
 | Cursor | `~/.cursor/projects/*/agent-transcripts/*/*.jsonl` | `~/.cursor/skills/<name>/SKILL.md` |
 
 Codex history is found through `CODEX_HOME` when it is set (default `~/.codex`).
+
+**What Cursor sessions lack.** Cursor records less than Claude Code and Codex: no token counts
+unless the hook below was on (so its other sessions have no cost, in the TUI, `impact` and bench
+estimates), no command results (so no pass/fail, and a session never counts as "recovered from a
+failure"), and no times for the steps of agents a chat launched (they are placed right after the
+launch). These come from Cursor's data, not from Reflex; `reflex doctor` lists them too.
 
 **Cursor token usage.** Cursor's transcripts and app database have no token counts (every
 `tokenCount` is 0), but Cursor passes each agent turn's counts to its hooks. `reflex cursor-usage on`

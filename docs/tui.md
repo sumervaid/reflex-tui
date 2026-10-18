@@ -86,11 +86,17 @@ if that leaves it empty, then drops the record. A copy you edited stays, with it
 ## Rescan
 
 `r` runs this same CLI as a child process: `scan --yes --days <n>` with the last scan's window and
-one `--source` for each source it read, so it only repeats what you already agreed to. When it
-finishes the views reload and a message says `rescanned: 1,291 sessions, 7 new` (new = session ids
-the previous scan did not have). Without a previous scan it says
-``run `reflex scan` first to choose what Reflex may read``. A scan that used `--claude-dir`,
-`--codex-dir` or `--cursor-dir` is not repeated, because those folders are not recorded.
+one `--source` for each source it read, so it only repeats what you already agreed to. It passes
+`--embed-minutes 1`, so comparing new sessions by meaning takes at most a minute; the rest continue
+on the next scan. When it finishes the views reload and a message says
+`rescanned: 1,291 sessions, 7 new` (new = session ids the previous scan did not have). Without a
+previous scan it says ``run `reflex scan` first to choose what Reflex may read``. A scan that used
+`--claude-dir`, `--codex-dir` or `--cursor-dir` is not repeated, because those folders are not
+recorded.
+
+If the scan fails, the message gives the last line of its error output, redacted:
+`rescan failed: <reason>`. A scan still running after 10 minutes is stopped:
+``rescan stopped after 10 min; run `reflex scan` to finish it``.
 
 ## Live data and what is not measured
 

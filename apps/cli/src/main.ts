@@ -23,6 +23,7 @@ import { cursorUsageOff, cursorUsageOn, cursorUsageStatus } from "./commands/cur
 import { improve } from "./commands/improve";
 import { type HandbookOptions, handbook, handbookAsk, handbookExport, handbookShow } from "./commands/handbook";
 import { bench, routeAutopilot, routeExplore, routeStatus, runRouted } from "./commands/route";
+import { settingsMatching } from "./commands/settings";
 import { tui } from "./commands/tui";
 
 /** apps/cli/package.json's version, set at build time (tsup.config.ts). */
@@ -208,6 +209,15 @@ route
   .description("try another model you use on this share of reflex runs, chosen at random (off to stop)")
   .option("--protect <kind...>", "kinds of task never explored: review, ci, debug, feature, edit, research, explore")
   .action(run(async (value: string, o: { protect?: string[] }) => routeExplore(value, o)));
+
+const settings = program.command("settings").description("your settings for what Reflex suggests");
+settings
+  .command("matching")
+  .description("what counts as a repeated workflow: sessions needed and how alike they must be")
+  .option("--sessions <n>", "independent sessions a suggestion needs, 2 to 5 (default 3)")
+  .option("--strictness <level>", "how alike their requests and steps must be: looser, default or stricter")
+  .option("--reset", "go back to 3 sessions and default strictness")
+  .action(run(settingsMatching));
 
 program
   .command("bench <task...>")

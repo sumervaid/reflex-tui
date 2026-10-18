@@ -6,7 +6,7 @@ import { Store } from "@reflex/storage";
 import { writeFixtureHistory } from "@reflex/test-fixtures";
 import { type DataSource, type TuiData, createLiveSource } from "@reflex/tui";
 import { scan } from "../src/commands/scan";
-import { rescanArgs, rescanWithCli, tui } from "../src/commands/tui";
+import { failureReason, rescanArgs, rescanWithCli, tui } from "../src/commands/tui";
 
 // Every location Reflex reads or writes points into a temp folder: history, Reflex's home, install targets and HOME.
 const ENV_KEYS = [
@@ -314,7 +314,7 @@ describe("reflex tui on fixture history", () => {
 
   it("rescans by running the CLI again with the latest scan's window and sources", async () => {
     const s = latest().scan;
-    expect(rescanArgs("reflex.js", s)).toEqual(["reflex.js", "scan", "--yes", "--days", "7", "--source", "claude-code", "--source", "codex"]);
+    expect(rescanArgs("reflex.js", s)).toEqual(["reflex.js", "scan", "--yes", "--days", "7", "--source", "claude-code", "--source", "codex", "--embed-minutes", "1"]);
     expect(rescanArgs("reflex.js", { ...s, mode: "custom" })).toBeUndefined();
     expect(rescanArgs("reflex.js", { ...s, sources: {} })).toBeUndefined();
 
@@ -322,11 +322,40 @@ describe("reflex tui on fixture history", () => {
     const script = join(root, "fake-reflex.mjs");
     await writeFile(script, `import { writeFileSync } from "node:fs"; writeFileSync(${JSON.stringify(join(root, "argv.json"))}, JSON.stringify(process.argv.slice(2)));\n`);
     const r = await rescanWithCli(script);
-    expect(JSON.parse(await readFile(join(root, "argv.json"), "utf8"))).toEqual(["scan", "--yes", "--days", "7", "--source", "claude-code", "--source", "codex"]);
+    expect(JSON.parse(await readFile(join(root, "argv.json"), "utf8"))).toEqual(["scan", "--yes", "--days", "7", "--source", "claude-code", "--source", "codex", "--embed-minutes", "1"]);
     expect(r).toEqual({ ok: true, message: `rescanned: ${s.sessions.toLocaleString("en-US")} sessions, 0 new`, tone: "ok", sessions: s.sessions, added: 0 });
 
     await writeFile(script, "process.exit(3);\n");
-    expect((await rescanWithCli(script)).tone).toBe("bad");
+    expect(await rescanWithCli(script)).toEqual({ ok: false, message: "rescan failed; run `reflex scan` to see why", tone: "bad" });
+  });
+
+  it("says why a rescan failed, from the end of the scan's error output, redacted", async () => {
+    const script = join(root, "fake-reflex.mjs");
+    const home = "/home/reflex-test-user";
+    await writeFile(
+      script,
+      `process.stderr.write("(node:1) ExperimentalWarning: SQLite is an experimental feature\\n");
+process.stderr.write("✖ Can't open ${home}/.claude/projects: permission denied\\n");
+process.exit(1);\n`,
+    );
+    const r = await rescanWithCli(script);
+    expect(r.ok).toBe(false);
+    expect(r.message).toMatch(/^rescan failed: Can't open .*\/\.claude\/projects: permission denied$/);
+    expect(r.message).not.toContain("reflex-test-user");
+  });
+
+  it("stops a rescan that runs past its time limit", async () => {
+    const script = join(root, "fake-reflex.mjs");
+    await writeFile(script, "setInterval(() => {}, 1000);\n");
+    const started = Date.now();
+    expect(await rescanWithCli(script, 300)).toEqual({ ok: false, message: "rescan stopped after 0 min; run `reflex scan` to finish it", tone: "bad" });
+    expect(Date.now() - started).toBeLessThan(5000);
+  });
+
+  it("keeps a failure reason short and leaves out Node's warnings", () => {
+    expect(failureReason("(node:1) ExperimentalWarning: x\n(Use `node --trace-warnings ...`)\n")).toBeUndefined();
+    expect(failureReason("! one\n✖ two\n\n")).toBe("two");
+    expect(failureReason("x".repeat(400))).toHaveLength(160);
   });
 
   it("refuses to start without a terminal", async () => {

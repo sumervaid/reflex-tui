@@ -77,8 +77,9 @@ export async function impact(name?: string): Promise<void> {
     const traces = store.traces();
     title("Skill impact");
     for (const skill of skills) await renderImpact(store, skill, traces);
-    out(c.dim("Tokens are whole sessions as Claude Code and Codex record them, cache reads included. Cursor does not record"));
-    out(c.dim("tokens, so Cursor runs only count tool calls. A run uses the skill when the agent invoked it or read its SKILL.md."));
+    out(c.dim("Tokens are whole sessions as Claude Code and Codex record them, cache reads included. Cursor records tokens only"));
+    out(c.dim("while `reflex cursor-usage` is on; its other runs count tool calls only. A run uses the skill when the agent invoked it"));
+    out(c.dim("or read its SKILL.md."));
     out(c.dim("Small samples are noisy: this measures what happened, it does not predict savings."));
   } finally {
     store.close();
