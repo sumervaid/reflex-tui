@@ -7,6 +7,25 @@ own, except the first lines of a Claude Code transcript to find the folder to re
 only writes are the ones you ask for with `space` (install or remove a skill) and `r` (scan again
 the way you last scanned); enter in Search hands the terminal to `claude` or `codex`.
 
+## At a glance
+
+`reflex` on its own (or `reflex tui`) opens a full-screen view of Reflex's local data in seven
+views: Dashboard, Morning, Tokens, Skills, Workflows, Router and Search (keys `0`-`6`). It shows
+sessions per tool, tokens from the last scan and what they would cost at API list prices (per day,
+tool, model and project, the most expensive sessions, what caching saved), generated skills plus
+suggestions waiting for review, every repeated workflow with the evidence behind it, router
+suggestions (which model was cheapest and about as reliable, per kind of task), and a search over
+each session's opening request and steps. Enter reopens a Claude Code or Codex session, or opens a
+Cursor chat's workspace in Cursor. Cursor saves no tokens in its transcripts, so its sessions have
+no cost unless you turn on `reflex cursor-usage`; if you allow it, Reflex reads which model each
+Cursor chat used and Tokens counts Cursor sessions per
+model. Usage limits are not recorded, so that block says `not measured yet`. Run `reflex scan` again (or press
+`r`) after upgrading: costs need the model of each session, which older scans did not store.
+
+In Skills, `space` on a new suggestion approves it and installs it into every detected agent;
+`space` on an installed skill removes the copies Reflex wrote, unless you edited them. `r`
+repeats the last scan with the same window and sources. `q` quits.
+
 ## Run it
 
 ```sh

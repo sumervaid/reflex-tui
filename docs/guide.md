@@ -163,7 +163,8 @@ models by how hard the task looks. Two ways to get fair evidence:
 - **Exploration** (`reflex route explore 10`, off by default): on about 10% of runs, chosen at
   random, `reflex run` tries the model you have used least on that kind of task among the ones you
   already use with that tool. `reflex route` compares explored and picked runs from the same coin
-  flips. `--protect review ci` keeps kinds of task out of it.
+  flips. `--protect review ci` keeps kinds of task out of it. Kind names: `review`, `ci`,
+  `debug`, `feature`, `edit`, `research`, `explore`.
 - **Bench** (`reflex bench "<task>" --models sonnet opus --check "pnpm test" --setup "pnpm install"`):
   the same task on each model, each in a fresh clone of the current repository's last commit,
   scored by your check command. Non-persistent Claude Code sessions with project settings only, so
@@ -197,6 +198,14 @@ negative price is skipped, with a warning when Reflex starts.
 
 ## Sources in detail
 
+| | Reads history from | Installs skills to |
+| --- | --- | --- |
+| Claude Code | `~/.claude/projects/*/*.jsonl` | `~/.claude/skills/<name>/SKILL.md` |
+| Codex | `$CODEX_HOME/sessions/YYYY/MM/DD/rollout-*.jsonl` | `~/.codex/skills/<name>/SKILL.md` |
+| Cursor | `~/.cursor/projects/*/agent-transcripts/*/*.jsonl` | `~/.cursor/skills/<name>/SKILL.md` |
+
+Codex history is found through `CODEX_HOME` when it is set (default `~/.codex`).
+
 **What Cursor sessions lack.** Cursor records less than Claude Code and Codex: no token counts
 unless the hook below was on (so its other sessions have no cost, in the TUI, `impact` and bench
 estimates), no command results (so no pass/fail, and a session never counts as "recovered from a
@@ -225,7 +234,8 @@ toward each workspace, and `reflex sessions` marks it "via Conductor". `reflex d
 the workspace folder exists. Cursor and OpenCode sessions run through Conductor are not read yet.
 
 Override locations with `REFLEX_CLAUDE_DIR`, `REFLEX_CODEX_DIR`, `REFLEX_CURSOR_DIR`, `REFLEX_CONDUCTOR_DIR`,
-`REFLEX_CLAUDE_SKILLS_DIR`, `REFLEX_CODEX_SKILLS_DIR`, `REFLEX_CURSOR_SKILLS_DIR` and `REFLEX_HOME`. `REFLEX_EMBED_THREADS` sets the embedding threads. `REFLEX_DEBUG=1` prints local counters (counts only).
+`REFLEX_CLAUDE_SKILLS_DIR`, `REFLEX_CODEX_SKILLS_DIR`, `REFLEX_CURSOR_SKILLS_DIR` and `REFLEX_HOME`. `REFLEX_EMBED_THREADS` sets the embedding threads. `REFLEX_DEBUG=1` prints local counters (counts only). `REFLEX_REDACT_USER` sets the user name to redact
+(default: your login name).
 
 ## Limitations
 
