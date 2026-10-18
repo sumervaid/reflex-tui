@@ -1,7 +1,7 @@
 import { mkdtemp, mkdir, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { CodexAdapter } from "../src/codex";
 import { FIX_CI, toCodexLines } from "@reflex/test-fixtures";
 
@@ -117,5 +117,116 @@ describe("CodexAdapter", () => {
     const [r] = await parseAll();
     const shell = r!.sessions[0]!.events.find((e) => e.kind === "shell");
     expect(shell && shell.kind === "shell" && shell.command).not.toContain("ghp_");
+  });
+
+  // Shaped after Codex's own types (openai/codex, codex-rs/protocol and core, October 2026):
+  // paginated history, context Codex adds in the user role, `exec_command` output, `apply_patch`
+  // as a custom tool, and token counts with rate limits.
+  const current = (...rest: Array<Record<string, unknown>>) => [
+    {
+      timestamp: "2026-10-10T10:00:00.000Z",
+      ordinal: 0,
+      type: "session_meta",
+      payload: {
+        session_id: "019a0000-0000-7000-8000-000000000001",
+        id: "019a0000-0000-7000-8000-000000000001",
+        timestamp: "2026-10-10T10:00:00.000Z",
+        cwd: "/Users/jordan/code/billing-api",
+        originator: "codex_cli_rs",
+        cli_version: "0.130.0",
+        source: "cli",
+        thread_source: "user",
+        model_provider: "openai",
+        history_mode: "paginated",
+        base_instructions: { text: "You are Codex." },
+      },
+    },
+    line("response_item", { type: "message", role: "developer", content: [{ type: "input_text", text: "<permissions instructions>sandbox</permissions instructions>" }] }),
+    line("response_item", {
+      type: "message",
+      role: "user",
+      content: [
+        { type: "input_text", text: "# AGENTS.md instructions for /Users/jordan/code/billing-api\n\n<INSTRUCTIONS>\nRun pnpm test.\n</INSTRUCTIONS>" },
+        { type: "input_text", text: "<environment_context>\n  <cwd>/Users/jordan/code/billing-api</cwd>\n</environment_context>" },
+      ],
+    }),
+    line("turn_context", { cwd: "/Users/jordan/code/billing-api", model: "gpt-5.6-terra" }),
+    ...rest,
+  ];
+  const exec = (id: string, cmd: string, exit: number) => [
+    line("response_item", { type: "function_call", name: "exec_command", arguments: JSON.stringify({ cmd, workdir: "/Users/jordan/code/billing-api" }), call_id: id }),
+    line("response_item", { type: "function_call_output", call_id: id, output: `Chunk ID: ${id}\nWall time: 2.1000 seconds\nProcess exited with code ${exit}\nOriginal token count: 30\nOutput:\nok` }),
+  ];
+
+  it("reads the format current Codex writes", async () => {
+    await writeRollout(
+      "rollout-2026-10-10T10-00-00-019a.jsonl",
+      current(
+        line("response_item", { type: "message", role: "user", content: [{ type: "input_text", text: "fix the failing payments test" }] }),
+        line("event_msg", {
+          type: "item_completed",
+          thread_id: "019a0000-0000-7000-8000-000000000001",
+          turn_id: "t1",
+          item: { type: "UserMessage", id: "u1", content: [{ type: "text", text: "fix the failing payments test", text_elements: [] }] },
+        }),
+        ...exec("c1", "pnpm test payments", 1),
+        line("response_item", { type: "custom_tool_call", name: "apply_patch", call_id: "c2", input: "*** Begin Patch\n*** Update File: src/payments.ts\n@@\n-a\n+b\n*** End Patch" }),
+        line("response_item", { type: "custom_tool_call_output", call_id: "c2", output: "Success. Updated the following files:\nM src/payments.ts" }),
+        ...exec("c3", "pnpm test payments", 0),
+        line("response_item", { type: "message", role: "user", content: [{ type: "input_text", text: "<user_shell_command>\n<command>\ngit status\n</command>\n</user_shell_command>" }] }),
+        line("response_item", { type: "message", role: "assistant", content: [{ type: "output_text", text: "Fixed the rounding in payments." }] }),
+        line("event_msg", {
+          type: "token_count",
+          info: { total_token_usage: { input_tokens: 5000, cached_input_tokens: 3000, output_tokens: 400, reasoning_output_tokens: 250, total_tokens: 5400 } },
+          rate_limits: { primary: { used_percent: 12.5, window_minutes: 300 } },
+        }),
+      ),
+    );
+    const [r] = await parseAll();
+    expect(r!.skippedRecords).toBe(0);
+    const s = r!.sessions[0]!;
+    expect(s.sourceRef.nativeId).toBe("019a0000-0000-7000-8000-000000000001");
+    expect(s.project?.name).toBe("billing-api");
+    expect(s.requests.map((q) => q.text)).toEqual(["fix the failing payments test"]);
+    const steps = s.events.filter((e) => e.kind !== "assistant").map((e) => (e.kind === "shell" ? `shell ${e.command} ${e.isError ? "failed" : "ok"}` : e.kind === "file" ? `${e.op} ${e.path}` : e.kind));
+    expect(steps).toEqual(["user", "shell pnpm test payments failed", "edit src/payments.ts", "shell pnpm test payments ok"]);
+    expect(s.usageByModel).toEqual({ "gpt-5.6-terra": { input: 2000, output: 400, cacheRead: 3000, cacheWrite: 0 } });
+  });
+
+  it("takes the request from the completed user message when that is all there is", async () => {
+    await writeRollout(
+      "rollout-f.jsonl",
+      current(
+        line("event_msg", { type: "item_completed", thread_id: "x", turn_id: "t1", item: { type: "UserMessage", id: "u1", content: [{ type: "text", text: "add retries to the webhook client" }] } }),
+        line("event_msg", { type: "user_message", message: "## My request for Codex:\nand log each retry" }),
+      ),
+    );
+    const [r] = await parseAll();
+    expect(r!.sessions[0]!.requests.map((q) => q.text)).toEqual(["add retries to the webhook client", "and log each retry"]);
+  });
+
+  it.each([
+    ["an agent a session launched", { source: { subagent: { thread_spawn: { parent_thread_id: "019a", depth: 1 } } } }],
+    ["a review", { source: { subagent: "review" } }],
+    ["memory consolidation", { source: { internal: "memory_consolidation" } }],
+    ["a guardian check", { source: "cli", thread_source: "guardian_review" }],
+  ])("leaves out threads Codex started itself: %s", async (_, fields) => {
+    await writeRollout("rollout-g.jsonl", [line("session_meta", { id: "sub-1", cwd: "/repo", ...fields }), userMsg("review the diff for bugs")]);
+    const [r] = await parseAll();
+    expect(r!.sessions).toEqual([]);
+  });
+
+  it("counts skipped lines by record type with REFLEX_DEBUG=1", async () => {
+    await writeRollout("rollout-h.jsonl", [meta, userMsg("fix ci"), "{oops", line("event_msg", { message: "no type" })]);
+    const logged: string[] = [];
+    vi.spyOn(process.stderr, "write").mockImplementation((chunk) => (logged.push(String(chunk)), true));
+    process.env.REFLEX_DEBUG = "1";
+    try {
+      await parseAll();
+    } finally {
+      delete process.env.REFLEX_DEBUG;
+      vi.restoreAllMocks();
+    }
+    expect(logged.join("")).toContain("skippedByType=invalid JSON:1,event_msg without a type:1");
   });
 });
