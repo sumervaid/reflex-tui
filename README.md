@@ -187,6 +187,8 @@ Every scanned session's opening request and steps. Enter reopens it in Claude Co
 | **Setup** | `reflex model fetch` | Optional local model for matching requests by meaning (`--light` for 23 MB) |
 | | `reflex cursor-usage on` | Record Cursor's token counts through a Cursor hook (not on Windows yet) |
 | | `reflex settings matching` | How many sessions make a repeat (2-5) and how strictly they must match |
+| | `reflex forget` | Remove older sessions, or ones whose transcript was deleted, from Reflex's data |
+| | `reflex settings retention` | Keep only the last N days of sessions, forgetting older ones after each scan |
 | | `reflex reset` | Delete Reflex's own data (not installed skills) |
 
 Prompts default to No; without a terminal nothing is read or written unless you pass `--yes`.
@@ -251,7 +253,9 @@ before it changes a skill and keeps a backup.
 <summary><b>How do I remove everything?</b></summary>
 
 `reflex reset` deletes Reflex's own data and its Cursor hook. Installed skills stay; in `reflex tui`, `space` on an
-installed skill removes the copies Reflex wrote, unless you edited them.
+installed skill removes the copies Reflex wrote, unless you edited them. To remove only some sessions, use
+`reflex forget --missing` (transcripts you deleted) or `reflex forget --older-than <days>`;
+`reflex settings retention <days>` does the second after every scan.
 </details>
 
 <!-- TEMPLATE: add questions as users ask them (GitHub issues / discussions are a good source). -->

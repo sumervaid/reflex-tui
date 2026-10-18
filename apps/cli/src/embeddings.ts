@@ -32,6 +32,12 @@ export function embeddingKey(contextHashValue: string, model: ModelSpec): string
   return sha256(`${model.id}\n${contextHashValue}`);
 }
 
+/** Drop cached vectors of sessions Reflex no longer keeps; every model's vectors for the rest stay. */
+export function pruneEmbeddings(store: Store): void {
+  const hashes = store.contextHashes();
+  store.pruneEmbeddings(MODELS.flatMap((m) => hashes.map((h) => embeddingKey(h, m))));
+}
+
 const keyOf = (t: WorkflowTrace, model: ModelSpec) => embeddingKey(t.contextHash ?? contextHash(contextDocument(t)), model);
 
 /** The request part of a context document (after its "Files:" line), which decides whether the model can read it. */
@@ -181,8 +187,7 @@ export async function sessionVectors(
       if (embedded < missing.length) stoppedBy = "time";
     }
     // Keep every model's vectors for the cached traces, so switching models never loses any.
-    const hashes = store.contextHashes();
-    store.pruneEmbeddings(MODELS.flatMap((m) => hashes.map((h) => embeddingKey(h, m))));
+    pruneEmbeddings(store);
     const vectors = pick();
     return { status: "ok", model, vectors, embedded, cached: vectors.size - embedded, remaining: missing.length - embedded, stoppedBy };
   } catch (err) {

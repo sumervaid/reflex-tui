@@ -11,6 +11,7 @@ import { DEFAULT_MODEL, MINILM, modelBytes } from "@reflex/embeddings";
 import { EMBED_BUDGET_MS, type VectorResult, sessionVectors, vectorNeeds } from "../embeddings";
 import { MAX_FILES_PER_SOURCE, collect, currentKeys } from "../collect";
 import { analysisKey, skillSets, summarize } from "../analysis";
+import { applyRetention } from "./forget";
 
 export type ScanOptions = {
   days: number;
@@ -94,6 +95,7 @@ export async function scan(opts: ScanOptions): Promise<void> {
   let suggestions: Suggestion[] = [];
   let covered: CoveredWorkflow[] = [];
   let memoryResult: MemorySync | undefined;
+  let forgotten = 0;
   let meaning: VectorResult = { status: "no-model" };
   let collected;
   try {
@@ -108,7 +110,6 @@ export async function scan(opts: ScanOptions): Promise<void> {
     });
     spin.stop(`${plural(collected.files, "file")} checked: ${collected.read} read, ${collected.reused} unchanged`);
     debug("sessions collected", { sessions: collected.traces.length, files: collected.files, read: collected.read, reused: collected.reused, kept: collected.kept });
-    const { traces } = collected;
     store.saveScan(
       {
         startedAt: now.toISOString(),
@@ -116,13 +117,17 @@ export async function scan(opts: ScanOptions): Promise<void> {
         mode,
         sources: collected.perSource,
         files: collected.files,
-        sessions: traces.length,
+        sessions: collected.traces.length,
         partial: collected.partial,
         unreadable: collected.unreadable,
         skippedRecords: collected.skippedRecords,
       },
       collected.rows,
     );
+    // `reflex settings retention`: sessions past it are forgotten, also from this scan.
+    forgotten = await applyRetention(store, now);
+    if (forgotten) collected.traces = store.traces();
+    const { traces } = collected;
     const embedSpin = spinner();
     let embedding = false;
     meaning = await sessionVectors(traces, store, {
@@ -169,6 +174,7 @@ export async function scan(opts: ScanOptions): Promise<void> {
   if (partial) out(c.dim(`  ${plural(partial, "session")} partially recovered (${plural(skippedRecords, "malformed record")} skipped)`));
   if (unreadable) warn(`${plural(unreadable, "unreadable file")} skipped`);
   if (kept) out(c.dim(`  ${plural(kept, "session")} kept from transcripts that have since been deleted`));
+  if (forgotten) out(c.dim(`  ${plural(forgotten, "session")} forgotten: older than your retention setting (reflex settings retention)`));
   if (capped) warn(`${plural(capped, "older file")} skipped; Reflex reads the ${MAX_FILES_PER_SOURCE} most recent per source. Use a shorter --days window.`);
   if (meaning.status === "ok") {
     out(c.dim(`  requests compared by words and by meaning (local model ${meaning.model.name}; ${plural(meaning.embedded, "session")} newly embedded)`));
