@@ -108,8 +108,10 @@ Threat model and mitigations: [security docs](https://github.com/sumervaid/refle
 | Codex | `$CODEX_HOME/sessions/YYYY/MM/DD/rollout-*.jsonl` | `~/.codex/skills/<name>/SKILL.md` |
 | Cursor | `~/.cursor/projects/*/agent-transcripts/*/*.jsonl` | `~/.cursor/skills/<name>/SKILL.md` |
 
-Sessions from Conductor are read through its Claude Code and Codex. Cursor records no tool results,
-so pass/fail outcomes aren't available for its sessions. The Codex parser is tested on fixtures, not
+Sessions from Conductor are read through its Claude Code and Codex. Cursor records less than the
+others, so its sessions get less from Reflex: no tokens (so no cost) unless `reflex cursor-usage` was
+on, no command results (so no pass/fail, and never "recovered from a failure"), and no times for a
+launched agent's steps (they are placed right after the launch). `reflex doctor` lists the same. The Codex parser is tested on fixtures, not
 yet on real Codex history.
 
 ## Limitations

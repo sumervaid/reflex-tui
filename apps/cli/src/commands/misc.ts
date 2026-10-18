@@ -27,6 +27,13 @@ async function conductorWorkspaces(): Promise<{ dir: string; repos: number } | u
   }
 }
 
+/** What Cursor's own records lack, so its sessions get less from Reflex. */
+export const CURSOR_GAPS = [
+  "no tokens unless the hook was on, so no cost",
+  "no command results, so no pass/fail, and never \"recovered from a failure\"",
+  "no times for a launched agent's steps, so they are placed right after the launch",
+];
+
 export async function doctor(): Promise<void> {
   title("Reflex doctor");
   const nodeMajor = Number(process.versions.node.split(".")[0]);
@@ -66,6 +73,8 @@ export async function doctor(): Promise<void> {
   const hook = await hookStatus();
   out("Cursor token usage");
   out(`  ${hook.events.length ? c.green("✔") : c.dim("·")} ${"Cursor hook".padEnd(12)} ${hook.events.length ? `recording (${hook.events.join(", ")})` : c.dim("off · reflex cursor-usage on")}`);
+  out(c.dim("  Cursor records less than Claude Code and Codex, so its sessions have"));
+  for (const gap of CURSOR_GAPS) out(c.dim(`    · ${gap}`));
   out();
 }
 
