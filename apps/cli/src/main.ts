@@ -40,7 +40,7 @@ const program = new Command();
 program
   .name("reflex")
   .description("Find workflows you keep re-teaching Claude Code, Codex and Cursor, and turn proven repeats into reusable skills. Everything runs locally.")
-  .version("0.5.1")
+  .version("0.5.2")
   .allowExcessArguments()
   .action(
     run(async () => {
