@@ -324,11 +324,16 @@ Reflex's Cursor hook recorded them. More in
 ## Storage
 
 `~/.reflex/reflex.db` (mode 0600, directory 0700): scans, redacted traces, suggestions and their
-status, generated skills (with their cost baseline) and installations. `PRAGMA user_version` gates
-schema changes; version 2 adds `skills.baseline_json` in place; version 3 adds `embeddings`
-(vectors keyed by a hash of model id and context document, kept for every cached trace so changing
-`--days` never re-embeds); version 4 replaces the per-scan `sessions` table with a transcript cache.
-`route_runs` and `bench_results` (JSON rows) and the `router` entry in `settings` are created in place. The
+status, generated skills (with their cost baseline) and installations. `PRAGMA user_version` is the
+schema version. Reflex 0.5 and earlier wrote version 4 whatever columns a database had (version 2
+had added `skills.baseline_json`, 3 `embeddings`, 4 replaced the per-scan `sessions` table with a
+transcript cache, and later columns were added in place), so any database below version 5 gets one
+`baseline` step that brings it to the full schema without losing data. After that, `MIGRATIONS` in
+`packages/storage/src/db.ts` holds numbered steps, each run once in its own transaction (re-checking
+the version inside it, since another Reflex process may migrate at the same time); a shipped step is
+never edited. A database with a version newer than this Reflex knows is refused with a message to
+upgrade or run `reflex reset`, instead of being misread. `embeddings` holds vectors keyed by a hash of
+model id and context document, kept for every cached trace so changing `--days` never re-embeds. The
 request text is embedded during `scan` and never stored; each stored trace keeps only
 `contextHash`, so `suggest` and `stats` can find its vector without the text. Vectors are stored
 uncentered; a document the model cannot read is stored as an empty vector, so it is known and its

@@ -141,8 +141,6 @@ export type ForgetPlan = {
   newest?: string;
 };
 
-const SCHEMA_VERSION = 4;
-
 const SCHEMA = `
 CREATE TABLE IF NOT EXISTS scans (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -238,6 +236,31 @@ CREATE TABLE IF NOT EXISTS bench_results (
 );
 `;
 
+/**
+ * Every database Reflex 0.5 and earlier wrote says version 4, whatever columns it has, and a fresh
+ * one says 0. Below this version, `baseline` brings any of them to the schema above.
+ */
+const BASELINE_VERSION = 5;
+
+function baseline(db: DatabaseSync): void {
+  // The old per-scan session copies are derived data; `reflex scan` rebuilds them into the cache.
+  db.exec("DROP TABLE IF EXISTS sessions");
+  db.exec(SCHEMA);
+  const columns = (table: string) => (db.prepare(`PRAGMA table_info(${table})`).all() as Array<{ name: string }>).map((c) => c.name);
+  if (!columns("skills").includes("baseline_json")) db.exec("ALTER TABLE skills ADD COLUMN baseline_json TEXT");
+  if (!columns("scans").includes("analysis_key")) db.exec("ALTER TABLE scans ADD COLUMN analysis_key TEXT");
+  if (!columns("scans").includes("analysis_json")) db.exec("ALTER TABLE scans ADD COLUMN analysis_json TEXT");
+}
+
+/**
+ * Schema changes after the baseline, in order: `MIGRATIONS[i]` takes a database from version
+ * BASELINE_VERSION + i to the next. Each runs once, in its own transaction. Never edit one that has
+ * shipped; add a new one (and update SCHEMA, which new databases start from).
+ */
+const MIGRATIONS: Array<(db: DatabaseSync) => void> = [];
+
+export const SCHEMA_VERSION = BASELINE_VERSION + MIGRATIONS.length;
+
 const TraceShape = z
   .object({ sessionId: z.string(), source: z.enum(["claude-code", "codex", "cursor"]), actionSequence: z.array(z.string()), intents: z.array(z.string()) })
   .passthrough();
@@ -277,15 +300,45 @@ export class Store {
     // -shm files take the database file's mode.
     this.db.exec(`PRAGMA busy_timeout = ${BUSY_TIMEOUT_MS}`);
     this.db.exec("PRAGMA journal_mode = WAL");
-    const version = Number((this.db.prepare("PRAGMA user_version").get() as { user_version: number }).user_version);
-    // The old per-scan session copies are derived data; `reflex scan` rebuilds them into the cache.
-    if (version < 4) this.db.exec("DROP TABLE IF EXISTS sessions");
-    this.db.exec(SCHEMA);
-    const skillColumns = this.db.prepare("PRAGMA table_info(skills)").all() as Array<{ name: string }>;
-    if (!skillColumns.some((c) => c.name === "baseline_json")) this.db.exec("ALTER TABLE skills ADD COLUMN baseline_json TEXT");
-    const scanColumns = this.db.prepare("PRAGMA table_info(scans)").all() as Array<{ name: string }>;
-    if (!scanColumns.some((c) => c.name === "analysis_key")) this.db.exec("ALTER TABLE scans ADD COLUMN analysis_key TEXT; ALTER TABLE scans ADD COLUMN analysis_json TEXT");
-    this.db.exec(`PRAGMA user_version = ${SCHEMA_VERSION}`);
+    try {
+      this.migrate(file);
+    } catch (err) {
+      this.db.close();
+      throw err;
+    }
+  }
+
+  private version(): number {
+    return Number((this.db.prepare("PRAGMA user_version").get() as { user_version: number }).user_version);
+  }
+
+  /**
+   * Bring the database to SCHEMA_VERSION one step at a time. A database a newer Reflex wrote is
+   * refused rather than misread. Another process may migrate at the same moment, so each step
+   * re-reads the version inside its transaction.
+   */
+  private migrate(file: string): void {
+    for (;;) {
+      const seen = this.version();
+      if (seen > SCHEMA_VERSION)
+        throw new Error(
+          `${file} was written by a newer Reflex (database version ${seen}, this one knows ${SCHEMA_VERSION}). Upgrade Reflex (npm install -g reflex-skills), or run \`reflex reset\` to start over.`,
+        );
+      if (seen === SCHEMA_VERSION) return;
+      this.db.exec("BEGIN IMMEDIATE");
+      try {
+        const v = this.version();
+        if (v === seen) {
+          if (v < BASELINE_VERSION) baseline(this.db);
+          else MIGRATIONS[v - BASELINE_VERSION]!(this.db);
+          this.db.exec(`PRAGMA user_version = ${v < BASELINE_VERSION ? BASELINE_VERSION : v + 1}`);
+        }
+        this.db.exec("COMMIT");
+      } catch (err) {
+        this.db.exec("ROLLBACK");
+        throw err;
+      }
+    }
   }
 
   close(): void {
