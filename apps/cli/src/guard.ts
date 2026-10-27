@@ -6,8 +6,8 @@ import threads, { type WorkerOptions } from "node:worker_threads";
 
 const MESSAGE = "Reflex does not make network connections";
 
-/** Hosts `reflex model fetch` may reach, with their subdomains: Hugging Face and the CDNs its downloads redirect to. */
-export const MODEL_HOSTS = ["huggingface.co", "hf.co"];
+/** Hosts `reflex model fetch` may reach, with their subdomains: Hugging Face (the model) and the npm registry (the runtime). */
+export const MODEL_HOSTS = ["huggingface.co", "hf.co", "registry.npmjs.org"];
 
 /** DNS functions that send queries. `lookup` is also how net.Socket resolves the host it connects to. */
 const DNS_QUERIES = /^(lookup|lookupService|resolve\w*|reverse)$/;

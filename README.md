@@ -184,7 +184,7 @@ Every scanned session's opening request and steps. Enter reopens it in Claude Co
 | | `reflex bench "<task>" --check "<cmd>"` | Run one task on several models, scored by your check command |
 | **Memory** | `reflex memory on` · `off` | Tell new sessions the corrections you keep repeating, via `CLAUDE.md` / `AGENTS.md` |
 | | `reflex handbook` | How work is done in this repository: commands that worked, ones that failed, repeated corrections |
-| **Setup** | `reflex model fetch` | Optional local model for matching requests by meaning (`--light` for 23 MB) |
+| **Setup** | `reflex model fetch` | Optional local model for matching requests by meaning (`--light` for 23 MB). It also downloads the 14 MB WebAssembly runtime it runs on, from the npm registry, verified |
 | | `reflex cursor-usage on` | Record Cursor's token counts through a Cursor hook (not on Windows yet) |
 | | `reflex settings matching` | How many sessions make a repeat (2-5) and how strictly they must match |
 | | `reflex forget` | Remove older sessions, or ones whose transcript was deleted, from Reflex's data |

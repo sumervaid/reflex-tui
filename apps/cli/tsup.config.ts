@@ -1,12 +1,9 @@
-import { copyFile, rm, writeFile } from "node:fs/promises";
+import { rm, writeFile } from "node:fs/promises";
 import { createRequire } from "node:module";
-import { dirname, join } from "node:path";
+import { join } from "node:path";
 import { defineConfig } from "tsup";
 import { noticesFromMetafile } from "./build/notices";
 
-// onnxruntime-web loads its WebAssembly runtime from files at run time, so ship them next to the bundle.
-const ORT_FILES = ["ort-wasm-simd-threaded.wasm", "ort-wasm-simd-threaded.mjs"];
-const ortDir = dirname(createRequire(new URL("../../packages/embeddings/package.json", import.meta.url)).resolve("onnxruntime-web"));
 // package.json is the one place the version is written; `reflex --version` prints it from here.
 const { version } = createRequire(import.meta.url)("./package.json") as { version: string };
 
@@ -26,7 +23,6 @@ export default defineConfig({
   // The metafile lists exactly what was bundled, for THIRD_PARTY_NOTICES.md; it is not shipped.
   metafile: true,
   async onSuccess() {
-    for (const f of ORT_FILES) await copyFile(join(ortDir, f), join("dist", f));
     const metafile = join("dist", "metafile-esm.json");
     await writeFile(join("dist", "THIRD_PARTY_NOTICES.md"), noticesFromMetafile(metafile, process.cwd()));
     await rm(metafile);
