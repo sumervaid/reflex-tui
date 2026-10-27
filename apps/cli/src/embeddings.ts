@@ -1,10 +1,7 @@
-import { existsSync } from "node:fs";
-import { dirname, join } from "node:path";
-import { fileURLToPath } from "node:url";
 import { sha256 } from "@reflex/core";
 import type { WorkflowTrace } from "@reflex/core";
 import { type SessionVectors, contextDocument, contextHash, withFloor } from "@reflex/analysis";
-import { MODELS, type ModelSpec, WASM_FILES, activeModel, centerOnReference, loadEmbedder, memoryFits, modelDir, modelReads } from "@reflex/embeddings";
+import { MODELS, type ModelSpec, activeModel, centerOnReference, loadEmbedder, memoryFits, modelDir, modelReads, runtimeDir } from "@reflex/embeddings";
 import { type Store, paths } from "@reflex/storage";
 
 export type VectorResult =
@@ -20,12 +17,6 @@ export type VectorResult =
     }
   | { status: "no-model" }
   | { status: "failed"; error: string };
-
-/** The build copies the WebAssembly runtime next to the bundle; from source, use node_modules. */
-function bundledWasmDir(): string | undefined {
-  const here = dirname(fileURLToPath(import.meta.url));
-  return WASM_FILES.every((f) => existsSync(join(here, f))) ? here : undefined;
-}
 
 /** Cache key of a session's vector: model plus context document hash. */
 export function embeddingKey(contextHashValue: string, model: ModelSpec): string {
@@ -93,7 +84,7 @@ export async function requestVectors(
   try {
     const cached = await sessionVectors(traces, store, { cacheOnly: true });
     if (cached.status !== "ok" || !cached.vectors.size) return undefined;
-    const embedder = await loadEmbedder(modelDir(paths.models(), model), model, { wasmDir: bundledWasmDir() });
+    const embedder = await loadEmbedder(modelDir(paths.models(), model), model, { wasmDir: runtimeDir(paths.models()) });
     const [requestVector] = await embedder.embed([document]);
     return requestVector ? { vectors: cached.vectors, requestVector: centerOnReference(requestVector, model) } : undefined;
   } catch {
@@ -173,7 +164,7 @@ export async function sessionVectors(
     let stoppedBy: "time" | "memory" | undefined;
     if (missing.length && !memoryFits(model)) stoppedBy = "memory";
     else if (missing.length) {
-      const embedder = await loadEmbedder(modelDir(paths.models(), model), model, { wasmDir: bundledWasmDir() });
+      const embedder = await loadEmbedder(modelDir(paths.models(), model), model, { wasmDir: runtimeDir(paths.models()) });
       embedded = await embedWithinBudget(
         missing,
         (docs) => embedder.embed(docs),

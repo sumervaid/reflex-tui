@@ -7,7 +7,9 @@ import {
   activeModel,
   embeddingSeconds,
   embeddingThreads,
+  RUNTIME,
   fetchModel,
+  fetchRuntime,
   machineIsSmall,
   memoryFits,
   modelByName,
@@ -16,6 +18,7 @@ import {
   modelStatus,
   modelVerified,
   removeModel,
+  runtimeVerified,
   setActiveModel,
 } from "@reflex/embeddings";
 import { pathExists } from "@reflex/safety";
@@ -96,7 +99,9 @@ export async function modelFetch(opts: { yes?: boolean; light?: boolean; model?:
   const model = chosen(opts);
   title(`Download the embedding model: ${model.name}`);
   const dir = modelDir(paths.models(), model);
-  if (await modelVerified(paths.models(), model)) {
+  const haveModel = await modelVerified(paths.models(), model);
+  const haveRuntime = await runtimeVerified(paths.models());
+  if (haveModel && haveRuntime) {
     await setActiveModel(paths.models(), model);
     ok(`${model.label} is already installed and verified at ${displayPath(dir)}; scans now use it.`);
     return;
@@ -113,7 +118,7 @@ export async function modelFetch(opts: { yes?: boolean; light?: boolean; model?:
   rows([
     ["Model", model.label],
     ["Reads", languages(model)],
-    ["Download", `${mb(modelBytes(model))} from huggingface.co (pinned to one revision, verified by SHA-256)`],
+    ["Download", `${haveModel ? "model already here" : `${mb(modelBytes(model))} model from huggingface.co`}; ${haveRuntime ? "runtime already here" : `${mb(RUNTIME.files.reduce((n, f) => n + f.bytes, 0))} runtime (onnxruntime-web ${RUNTIME.version}) from registry.npmjs.org`}, each verified by SHA-256`],
     ["Memory", `about ${gb(model.peakMemoryMB)} while embedding, only during a scan or \`reflex run\``],
     ["To", displayPath(dir)],
   ]);
@@ -133,20 +138,25 @@ export async function modelFetch(opts: { yes?: boolean; light?: boolean; model?:
   let last = 0;
   const closeNetwork = allowHosts(MODEL_HOSTS);
   try {
-    await fetchModel(
-      paths.models(),
-      model,
-      (url) => fetch(url),
-      (f) => spin.message(`Downloading ${f.name}…`),
-      (f, bytes) => {
-        const now = done + bytes;
-        if (now - last > 5_000_000 || bytes === f.bytes) {
-          last = now;
-          spin.message(`Downloading ${f.name}: ${mb(now)} of ${mb(total)}`);
-        }
-        if (bytes === f.bytes) done += f.bytes;
-      },
-    );
+    if (!haveModel)
+      await fetchModel(
+        paths.models(),
+        model,
+        (url) => fetch(url),
+        (f) => spin.message(`Downloading ${f.name}…`),
+        (f, bytes) => {
+          const now = done + bytes;
+          if (now - last > 5_000_000 || bytes === f.bytes) {
+            last = now;
+            spin.message(`Downloading ${f.name}: ${mb(now)} of ${mb(total)}`);
+          }
+          if (bytes === f.bytes) done += f.bytes;
+        },
+      );
+    if (!haveRuntime) {
+      spin.message(`Downloading the embedding runtime (onnxruntime-web ${RUNTIME.version})…`);
+      await fetchRuntime(paths.models(), (url) => fetch(url));
+    }
   } catch (err) {
     spin.stop("Download failed");
     throw err;

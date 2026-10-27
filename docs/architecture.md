@@ -27,7 +27,7 @@ flowchart LR
 | `@reflex/skills` | SKILL.md generation, validation, diffs, install planning, fresh-task sandbox |
 | `@reflex/test-fixtures` | Synthetic transcripts in the real on-disk layouts, for tests only (not bundled) |
 | `@reflex/tui` | Full-screen terminal UI: the `TuiData` contract, layout ported from the design prototype, terminal I/O, and the live data source over the store |
-| `apps/cli` | Commands and prompts (`commander`, `@clack/prompts`), bundled with tsup; the build copies the onnxruntime-web WebAssembly runtime (14 MB) next to the bundle |
+| `apps/cli` | Commands and prompts (`commander`, `@clack/prompts`), bundled with tsup into one file. The onnxruntime-web WebAssembly runtime is not in the package: `reflex model fetch` downloads it into `~/.reflex/models/runtime`, pinned and verified |
 
 Internal packages export TypeScript source; only the CLI is built.
 

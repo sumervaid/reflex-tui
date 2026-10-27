@@ -1,9 +1,8 @@
-import { existsSync } from "node:fs";
-import { createRequire } from "node:module";
 import { dirname, join } from "node:path";
 import { pathToFileURL } from "node:url";
 import { embeddingThreads } from "./machine";
 import { type ModelSpec, readVerified } from "./model";
+import { runtimeDir, verifyRuntime } from "./runtime";
 import { WordPieceTokenizer } from "./tokenizer";
 
 export type Embedder = {
@@ -12,22 +11,11 @@ export type Embedder = {
   embed(texts: string[]): Promise<Float32Array[]>;
 };
 
-/** onnxruntime-web runtime files; the CLI build copies them next to the bundle. */
-export const WASM_FILES = ["ort-wasm-simd-threaded.wasm", "ort-wasm-simd-threaded.mjs"] as const;
-
 /**
  * One text per run. The int8 model quantizes activations per batch, so batching would make a
  * session's vector depend on which other sessions shared its batch, and cached vectors must not.
  */
 const BATCH = 1;
-
-function defaultWasmDir(): string {
-  try {
-    return dirname(createRequire(import.meta.url).resolve("onnxruntime-web"));
-  } catch {
-    throw new Error("onnxruntime-web is not installed; pass wasmDir.");
-  }
-}
 
 /** Token ids for one text, cut to the model's input limit with its closing special token kept. */
 type Encode = (text: string) => number[];
@@ -51,8 +39,9 @@ async function tokenizerFor(dir: string, model: ModelSpec): Promise<Encode> {
  * threads (see embeddingThreads), and no network (the model and runtime are read from local files only).
  */
 export async function loadEmbedder(modelDir: string, model: ModelSpec, opts: { wasmDir?: string; threads?: number } = {}): Promise<Embedder> {
-  const wasmDir = opts.wasmDir ?? defaultWasmDir();
-  for (const f of WASM_FILES) if (!existsSync(join(wasmDir, f))) throw new Error(`Embedding runtime file ${f} is missing from ${wasmDir}.`);
+  // Model folders sit directly in the models folder, which also holds the runtime.
+  const wasmDir = opts.wasmDir ?? runtimeDir(dirname(modelDir));
+  await verifyRuntime(wasmDir);
   const [modelBytes, encode] = await Promise.all([readVerified(modelDir, "model_quantized.onnx", model), tokenizerFor(modelDir, model)]);
 
   const ort = await import("onnxruntime-web");
