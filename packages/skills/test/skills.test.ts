@@ -1,7 +1,8 @@
 import { mkdtemp, mkdir, readFile, rm, symlink, writeFile } from "node:fs/promises";
-import { tmpdir } from "node:os";
+import { spawnSync } from "node:child_process";
 import { join } from "node:path";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { fileURLToPath } from "node:url";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ClaudeCodeAdapter, CodexAdapter } from "@reflex/adapters";
 import { analyze, buildTrace, type Suggestion } from "@reflex/analysis";
 import { writeFixtureHistory } from "@reflex/test-fixtures";
@@ -14,11 +15,15 @@ import { LEARNED_END, LEARNED_START, applyLearned } from "../src/improve";
 import { lineDiff } from "../src/diff";
 
 const NOW = new Date("2026-10-11T12:00:00Z");
+const TMP_ROOT = fileURLToPath(new URL("../tmp/", import.meta.url));
+const NO_GIT = spawnSync("git", ["--version"]).status === 0 ? undefined : "git is not available, and the sandbox is a git repository";
 let tmp: string;
 let suggestions: Suggestion[];
 
 beforeEach(async () => {
-  tmp = await mkdtemp(join(tmpdir(), "reflex-skills-"));
+  // Inside the workspace (tmp/ is ignored), so these pass where the system temporary folder isn't writable.
+  await mkdir(TMP_ROOT, { recursive: true });
+  tmp = await mkdtemp(join(TMP_ROOT, "reflex-skills-"));
   const h = await writeFixtureHistory(join(tmp, "history"), NOW);
   const traces = [];
   for (const a of [new ClaudeCodeAdapter(h.claudeRoot), new CodexAdapter(h.codexRoot)])
@@ -136,13 +141,29 @@ describe("installation", () => {
 });
 
 describe("fresh-task sandbox", () => {
-  it("creates a new repository whose tests fail until fixed", async () => {
+  it("creates a new repository whose tests fail until fixed", async (ctx) => {
+    if (NO_GIT) return ctx.skip(NO_GIT);
     const skill = generateSkill(suggestions.find((s) => s.slug === "fix-ci")!, NOW);
     const sb = await createFixCiSandbox(join(tmp, "validation"), skill.name, skill.content);
     expect(sandboxTestsPass(sb.dir)).toBe(false);
     expect(await readFile(sb.skillPath, "utf8")).toBe(skill.content);
     await writeFile(join(sb.dir, "config/default.json"), JSON.stringify({ retries: 3, timeoutMs: 5000 }));
     expect(sandboxTestsPass(sb.dir)).toBe(true);
+  });
+});
+
+describe("fresh-task sandbox and the user's git config", () => {
+  it("commits even when the user signs commits", async (ctx) => {
+    if (NO_GIT) return ctx.skip(NO_GIT);
+    const config = join(tmp, "gitconfig");
+    await writeFile(config, "[commit]\n\tgpgsign = true\n[gpg]\n\tprogram = false\n");
+    vi.stubEnv("GIT_CONFIG_GLOBAL", config);
+    try {
+      const skill = generateSkill(suggestions.find((s) => s.slug === "fix-ci")!, NOW);
+      await expect(createFixCiSandbox(join(tmp, "validation"), skill.name, skill.content)).resolves.toBeDefined();
+    } finally {
+      vi.unstubAllEnvs();
+    }
   });
 });
 

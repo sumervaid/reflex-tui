@@ -36,7 +36,11 @@ function hostAllowed(host: unknown): host is string {
   return allowed.some((a) => h === a || h.endsWith(`.${a}`));
 }
 
-/** The host of a net.Socket#connect call: `(options)`, `(port, host?)`, or the `[options, cb]` Node passes itself. A local socket path has none. */
+/**
+ * The host of a net.Socket#connect call: `(options)`, `(port, host?)`, or the `[options, cb]` Node
+ * passes itself. A Unix socket path has none, so it is refused: it could reach a local proxy or
+ * daemon that has network access.
+ */
 function connectHost(args: unknown[]): unknown {
   const first = Array.isArray(args[0]) ? args[0][0] : args[0];
   if (typeof first === "object" && first !== null) {

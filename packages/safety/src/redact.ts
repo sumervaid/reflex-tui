@@ -1,7 +1,33 @@
 import { createHash } from "node:crypto";
+import { isIPv6 } from "node:net";
 import { homedir, userInfo } from "node:os";
 
+/** A replace function that returns the match unchanged means "not a secret after all". */
 type Rule = { name: string; pattern: RegExp; replace: string | ((...m: string[]) => string) };
+
+/** The issuer prefixes and lengths of real card numbers, so most long numbers are never candidates. */
+const CARD_FORMAT = /^(?:4(?:\d{12}|\d{15}|\d{18})|5[1-5]\d{14}|2(?:2[2-9]\d|[3-6]\d{2}|7[01]\d|720)\d{12}|3[47]\d{13}|3(?:0[0-5]|6\d)\d{11}|35\d{14}|6(?:011|5\d{2}|4[4-9]\d)\d{12})$/;
+
+function isCardNumber(text: string): boolean {
+  const digits = text.replace(/[ -]/g, "");
+  if (!CARD_FORMAT.test(digits)) return false;
+  let sum = 0;
+  for (let i = 0; i < digits.length; i++) {
+    const d = Number(digits[digits.length - 1 - i]);
+    sum += i % 2 === 0 ? d : d > 4 ? d * 2 - 9 : d * 2;
+  }
+  return sum % 10 === 0;
+}
+
+/** Not an address worth hiding: loopback and the "any address" every server binds to. */
+const isLocalIPv4 = (ip: string) => ip.startsWith("127.") || ip === "0.0.0.0";
+
+/** Compressed forms need a digit, so hex-only code paths like `abc::def` stay. Loopback stays too. */
+function isRemoteIPv6(ip: string): boolean {
+  if (!isIPv6(ip)) return false;
+  if (/^(?:::1?|(?:0{1,4}:){7}0{0,3}[01])$/.test(ip)) return false;
+  return !ip.includes("::") || /\d/.test(ip);
+}
 
 const SENSITIVE_KEY =
   "[A-Z][A-Z0-9_]*(?:KEY|TOKEN|SECRET|PASSWORD|PASSWD|PWD|PASS|URL|URI|DSN|CREDENTIALS?|AUTH|COOKIE|SESSION)[A-Z0-9_]*";
@@ -29,8 +55,14 @@ const RULES: Rule[] = [
     // password=..., "token": "...", api_key: ...
     name: "credential-field",
     pattern:
-      /(["']?)\b(password|passwd|pwd|pass|secret|token|api[_-]?key|apikey|access[_-]?token|refresh[_-]?token|id[_-]?token|client[_-]?secret|auth[_-]?token|private[_-]?key)\b\1(\s*[=:]\s*)("[^"\n]*"|'[^'\n]*'|[^\s&,;"'}]+)/gi,
+      /(["']?)\b(password|passwd|pwd|pass|secret|token|api[_-]?key|apikey|access[_-]?token|refresh[_-]?token|id[_-]?token|client[_-]?secret|auth[_-]?token|private[_-]?key(?:[_-]?id)?)\b\1(\s*[=:]\s*)("[^"\n]*"|'[^'\n]*'|[^\s&,;"'}]+)/gi,
     replace: (_m, q, key, sep) => `${q}${key}${q}${sep}[REDACTED]`,
+  },
+  {
+    // mysql --password hunter2. Not --password-stdin, a following flag, or a <placeholder>.
+    name: "password-flag",
+    pattern: /(--(?:password|passwd|pwd|pass))\s+(?!\[REDACTED|-|<)("[^"\n]*"|'[^'\n]*'|[^\s"']+)/gi,
+    replace: (_m, flag) => `${flag} [REDACTED]`,
   },
   {
     name: "authorization-header",
@@ -53,10 +85,38 @@ const RULES: Rule[] = [
   { name: "google-oauth", pattern: /\bya29\.[0-9A-Za-z_-]{20,}/g, replace: "[REDACTED_TOKEN]" },
   { name: "stripe-key", pattern: /\b(?:sk|rk|pk)_(?:live|test)_[A-Za-z0-9]{16,}/g, replace: "[REDACTED_API_KEY]" },
   { name: "npm-token", pattern: /\bnpm_[A-Za-z0-9]{36}\b/g, replace: "[REDACTED_TOKEN]" },
+  { name: "gitlab-token", pattern: /\bglpat-[A-Za-z0-9_.-]{20,}/g, replace: "[REDACTED_TOKEN]" },
+  { name: "huggingface-token", pattern: /\bhf_[A-Za-z0-9]{30,}/g, replace: "[REDACTED_TOKEN]" },
+  { name: "docker-token", pattern: /\bdckr_pat_[A-Za-z0-9_-]{20,}/g, replace: "[REDACTED_TOKEN]" },
+  { name: "sendgrid-key", pattern: /\bSG\.[A-Za-z0-9_-]{22}\.[A-Za-z0-9_-]{43}(?![A-Za-z0-9_-])/g, replace: "[REDACTED_API_KEY]" },
+  { name: "twilio-key", pattern: /\bSK[0-9a-fA-F]{32}\b/g, replace: "[REDACTED_API_KEY]" },
+  {
+    name: "discord-webhook",
+    pattern: /\bhttps?:\/\/(?:[a-z]+\.)?discord(?:app)?\.com\/api(?:\/v\d+)?\/webhooks\/\d+\/[A-Za-z0-9_-]+/gi,
+    replace: "[REDACTED_WEBHOOK]",
+  },
   {
     name: "jwt",
     pattern: /\beyJ[A-Za-z0-9_-]{8,}\.eyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}/g,
     replace: "[REDACTED_JWT]",
+  },
+  {
+    // Whole numbers or the usual groupings only; a free mix of separators would run into nearby numbers.
+    name: "card-number",
+    pattern: /(?<![\w./-])(?:\d{13,19}|\d{4}([ -])\d{4}\1\d{4}\1\d{4}(?:\1\d{3})?|\d{4}([ -])\d{6}\2\d{4,5})(?![\w-]|\.\d)/g,
+    replace: (m) => (isCardNumber(m) ? "[REDACTED_CARD]" : m),
+  },
+  {
+    // Before IPv4, so an IPv4-mapped address (::ffff:1.2.3.4) goes whole.
+    name: "ipv6",
+    pattern: /(?<![\w:.-])(?=[0-9a-f.]*:[0-9a-f.]*:)[0-9a-f:.]{1,44}[0-9a-f:](?![\w:-])/gi,
+    replace: (m) => (isRemoteIPv6(m) ? "[REDACTED_IP]" : m),
+  },
+  {
+    // Four parts only, so 1.2.3 stays. A v, @ or "version" in front marks a four-part version.
+    name: "ipv4",
+    pattern: /(?<![\w:.@-])(?<!\bversions?\s)(?:(?:25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)\.){3}(?:25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)(?![\w-]|\.\d)/gi,
+    replace: (m) => (isLocalIPv4(m) ? m : "[REDACTED_IP]"),
   },
   {
     // A whole line that looks like a dotenv entry: KEY=value
@@ -129,12 +189,13 @@ function userRules(): Rule[] {
 const USER_RULES = userRules();
 
 /**
- * What user-specific redaction depends on (the user name and home folder), hashed. Stored traces
- * record it so a change can be detected; the rules themselves change only with Reflex's code.
+ * What redaction depends on (the rules, the user name and the home folder), hashed. Stored traces
+ * record it, so traces kept from before a change are redacted again.
  */
 export function redactionFingerprint(): string {
   const name = currentUserName() ?? "";
-  return createHash("sha256").update(`${name}\n${homedir()}`).digest("hex").slice(0, 16);
+  const rules = RULES.map((r) => `${r.name}\0${r.pattern.source}\0${String(r.replace)}`).join("\n");
+  return createHash("sha256").update(`${name}\n${homedir()}\n${rules}`).digest("hex").slice(0, 16);
 }
 
 /** Redact every string inside a JSON-like value (for stored data whose source can no longer be re-read). */
@@ -155,12 +216,13 @@ export function redactWithReport(input: string): RedactionResult {
   const rules = new Set<string>();
   for (const rule of [...RULES, ...USER_RULES]) {
     text = text.replace(rule.pattern, (...args: unknown[]) => {
-      redactions++;
-      rules.add(rule.name);
-      if (typeof rule.replace === "string") return rule.replace;
       const offsetIndex = args.findIndex((a) => typeof a === "number");
       const groups = args.slice(0, offsetIndex).map((a) => (typeof a === "string" ? a : ""));
-      return rule.replace(...groups);
+      const out = typeof rule.replace === "string" ? rule.replace : rule.replace(...groups);
+      if (out === groups[0]) return out;
+      redactions++;
+      rules.add(rule.name);
+      return out;
     });
   }
   return { text, redactions, rules: [...rules] };
@@ -202,6 +264,10 @@ const LEAK_PATTERNS: RegExp[] = [
   /\b(?:AKIA|ASIA)[0-9A-Z]{16}\b/,
   /\beyJ[A-Za-z0-9_-]{8,}\.eyJ[A-Za-z0-9_-]{8,}\./,
   /\bgh[pousr]_[A-Za-z0-9]{30,}/,
+  /\b(?:glpat-[A-Za-z0-9_.-]{20,}|hf_[A-Za-z0-9]{30,}|dckr_pat_[A-Za-z0-9_-]{20,})/,
+  /\bSG\.[A-Za-z0-9_-]{22}\.[A-Za-z0-9_-]{43}/,
+  /\bSK[0-9a-fA-F]{32}\b/,
+  /discord(?:app)?\.com\/api(?:\/v\d+)?\/webhooks\/\d+\/[A-Za-z0-9_-]+/i,
   /\b(?:postgres(?:ql)?|mysql|mongodb(?:\+srv)?|redis):\/\/[^\s[]+/i,
   /(?<![\w.-])\/Users\/[^/\s]+\//,
   /(?<![\w.-])\/home\/[^/\s]+\//,

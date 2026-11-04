@@ -60,7 +60,8 @@ shows full names and summaries; below that it is a narrow rail.
 | `b` | Full sidebar or rail (needs 140+ columns) |
 | `m` | Agent memory on or off (live data only). Morning's MEMORY line and the sidebar show what new sessions are told |
 | `q`, `ctrl-c` | Quit |
-| `/`, `tab` | Search; for now they answer `search is not available yet` |
+| `/` | Open Search and start typing |
+| `tab` | In Search: filter by tool |
 
 Clicks work on sidebar items and list rows, and the mouse wheel scrolls preview panes.
 

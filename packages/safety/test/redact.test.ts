@@ -1,7 +1,8 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { excerpt, findLeaks, redact, redactPath, redactTruncated, redactWithReport } from "../src/redact";
+import { excerpt, findLeaks, redact, redactPath, redactTruncated, redactWithReport, redactionFingerprint } from "../src/redact";
 import { assertInside, displayPath, isValidSlug, toSlug } from "../src/paths";
-import { homedir } from "node:os";
+import { createHash } from "node:crypto";
+import { homedir, userInfo } from "node:os";
 
 const cases: Array<[string, string, string]> = [
   ["OPENAI_API_KEY", "export OPENAI_API_KEY=sk-proj-abcdefghijklmnopqrstuvwx1234", "sk-proj-abcdefghijklmnopqrstuvwx1234"],
@@ -30,7 +31,69 @@ const cases: Array<[string, string, string]> = [
   ["linux home path", "ls /home/bob/projects", "/home/bob"],
   ["encoded claude dir", "projects/-Users-alice-code-app/1.jsonl", "-Users-alice"],
   ["dotenv line", "STRIPE_WEBHOOK=whsec_abc123\nNODE_ENV=production", "whsec_abc123"],
+  ["GitLab token", "git clone with glpat-abcdEFGH1234ijklMNOP5678", "glpat-abcdEFGH1234ijklMNOP5678"],
+  ["Hugging Face token", "huggingface-cli login hf_abcdefghijklmnopqrstuvwxyz012345", "hf_abcdefghijklmnopqrstuvwxyz012345"],
+  ["password flag", "mysql -u app --password hunter2 -h db", "hunter2"],
+  ["quoted password flag", 'mysql --password "two words" -h db', "two words"],
+  ["Docker token", "docker login -p dckr_pat_abcdefghijklmnopqrstuvw12", "dckr_pat_abcdefghijklmnopqrstuvw12"],
+  ["SendGrid key", `send SG.${"a1".repeat(11)}.${"b2".repeat(21)}c now`, `SG.${"a1".repeat(11)}`],
+  ["Twilio key", `twilio SK${"0123456789abcdef".repeat(2)} now`, `SK${"0123456789abcdef".repeat(2)}`],
+  ["Discord webhook", "curl https://discord.com/api/webhooks/123456789012345678/abcDEF_ghi-JKL", "abcDEF_ghi-JKL"],
+  ["GCP private_key_id", '{"private_key_id": "0123456789abcdef0123456789abcdef01234567"}', "0123456789abcdef0123456789abcdef01234567"],
+  ["Visa number", "charge 4111111111111111 now", "4111111111111111"],
+  ["card number with spaces", "card 5500 0055 5555 5559 expired", "5500 0055 5555 5559"],
+  ["card number with dashes", "card 4242-4242-4242-4242.", "4242-4242-4242-4242"],
+  ["Amex number", "amex 3782 822463 10005 ok", "3782 822463 10005"],
+  ["public IPv4", "ssh deploy 203.0.113.42", "203.0.113.42"],
+  ["IPv4 with a port", "curl http://203.0.113.42:8080/health", "203.0.113.42"],
+  ["private IPv4", "ping 192.168.1.20", "192.168.1.20"],
+  ["IPv6", "ssh 2001:db8:85a3::8a2e:370:7334 now", "2001:db8:85a3::8a2e:370:7334"],
+  ["bracketed IPv6", "curl http://[2001:db8::1]:8080/", "2001:db8::1"],
+  ["full IPv6", "ping 2001:0db8:0000:0000:0000:ff00:0042:8329", "2001:0db8:0000:0000:0000:ff00:0042:8329"],
+  ["IPv4-mapped IPv6", "from ::ffff:203.0.113.42 ok", "203.0.113.42"],
 ];
+
+describe("what stays as written", () => {
+  it.each([
+    ["a --password-stdin flag", "docker login --password-stdin -u me"],
+    ["a --password with no value", "mysql --password --host db"],
+    ["a --password placeholder", "mysql --password <value>"],
+    ["words that start like a token", "the hf_ prefix and SK and glpat- and SG.x.y"],
+    ["a long number that fails the card check", "order 4111111111111112 shipped"],
+    ["a long number with no card prefix", "id 1775256320109 and 9999999999999995"],
+    ["a card-shaped number inside a longer one", "ref 41111111111111119999999"],
+    ["loopback IPv4", "curl http://127.0.0.1:3000 and 127.0.1.1"],
+    ["the any address", "listen on 0.0.0.0:8080"],
+    ["loopback IPv6", "bind ::1 and ::"],
+    ["three-part versions", "bump 1.2.3 to 10.20.30"],
+    ["four-part versions", "v1.2.3.4 and foo@1.2.3.4 and version 1.2.3.4"],
+    ["numbers past 255", "build 1.2.3.456 and 2026.10.23.1"],
+    ["a longer dotted number", "oid 1.3.6.1.4.1"],
+    ["clock times", "at 12:30:45 and 09:15"],
+    ["code paths", "std::vector and abc::def and add::"],
+    ["a MAC address", "aa:bb:cc:dd:ee:ff"],
+  ])("%s", (_, input) => {
+    expect(redact(input)).toBe(input);
+    expect(redactWithReport(input).redactions).toBe(0);
+  });
+
+  it("redacts a card next to another number without taking both", () => {
+    expect(redact("4111111111111111 12")).toBe("[REDACTED_CARD] 12");
+  });
+
+  it("is stable when run again", () => {
+    const once = redact("mysql --password hunter2 203.0.113.42 4111111111111111");
+    expect(redact(once)).toBe(once);
+  });
+});
+
+describe("redactionFingerprint", () => {
+  it("covers the rules as well as the user, so kept traces are redacted again when they change", () => {
+    const identityOnly = createHash("sha256").update(`${process.env.REFLEX_REDACT_USER ?? userInfo().username}\n${homedir()}`).digest("hex").slice(0, 16);
+    expect(redactionFingerprint()).toMatch(/^[0-9a-f]{16}$/);
+    expect(redactionFingerprint()).not.toBe(identityOnly);
+  });
+});
 
 describe("redact", () => {
   for (const [name, input, secret] of cases) {

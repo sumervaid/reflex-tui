@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import type { Correction } from "@reflex/core";
 import { stem } from "./intents";
 import { jaccard } from "./similarity";
@@ -34,10 +35,23 @@ const WORD = /^["'(]?([a-z0-9][a-z0-9.-]{0,39}?)[)"':]?$/;
 /** The only dotted words kept. Hosts, IP addresses and versions disqualify the clause. */
 const FILE_NAME =
   /^[a-z0-9-]+(?:\.[a-z0-9-]+)*\.(?:json|jsonc|lock|ya?ml|toml|md|txt|[cm]?[jt]sx?|py|go|rs|rb|java|kt|swift|css|scss|html|sql|graphql|proto|xml|gradle|ini)$/;
+/**
+ * Words that name nothing. Once filler is gone, "Don't create them." and "Don't explicitly say."
+ * tell an agent nothing, so a rule needs two words outside this set.
+ */
+const NAMES_NOTHING = new Set(
+  (
+    "them they he she him her his hers their theirs us ours yours mine what which who whom whatever something someone " +
+    "everything nothing stuff all both each either neither same other others explicitly literally simply directly " +
+    "manually automatically blindly silently unnecessarily completely ever even"
+  ).split(" "),
+);
 const MIN_WORDS = 2;
 const MAX_WORDS = 8;
 const MAX_PER_SESSION = 8;
 const MATCH = 0.5;
+/** A clause in this many sessions, word for word and with other text around it, was pasted or generated. */
+const TEMPLATE_SESSIONS = 3;
 
 function words(text: string): string[] | undefined {
   const out: string[] = [];
@@ -87,16 +101,21 @@ export function extractCorrections(requests: string[]): Correction[] {
     let afterLead = false;
     // Split on sentence punctuation only before whitespace, so `package.json` stays whole. The
     // lookbehind keeps a long run of punctuation from backtracking quadratically.
-    for (const part of text.toLowerCase().split(/(?<![.!?;,])[.!?;,]+(?=\s|$)|\n+/)) {
-      const clause = part.trim();
-      if (!clause) continue;
+    const clauses = text
+      .toLowerCase()
+      .split(/(?<![.!?;,])[.!?;,]+(?=\s|$)|\n+/)
+      .map((part) => part.trim())
+      .filter(Boolean);
+    // A one-line request can be a person retyping "don't touch the lockfile". Pasted text comes with more around it.
+    const typedAlone = clauses.filter((clause) => !LEAD.test(clause)).length <= 1;
+    for (const clause of clauses) {
       if (LEAD.test(clause)) {
         afterLead = true;
         continue;
       }
       const c = correction(clause, afterLead);
       afterLead = false;
-      if (c) out.push(c);
+      if (c) out.push(typedAlone ? c : { ...c, sentence: createHash("sha256").update(clause).digest("hex").slice(0, 12) });
       if (out.length >= MAX_PER_SESSION) return out;
     }
   }
@@ -110,7 +129,7 @@ function matchKeys(ws: string[]): string[] {
 }
 
 function wellFormed(polarity: Correction["polarity"], ws: string[]): boolean {
-  if (ws.length < MIN_WORDS) return false;
+  if (ws.filter((w) => !NAMES_NOTHING.has(w)).length < MIN_WORDS) return false;
   return polarity === "avoid" || (PREFER_VERBS.has(ws[0]!) && ws.at(-1) !== "not");
 }
 
@@ -129,9 +148,20 @@ export function recurringCorrections(perInstance: Correction[][]): Constraint[] 
   return recurringCorrectionsBySession(perInstance).map(({ instances: _, ...c }) => c);
 }
 
+function templateSentences(perInstance: Correction[][]): Set<string> {
+  const seenIn = new Map<string, Set<number>>();
+  perInstance.forEach((cs, inst) => {
+    for (const { sentence } of cs) if (sentence) seenIn.set(sentence, (seenIn.get(sentence) ?? new Set<number>()).add(inst));
+  });
+  return new Set([...seenIn].filter(([, sessions]) => sessions.size >= TEMPLATE_SESSIONS).map(([sentence]) => sentence));
+}
+
 /** `recurringCorrections`, with the indexes of the instances behind each rule (ascending). */
 export function recurringCorrectionsBySession(perInstance: Correction[][]): Array<Constraint & { instances: number[] }> {
-  const items = perInstance.flatMap((cs, inst) => cs.map((c) => ({ ...c, inst, keys: matchKeys(c.words) })));
+  const templates = templateSentences(perInstance);
+  const items = perInstance.flatMap((cs, inst) =>
+    cs.filter((c) => !c.sentence || !templates.has(c.sentence)).map((c) => ({ ...c, inst, keys: matchKeys(c.words) })),
+  );
   const rules = new Map<string, Rule>();
   for (let i = 0; i < items.length; i++) {
     for (let j = i + 1; j < items.length; j++) {
