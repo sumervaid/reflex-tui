@@ -76,7 +76,8 @@ export const FIX_CI_TASK =
 export type Sandbox = { dir: string; prompt: string; skillPath: string };
 
 function git(dir: string, args: string[]): void {
-  const res = spawnSync("git", args, {
+  // The user's git config still applies here, and a signing key prompt would hang or fail the sandbox.
+  const res = spawnSync("git", ["-c", "commit.gpgsign=false", ...args], {
     cwd: dir,
     stdio: "ignore",
     env: { ...process.env, GIT_AUTHOR_NAME: "Reflex", GIT_AUTHOR_EMAIL: "noreply@reflex.local", GIT_COMMITTER_NAME: "Reflex", GIT_COMMITTER_EMAIL: "noreply@reflex.local" },

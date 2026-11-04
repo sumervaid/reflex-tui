@@ -206,11 +206,26 @@ Every option: [docs/commands.md](https://github.com/sumervaid/reflex-tui/blob/ma
 Sessions run through Conductor are read with Claude Code and Codex. Locations and overrides:
 [Sources in detail](https://github.com/sumervaid/reflex-tui/blob/main/docs/guide.md#sources-in-detail).
 
+## What Reflex doesn't do, and why
+
+- **Repetition is the evidence.** A fact or instruction you state once is not mined, so it won't
+  appear in memory. To keep one, add it yourself with `reflex memory add`.
+- **No language model writes or infers anything.** Rules and skills come from what was observed, so
+  each can be traced to its sessions. The optional embedding model only compares requests.
+- **There is no memory for products you ship.** Reflex runs on your machine, for the agents you run
+  yourself, and scans make no network connections.
+
+The trade is recall for auditability: Reflex misses what you said only once, and in return you can
+check every line and don't have to trust a service with your transcripts. Details:
+[how detection works](https://github.com/sumervaid/reflex-tui/blob/main/docs/guide.md#how-detection-works)
+and [security](https://github.com/sumervaid/reflex-tui/blob/main/docs/security.md).
+
 ## Privacy
 
 - Transcripts are read locally; scans make no network connections. The only command that uses the
   network is `reflex model fetch`, which you run yourself to download an optional model.
-- Secrets, emails, home paths and your user name are redacted before anything is stored or shown.
+- Secrets, card numbers, IP addresses, emails, home paths and your user name are redacted before
+  anything is stored or shown.
 - Nothing is written outside `~/.reflex` until you install a skill, turn on memory or the Cursor hook,
   or apply a `reflex improve` edit, each after asking. Details: [docs/security.md](https://github.com/sumervaid/reflex-tui/blob/main/docs/security.md)
 
