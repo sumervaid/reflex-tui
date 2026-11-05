@@ -288,7 +288,9 @@ to build against, and the product works without them.
 
 ## Contributing
 
-Issues and pull requests are welcome.
+Issues and pull requests are welcome. See
+[CONTRIBUTING.md](https://github.com/sumervaid/reflex-tui/blob/main/CONTRIBUTING.md) and our
+[code of conduct](https://github.com/sumervaid/reflex-tui/blob/main/CODE_OF_CONDUCT.md).
 
 ```sh
 pnpm install
@@ -306,10 +308,6 @@ by the tests; it is not part of the published CLI. More in [docs/development.md]
 
 The README recordings are reproducible on synthetic data: `vhs docs/assets/tui-tour.tape` and
 `vhs docs/assets/quickstart.tape`.
-
-<!-- TEMPLATE: CONTRIBUTING.md, once there are contribution guidelines.
-See [CONTRIBUTING.md](CONTRIBUTING.md).
--->
 
 <!-- TEMPLATE: community links (Discord, discussions, X/Bluesky), once they exist.
 ## Community
