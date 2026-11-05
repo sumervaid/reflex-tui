@@ -48,7 +48,7 @@ Each is an HTML comment marked `TEMPLATE`, invisible on the page until uncomment
 - [x] License badge and License line (see above)
 - [x] CI badge: points at `.github/workflows/ci.yml` (added on main, #30). Original note: needs a workflow that runs `pnpm test` on pushes and PRs (today the only workflow is
   the embedding benchmark). Then point the badge at that workflow file.
-- [ ] `CONTRIBUTING.md`: how to set up, run tests, commit style, what PRs are welcome
+- [x] `CONTRIBUTING.md`: how to set up, run tests, commit style, what PRs are welcome
 - [ ] Community: GitHub Discussions, Discord, X/Bluesky, whichever the team uses
 - [ ] Related projects: tools people compare Reflex with, one line each on how it differs
 - [ ] Contributors image (contrib.rocks) and star-history chart: turn on once there are a few of each
