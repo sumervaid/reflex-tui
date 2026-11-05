@@ -167,11 +167,12 @@ Every scanned session's opening request and steps. Enter reopens it in Claude Co
 | | Command | What it does |
 | --- | --- | --- |
 | **Find skills** | `reflex doctor` | What Reflex can see: history locations and file counts, install targets. Reads nothing |
-| | `reflex scan --days <n>` | Read your agents' history (asks per source) and store redacted traces |
+| | `reflex scan --days <n>` · `--all` | Read your agents' history (asks per source) and store redacted traces |
 | | `reflex suggest` | Review repeated workflows one by one: approve, see evidence, reject |
 | | `reflex show <n>` · `evidence <n>` | One suggestion in detail · the sessions behind it |
 | | `reflex approve <n>` · `reject <n>` | Generate its `SKILL.md` · stop suggesting it |
 | **Install** | `reflex install <name>` | Copy a skill into Claude Code, Codex and/or Cursor. Never overwrites |
+| | `reflex uninstall <name>` | Remove installed copies, keeping any you've edited |
 | | `reflex skills` · `show-skill <name>` | Generated skills and where they're installed · print one |
 | | `reflex explain <name>` | Why a skill exists: sessions, repositories, agents, steps |
 | **Explore** | `reflex` | The terminal UI: dashboard, tokens, skills, workflows, router, search |

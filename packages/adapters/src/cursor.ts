@@ -4,7 +4,7 @@ import { homedir } from "node:os";
 import { basename, dirname, join } from "node:path";
 import { z } from "zod";
 import type { DetectionResult, DiscoveryOptions, ParseResult, SessionEvent, SpawnedAgent, TranscriptAdapter, TranscriptFile, WorkflowTrace } from "@reflex/core";
-import { debug } from "@reflex/core";
+import { debug, historyWindow } from "@reflex/core";
 import { displayPath, excerpt } from "@reflex/safety";
 import { CursorModelIndex, defaultCursorStateDb } from "./cursor-models";
 import { CursorUsageLog } from "./cursor-usage";
@@ -166,7 +166,7 @@ export class CursorAdapter implements TranscriptAdapter {
   }
 
   async requestPermission(ask: (message: string) => Promise<boolean>, days: number): Promise<boolean> {
-    if (!(await ask(`Read Cursor agent sessions from the last ${days} day${days === 1 ? "" : "s"} at ${displayPath(this.root)}?`))) return false;
+    if (!(await ask(`Read Cursor agent sessions from ${historyWindow(days)} at ${displayPath(this.root)}?`))) return false;
     if (this.stateDb && (await isFile(this.stateDb))) {
       const allowed = await ask(
         `Also read which model each Cursor chat used, from Cursor's app database at ${displayPath(this.stateDb)}? Read-only; only model names are extracted, never messages.`,
