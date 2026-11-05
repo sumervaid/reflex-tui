@@ -248,7 +248,8 @@ Override locations with `REFLEX_CLAUDE_DIR`, `REFLEX_CODEX_DIR`, `REFLEX_CURSOR_
   "CI is failing"), so they are combined with word matching, never used alone. With the light
   model, requests in other scripts (Korean, Japanese, ...) are matched by words only. Clusters
   found only by meaning may get a generic name.
-- Each source reads at most its 2,000 most recent files per scan.
+- Each source reads at most its 2,000 most recent files per scan, including with `--all`. The scan
+  summary and `reflex doctor` say how many older files that left out and how far back it read.
 - Long-context rates (Haiku 5.5 above 100K prompt tokens) aren't modeled; those prompts are priced
   at the standard rate.
 - Sponsor integrations (Alike, Darwin) are not included: no public API documentation was available

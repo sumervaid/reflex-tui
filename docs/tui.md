@@ -88,7 +88,8 @@ if that leaves it empty, then drops the record. A copy you edited stays, with it
 `r` runs this same CLI as a child process: `scan --yes --days <n>` with the last scan's window and
 one `--source` for each source it read, so it only repeats what you already agreed to. It passes
 `--embed-minutes 1`, so comparing new sessions by meaning takes at most a minute; the rest continue
-on the next scan. When it finishes the views reload and a message says
+on the next scan. After a scan longer than a year (`--all`), the views show the time back to your
+oldest session, while a rescan still repeats the window you asked for. When it finishes the views reload and a message says
 `rescanned: 1,291 sessions, 7 new` (new = session ids the previous scan did not have). Without a
 previous scan it says ``run `reflex scan` first to choose what Reflex may read``. A scan that used
 `--claude-dir`, `--codex-dir` or `--cursor-dir` is not repeated, because those folders are not

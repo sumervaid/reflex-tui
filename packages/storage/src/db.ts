@@ -28,6 +28,9 @@ export type StoredSuggestion = {
   data: Suggestion;
 };
 
+/** Files a source's limit left out of a scan, and how far back the files it did read go. */
+export type CappedSource = { skipped: number; oldestRead: string };
+
 export type ScanRecord = {
   id: number;
   startedAt: string;
@@ -39,6 +42,8 @@ export type ScanRecord = {
   partial: number;
   unreadable: number;
   skippedRecords: number;
+  /** Sources that hit the per-source file limit. */
+  capped?: Partial<Record<SourceId, CappedSource>>;
   /** Key of the saved analysis (see `saveAnalysis`), when one was saved. */
   analysisKey?: string;
   analysis?: SavedAnalysis;
@@ -152,7 +157,8 @@ CREATE TABLE IF NOT EXISTS scans (
   sessions INTEGER NOT NULL,
   partial INTEGER NOT NULL,
   unreadable INTEGER NOT NULL,
-  skipped_records INTEGER NOT NULL
+  skipped_records INTEGER NOT NULL,
+  capped_json TEXT
 );
 CREATE TABLE IF NOT EXISTS transcript_files (
   path TEXT PRIMARY KEY,
@@ -255,9 +261,15 @@ function baseline(db: DatabaseSync): void {
 /**
  * Schema changes after the baseline, in order: `MIGRATIONS[i]` takes a database from version
  * BASELINE_VERSION + i to the next. Each runs once, in its own transaction. Never edit one that has
- * shipped; add a new one (and update SCHEMA, which new databases start from).
+ * shipped; add a new one (and update SCHEMA, which new databases start from). New databases run
+ * these too, right after SCHEMA, so a column SCHEMA already has must be checked for first.
  */
-const MIGRATIONS: Array<(db: DatabaseSync) => void> = [];
+const MIGRATIONS: Array<(db: DatabaseSync) => void> = [
+  (db) => {
+    const columns = db.prepare("PRAGMA table_info(scans)").all() as Array<{ name: string }>;
+    if (!columns.some((c) => c.name === "capped_json")) db.exec("ALTER TABLE scans ADD COLUMN capped_json TEXT");
+  },
+];
 
 export const SCHEMA_VERSION = BASELINE_VERSION + MIGRATIONS.length;
 
@@ -351,9 +363,9 @@ export class Store {
     try {
       const res = this.db
         .prepare(
-          "INSERT INTO scans (started_at, days, mode, sources_json, files, sessions, partial, unreadable, skipped_records) VALUES (?,?,?,?,?,?,?,?,?)",
+          "INSERT INTO scans (started_at, days, mode, sources_json, files, sessions, partial, unreadable, skipped_records, capped_json) VALUES (?,?,?,?,?,?,?,?,?,?)",
         )
-        .run(scan.startedAt, scan.days, scan.mode, JSON.stringify(scan.sources), scan.files, scan.sessions, scan.partial, scan.unreadable, scan.skippedRecords);
+        .run(scan.startedAt, scan.days, scan.mode, JSON.stringify(scan.sources), scan.files, scan.sessions, scan.partial, scan.unreadable, scan.skippedRecords, scan.capped && Object.keys(scan.capped).length ? JSON.stringify(scan.capped) : null);
       const scanId = Number(res.lastInsertRowid);
       this.db.exec("DELETE FROM scan_sessions");
       // Duplicate records (e.g. the same session copied to two places) are kept: de-duplication happens in analysis.
@@ -542,6 +554,7 @@ export class Store {
       partial: Number(row.partial),
       unreadable: Number(row.unreadable),
       skippedRecords: Number(row.skipped_records),
+      capped: row.capped_json == null ? undefined : (JSON.parse(String(row.capped_json)) as ScanRecord["capped"]),
       analysisKey: row.analysis_key == null ? undefined : String(row.analysis_key),
       analysis: row.analysis_json == null ? undefined : (JSON.parse(String(row.analysis_json)) as SavedAnalysis),
     };

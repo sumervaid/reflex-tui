@@ -9,12 +9,12 @@ process.stdout.on("error", (err: NodeJS.ErrnoException) => {
 });
 
 import { Command, Option } from "commander";
-import type { SourceId } from "@reflex/core";
+import { ALL_HISTORY_DAYS, type SourceId } from "@reflex/core";
 import { loadPriceFile } from "@reflex/storage";
 import { c, fail } from "./ui";
 import { parseDays, parseEmbedMinutes, scan } from "./commands/scan";
 import { approve, evidence, reject, show, suggest } from "./commands/review";
-import { explain, installCommand, listSkills, showSkill, validate } from "./commands/skills";
+import { explain, installCommand, listSkills, showSkill, uninstallCommand, validate } from "./commands/skills";
 import { agents, doctor, reset, sessions, stats } from "./commands/misc";
 import { memoryAdd, memoryForget, memoryOff, memoryOn, memoryRemember, memoryStatus } from "./commands/memory";
 import { modelFetch, modelRemove, modelStatusCommand, modelUse } from "./commands/model";
@@ -66,6 +66,7 @@ program
   .command("scan")
   .description("read recent coding-agent history (asks first) and store redacted workflow traces")
   .option("--days <n>", "history window in days", "7")
+  .addOption(new Option("--all", "read all of your history (each source still stops at its most recent files)").conflicts("days"))
   .option("--claude-dir <dir>", "read Claude Code transcripts from this directory")
   .option("--codex-dir <dir>", "read Codex rollouts from this directory")
   .option("--cursor-dir <dir>", "read Cursor agent transcripts from this directory (default ~/.cursor/projects)")
@@ -75,8 +76,8 @@ program
   .option("--embed-minutes <n>", "most minutes to spend comparing new sessions by meaning; the rest continue next scan", "5")
   .action(
     run(
-      async (o: { days: string; claudeDir?: string; codexDir?: string; cursorDir?: string; source?: SourceId[]; yes?: boolean; full?: boolean; embedMinutes: string }) =>
-        scan({ ...o, days: parseDays(o.days), embedMinutes: parseEmbedMinutes(o.embedMinutes) }),
+      async (o: { days: string; all?: boolean; claudeDir?: string; codexDir?: string; cursorDir?: string; source?: SourceId[]; yes?: boolean; full?: boolean; embedMinutes: string }) =>
+        scan({ ...o, days: o.all ? ALL_HISTORY_DAYS : parseDays(o.days), embedMinutes: parseEmbedMinutes(o.embedMinutes) }),
     ),
   );
 
@@ -134,6 +135,12 @@ program
   .option("--as <name>", "install under a different name")
   .option("-y, --yes", "consent to writing the skill file without prompting")
   .action(run(installCommand));
+
+program
+  .command("uninstall <skill>")
+  .description("remove an installed skill, only where it is still exactly what Reflex wrote")
+  .addOption(new Option("--target <target...>", "only from these targets").choices(["claude-code", "codex", "cursor"]))
+  .action(run(uninstallCommand));
 program.command("explain <skill>").description("show why a skill exists and where it came from").action(run(explain));
 program
   .command("validate <skill>")

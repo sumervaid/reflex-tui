@@ -2,11 +2,12 @@ import { spawnSync } from "node:child_process";
 import { readdir, rm, stat } from "node:fs/promises";
 import { homedir } from "node:os";
 import { join } from "node:path";
-import { SOURCE_LABELS, totalTokens } from "@reflex/core";
+import { SOURCE_LABELS, type SourceId, totalTokens } from "@reflex/core";
 import { createAdapters } from "@reflex/adapters";
 import { deduplicate, isGenericTrace } from "@reflex/analysis";
 import { agentLaunch, displayPath, excerpt, pathExists } from "@reflex/safety";
 import { Store, paths } from "@reflex/storage";
+import { cappedLine } from "../collect";
 import { detectTargets, removeMemory } from "@reflex/skills";
 import { activeModel } from "@reflex/embeddings";
 import { latestAnalysis } from "../analysis";
@@ -34,6 +35,21 @@ export const CURSOR_GAPS = [
   "no times for a launched agent's steps, so they are placed right after the launch",
 ];
 
+/** What the last scan left out because of the per-source file limit. Never creates the database. */
+async function lastScanCapped(): Promise<string[]> {
+  if (!(await pathExists(paths.db()))) return [];
+  try {
+    const store = new Store();
+    try {
+      return Object.entries(store.latestScan()?.capped ?? {}).map(([source, capped]) => cappedLine(source as SourceId, capped));
+    } finally {
+      store.close();
+    }
+  } catch {
+    return [];
+  }
+}
+
 export async function doctor(): Promise<void> {
   title("Reflex doctor");
   const nodeMajor = Number(process.versions.node.split(".")[0]);
@@ -59,6 +75,7 @@ export async function doctor(): Promise<void> {
       ? `  ${c.green("✔")} ${"Conductor".padEnd(12)} ${displayPath(conductor.dir)} ${c.dim(`${plural(conductor.repos, "repository", "repositories")}; its Claude Code and Codex sessions are read with those sources`)}`
       : `  ${c.dim("·")} ${"Conductor".padEnd(12)} ${displayPath(conductorRoot())} ${c.dim("not found")}`,
   );
+  for (const line of await lastScanCapped()) warn(`Last scan · ${line}`);
   out();
   out("Skill install targets");
   for (const t of await detectTargets()) out(`  ${t.detected ? c.green("✔") : c.dim("·")} ${t.label.padEnd(12)} ${displayPath(t.skillsDir)}`);

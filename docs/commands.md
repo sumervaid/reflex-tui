@@ -4,8 +4,8 @@ Every command and its options. `reflex <command> --help` prints the same from th
 
 | Command | What it does |
 | --- | --- |
-| `doctor` | Node and SQLite check, detected history locations and file counts, install targets, agent CLIs, Cursor hook |
-| `scan --days <n>` | Ask per source, then read and store redacted workflow traces. `--days` defaults to 7. `--source <claude-code\|codex\|cursor>` (repeatable), `--claude-dir`, `--codex-dir`, `--cursor-dir`, `--yes`, `--full` (re-read every file instead of reusing unchanged ones), `--embed-minutes <n>` (most time spent comparing new sessions by meaning; default 5, the rest continue next scan) |
+| `doctor` | Node and SQLite check, detected history locations and file counts, what the last scan's file limit left out, install targets, agent CLIs, Cursor hook |
+| `scan --days <n>` | Ask per source, then read and store redacted workflow traces. `--days` defaults to 7. `--all` reads all of your history instead. Either way each source reads at most its 2,000 most recent files, and the summary says what that left out. `--source <claude-code\|codex\|cursor>` (repeatable), `--claude-dir`, `--codex-dir`, `--cursor-dir`, `--yes`, `--full` (re-read every file instead of reusing unchanged ones), `--embed-minutes <n>` (most time spent comparing new sessions by meaning; default 5, the rest continue next scan) |
 | `sessions` | Sessions from the last scan, redacted |
 | `suggest` | Detect repeated workflows and review them interactively: `[a]`pprove, `[e]`vidence, `[r]`eject, `[s]`kip, `[q]`uit (`--no-interactive`, `--all`) |
 | `show <n\|name>` | A suggestion in detail: steps, support, uncertainty |
@@ -15,6 +15,7 @@ Every command and its options. `reflex <command> --help` prints the same from th
 | `skills` | Generated skills and where they are installed |
 | `show-skill <name>` | Print a generated skill |
 | `install <name>` | Install into Claude Code, Codex or Cursor. `--target`, `--as <new-name>`, `--yes`. Never overwrites |
+| `uninstall <name>` | Remove installed copies, by skill name or the `--as` name. `--target` limits it to some agents. A copy changed since install is reported and left in place, and the command exits with 1 |
 | `explain <name>` | Why the skill exists: sessions, repositories, agents, steps, installs |
 | `validate <name>` | Static checks and installed-copy comparison. For `fix-ci`, also a fresh-task sandbox (`--run` starts Claude Code) |
 | `impact [name]` | Tokens and tool calls per run before the skill vs. runs that loaded it, plus the skill's own size |
