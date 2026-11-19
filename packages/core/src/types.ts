@@ -198,6 +198,8 @@ export type OutcomeSignal = {
 export type Correction = {
   polarity: "avoid" | "prefer";
   words: string[];
+  /** Short hash of a clause that came with other text, to spot pasted text. Never the text itself. */
+  sentence?: string;
 };
 
 export type WorkflowTrace = {

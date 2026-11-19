@@ -1,5 +1,6 @@
 import dgram from "node:dgram";
 import dns from "node:dns";
+import http from "node:http";
 import net from "node:net";
 import tls from "node:tls";
 import { Worker } from "node:worker_threads";
@@ -36,6 +37,22 @@ describe("network guard", () => {
     expect(() => net.connect({ port: 443, host: "example.com" })).toThrow(BLOCKED);
     expect(() => net.connect(9, "127.0.0.1")).toThrow(BLOCKED);
     expect(() => tls.connect(443, "example.com")).toThrow(BLOCKED);
+  });
+
+  it("blocks Unix sockets, even with hosts allowed", () => {
+    const tryAll = () => {
+      expect(() => net.connect({ path: "/tmp/reflex-guard.sock" })).toThrow(BLOCKED);
+      expect(() => net.connect("/tmp/reflex-guard.sock")).toThrow(BLOCKED);
+      expect(() => new net.Socket().connect({ path: "/tmp/reflex-guard.sock" })).toThrow(BLOCKED);
+      expect(() => http.request({ socketPath: "/tmp/reflex-guard.sock", path: "/" })).toThrow(BLOCKED);
+    };
+    tryAll();
+    const close = allowHosts(["example.test"]);
+    try {
+      tryAll();
+    } finally {
+      close();
+    }
   });
 
   it("blocks fetch", async () => {

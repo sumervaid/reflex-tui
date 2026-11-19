@@ -2,7 +2,7 @@ import { mkdtemp, mkdir, rm, utimes, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { CursorAdapter, decodeWorkspace, parseCursorTimestamp } from "../src/cursor";
+import { CursorAdapter, decodeWorkspace, parseCursorTimestamp, stripCursorInserts } from "../src/cursor";
 
 const NOW = new Date("2026-10-11T20:00:00Z");
 const opts = { days: 7, now: NOW };
@@ -35,7 +35,32 @@ async function parseAll(adapter = new CursorAdapter(root)) {
   return Promise.all(files.map((f) => adapter.parse(f, opts)));
 }
 
+const PLAN_BUILD =
+  "Implement the plan as specified, it is attached for your reference. Do NOT edit the plan file itself.\n\nTo-do's from the plan have already been created. Do not create them again. Mark them as in_progress as you work, starting with the first one. Don't stop until you have completed all the to-dos.";
+
+describe("stripCursorInserts", () => {
+  it("reduces the plan-build message to what it asks for", () => {
+    expect(stripCursorInserts(PLAN_BUILD)).toBe("Implement the plan.");
+  });
+
+  it("keeps what the developer typed around it", () => {
+    expect(stripCursorInserts(`${PLAN_BUILD}\n\nDon't touch the lockfile.`)).toBe("Implement the plan.\nDon't touch the lockfile.");
+  });
+
+  it("leaves other messages alone, including a plan mentioned in passing", () => {
+    expect(stripCursorInserts("Do not edit the plan file itself, please.")).toBe("Do not edit the plan file itself, please.");
+  });
+});
+
 describe("CursorAdapter", () => {
+  it("does not read Cursor's plan-build message as the developer's words", async () => {
+    await writeTranscript("1775256320109", "plan", [user("<user_query>plan the billing work</user_query>"), user(`<user_query>${PLAN_BUILD}\nDon't touch the lockfile.</user_query>`)]);
+    const [result] = await parseAll();
+    const text = result!.sessions[0]!.requests.map((r) => r.text).join("\n");
+    expect(text).toContain("Don't touch the lockfile.");
+    expect(text).not.toMatch(/create them|plan file|to-dos/i);
+  });
+
   it("extracts the typed query, tool calls and the session time", async () => {
     await writeTranscript("1775256320109", "abc", [
       user("<timestamp>Sunday, Oct 11, 2026, 12:56 PM (UTC-7)</timestamp>\n<user_query>\nCI is failing, NPM_TOKEN=npm_abcdefghijklmnopqrstuvwxyz0123456789 fix it\n</user_query>"),

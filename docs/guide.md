@@ -238,6 +238,32 @@ Override locations with `REFLEX_CLAUDE_DIR`, `REFLEX_CODEX_DIR`, `REFLEX_CURSOR_
 `REFLEX_CLAUDE_SKILLS_DIR`, `REFLEX_CODEX_SKILLS_DIR`, `REFLEX_CURSOR_SKILLS_DIR` and `REFLEX_HOME`. `REFLEX_EMBED_THREADS` sets the embedding threads. `REFLEX_DEBUG=1` prints local counters (counts only). `REFLEX_REDACT_USER` sets the user name to redact
 (default: your login name).
 
+## What Reflex doesn't do, and why
+
+Reflex differs from agent memory tools in three deliberate ways, which can look like bugs if you
+expect one-shot facts and live per-turn context:
+
+- **Repetition is the evidence.** A correction becomes a rule only when it recurs in at least 2
+  independent sessions, so a fact or instruction stated once is not mined. Use `reflex memory add`
+  to keep one.
+- **No language model writes or infers anything.** Every rule and skill can be traced to the
+  sessions behind it. The optional embedding model only compares requests
+  ([which model](#matching-by-meaning-which-model)).
+- **There is no memory for products you ship.** Reflex is for the agents you run yourself, on your
+  machine. What it reads and connects to is in
+  [security.md](https://github.com/sumervaid/reflex-tui/blob/main/docs/security.md).
+
+The trade is recall for auditability: Reflex misses what was said only once, and in return every
+line can be checked and no service has to be trusted with your transcripts.
+
+Some text that looks like a correction is left out on purpose:
+
+- Text repeated word for word in 3 or more sessions, with other text in the same request, is
+  treated as pasted or generated. A correction that is the whole request still counts, however
+  often you type it the same way.
+- A rule needs two words that name something, so "Don't create them." is dropped.
+- The message Cursor inserts when a plan is built isn't read as your words.
+
 ## Limitations
 
 - Confidence is a ranking heuristic, not a probability.

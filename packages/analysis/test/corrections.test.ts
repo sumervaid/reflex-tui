@@ -23,7 +23,7 @@ describe("extractCorrections", () => {
       "please never touch package.json",
       "make sure you run the linter",
     ]);
-    expect(cs).toEqual([
+    expect(cs.map(({ sentence: _, ...c }) => c)).toEqual([
       avoid("bump", "major", "version"),
       prefer("use", "pnpm", "not", "npm"),
       prefer("run", "integration", "tests", "too"),
@@ -67,6 +67,47 @@ describe("extractCorrections", () => {
 });
 
 describe("recurringCorrections", () => {
+  /** One session per follow-up. */
+  const rules = (...followUps: string[]) => recurringCorrections(followUps.map((f) => extractCorrections(["task", f]))).map((r) => r.text);
+
+  const PASTED = "Do not edit the release notes. Never skip the changelog step.";
+
+  it("treats text pasted word for word into 3 sessions as a template", () => {
+    expect(rules(PASTED, PASTED, PASTED)).toEqual([]);
+  });
+
+  it("drops pasted text without losing what was typed next to it", () => {
+    expect(rules(`${PASTED} Don't bump the version.`, `${PASTED} Never bump major version.`, PASTED)).toEqual(["Don't bump version."]);
+  });
+
+  it("keeps a one-line correction typed the same way every time", () => {
+    const line = "don't touch the lockfile";
+    expect(rules(line, line, line, line)).toEqual(["Don't touch lockfile."]);
+    expect(rules(`No, ${line}`, `No, ${line}`, `No, ${line}`)).toEqual(["Don't touch lockfile."]);
+  });
+
+  it("keeps the same correction phrased differently, and a repeat in only 2 sessions", () => {
+    expect(rules("don't bump the major version", "never bump major version", "please don't bump a major version")).toEqual(["Don't bump major version."]);
+    expect(rules(PASTED, PASTED)).toEqual(["Don't edit release notes.", "Don't skip changelog step."]);
+  });
+
+  it("keeps traces stored before sentences were recorded", () => {
+    const old = [avoid("bump", "major"), avoid("bump", "major"), avoid("bump", "major")].map((c) => [c]);
+    expect(recurringCorrections(old).map((r) => r.text)).toEqual(["Don't bump major."]);
+  });
+
+  it.each([
+    ["a pronoun as the object", "don't create them"],
+    ["an adverb and a bare verb", "don't explicitly say"],
+    ["a prefer rule with a pronoun", "always use them"],
+  ])("drops a rule with nothing to refer to: %s", (_, followUp) => {
+    expect(rules(followUp, followUp)).toEqual([]);
+  });
+
+  it("keeps a rule when a word in it only looks like an adverb", () => {
+    expect(rules("don't apply migrations", "don't apply migrations")).toEqual(["Don't apply migrations."]);
+  });
+
   it("keeps only words shared by at least two sessions", () => {
     const rules = recurringCorrections([
       [avoid("bump", "major", "version", "react")],
