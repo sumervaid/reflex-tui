@@ -75,4 +75,23 @@ describe("database upgrades", () => {
     expect((db.prepare("SELECT COUNT(*) AS n FROM skills").get() as { n: number }).n).toBe(1);
     db.close();
   });
+
+  it("gives a new database and an older one the column for capped sources", () => {
+    const capped = { codex: { skipped: 1, oldestRead: "2026-01-01T00:00:00.000Z" } };
+    const scan = { startedAt: "2026-10-01T00:00:00Z", days: 7, mode: "local" as const, sources: {}, files: 0, sessions: 0, partial: 0, unreadable: 0, skippedRecords: 0 };
+    const check = () => {
+      const store = new Store();
+      try {
+        store.saveScan({ ...scan, capped }, []);
+        expect(store.latestScan()?.capped).toEqual(capped);
+        store.saveScan(scan, []);
+        expect(store.latestScan()?.capped).toBeUndefined();
+      } finally {
+        store.close();
+      }
+    };
+    check();
+    writtenThen((db) => db.exec(`ALTER TABLE scans DROP COLUMN capped_json; PRAGMA user_version = ${SCHEMA_VERSION - 1}`));
+    check();
+  });
 });

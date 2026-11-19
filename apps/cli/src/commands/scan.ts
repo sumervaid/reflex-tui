@@ -1,5 +1,5 @@
 import type { SourceId, TranscriptAdapter } from "@reflex/core";
-import { debug } from "@reflex/core";
+import { ALL_HISTORY_DAYS, debug, historyWindow } from "@reflex/core";
 import { ClaudeCodeAdapter, CodexAdapter, CursorAdapter } from "@reflex/adapters";
 import { type CoveredWorkflow, type Suggestion, analyze, deduplicate } from "@reflex/analysis";
 import { totalmem } from "node:os";
@@ -9,7 +9,7 @@ import { Store, paths } from "@reflex/storage";
 import { c, confirm, out, plural, rows, spinner, title, warn } from "../ui";
 import { DEFAULT_MODEL, MINILM, modelBytes } from "@reflex/embeddings";
 import { EMBED_BUDGET_MS, type VectorResult, sessionVectors, vectorNeeds } from "../embeddings";
-import { MAX_FILES_PER_SOURCE, collect, currentKeys } from "../collect";
+import { cappedLine, collect, currentKeys } from "../collect";
 import { analysisKey, skillSets, summarize } from "../analysis";
 import { applyRetention } from "./forget";
 
@@ -42,7 +42,8 @@ export function duration(seconds: number): string {
 
 export function parseDays(value: string): number {
   const n = Number(value);
-  if (!Number.isInteger(n) || n < 1 || n > 365) throw new Error("--days must be a whole number between 1 and 365.");
+  // Up to --all's window: the TUI's rescan passes the last scan's window back as --days.
+  if (!Number.isInteger(n) || n < 1 || n > ALL_HISTORY_DAYS) throw new Error(`--days must be a whole number between 1 and ${ALL_HISTORY_DAYS}, or use --all.`);
   return n;
 }
 
@@ -60,7 +61,7 @@ function chooseAdapters(opts: ScanOptions): { adapters: TranscriptAdapter[]; mod
 
 export async function scan(opts: ScanOptions): Promise<void> {
   const { adapters, mode } = chooseAdapters(opts);
-  title(`Reflex scan · last ${plural(opts.days, "day")}`);
+  title(`Reflex scan · ${historyWindow(opts.days).replace(/^the /, "")}`);
 
   const found: TranscriptAdapter[] = [];
   const detection: Array<[string, string]> = [];
@@ -121,6 +122,7 @@ export async function scan(opts: ScanOptions): Promise<void> {
         partial: collected.partial,
         unreadable: collected.unreadable,
         skippedRecords: collected.skippedRecords,
+        capped: collected.capped,
       },
       collected.rows,
     );
@@ -175,7 +177,7 @@ export async function scan(opts: ScanOptions): Promise<void> {
   if (unreadable) warn(`${plural(unreadable, "unreadable file")} skipped`);
   if (kept) out(c.dim(`  ${plural(kept, "session")} kept from transcripts that have since been deleted`));
   if (forgotten) out(c.dim(`  ${plural(forgotten, "session")} forgotten: older than your retention setting (reflex settings retention)`));
-  if (capped) warn(`${plural(capped, "older file")} skipped; Reflex reads the ${MAX_FILES_PER_SOURCE} most recent per source. Use a shorter --days window.`);
+  for (const [source, skipped] of Object.entries(capped)) warn(cappedLine(source as SourceId, skipped));
   if (meaning.status === "ok") {
     out(c.dim(`  requests compared by words and by meaning (local model ${meaning.model.name}; ${plural(meaning.embedded, "session")} newly embedded)`));
     if (meaning.stoppedBy === "time")
@@ -200,7 +202,7 @@ export async function scan(opts: ScanOptions): Promise<void> {
   }
   out();
   if (!traces.length) {
-    out(`No sessions in the last ${plural(opts.days, "day")}. Try a longer history window: ${c.cyan("reflex scan --days 30")}`);
+    out(`No sessions in ${historyWindow(opts.days)}.${opts.days < 30 ? ` Try a longer history window: ${c.cyan("reflex scan --days 30")}` : ""}`);
     return;
   }
   out(

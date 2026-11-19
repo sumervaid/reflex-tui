@@ -1,5 +1,5 @@
 import { readFile } from "node:fs/promises";
-import { join } from "node:path";
+import { basename, dirname, join } from "node:path";
 import { spawnSync } from "node:child_process";
 import { SOURCE_LABELS } from "@reflex/core";
 import { agentLaunch, assertSlug, displayPath, isValidSlug, pathExists } from "@reflex/safety";
@@ -17,6 +17,7 @@ import {
   planInstall,
   renameSkill,
   runClaudeInSandbox,
+  uninstall,
 } from "@reflex/skills";
 import { ask, c, choose, chooseMany, confirm, fail, fileBlock, interactive, ok, out, pct, plural, rows, shortDate, spinner, title, warn } from "../ui";
 
@@ -121,6 +122,34 @@ export async function installCommand(name: string, opts: InstallOptions): Promis
   const store = new Store();
   try {
     await installFlow(store, name, opts);
+  } finally {
+    store.close();
+  }
+}
+
+/** Remove installed copies of a skill, found by its name or the name it was installed under (`--as`). */
+export async function uninstallCommand(name: string, opts: { target?: TargetId[] }): Promise<void> {
+  assertSlug(name);
+  const store = new Store();
+  try {
+    const named = store.installations().filter((r) => r.skill === name || basename(dirname(r.path)) === name);
+    if (!named.length) throw new Error(`${name} is not installed. \`reflex skills\` lists where skills are installed.`);
+    const records = opts.target ? named.filter((r) => opts.target!.includes(r.target as TargetId)) : named;
+    if (!records.length) throw new Error(`${name} is not installed in ${opts.target!.map((t) => SOURCE_LABELS[t]).join(" or ")}.`);
+    const targets = await detectTargets();
+    for (const r of records) {
+      const target = targets.find((t) => t.id === r.target);
+      const label = SOURCE_LABELS[r.target as TargetId] ?? r.target;
+      const result = target ? await uninstall(target, r) : "edited";
+      if (result === "edited") {
+        warn(`${label}: kept ${displayPath(r.path)}; it has changed since Reflex installed it. Remove it yourself if you no longer want it.`);
+        process.exitCode = 1;
+        continue;
+      }
+      store.removeInstallation(r.skill, r.target, r.path);
+      if (result === "removed") ok(`${label}: removed ${displayPath(r.path)}`);
+      else out(c.dim(`${label}: ${displayPath(r.path)} was already gone`));
+    }
   } finally {
     store.close();
   }

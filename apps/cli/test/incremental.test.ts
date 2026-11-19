@@ -2,12 +2,13 @@ import { appendFile, mkdtemp, readFile, readdir, rm, stat, utimes, writeFile } f
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import type { TranscriptAdapter, WorkflowTrace } from "@reflex/core";
+import { ALL_HISTORY_DAYS, type TranscriptAdapter, type WorkflowTrace } from "@reflex/core";
 import { ClaudeCodeAdapter, CodexAdapter } from "@reflex/adapters";
 import { writeFixtureHistory } from "@reflex/test-fixtures";
 import { Store } from "@reflex/storage";
-import { type CacheKeys, collect } from "../src/collect";
-import { scan } from "../src/commands/scan";
+import { createLiveSource } from "@reflex/tui";
+import { MAX_FILES_PER_SOURCE, type CacheKeys, cappedLine, collect } from "../src/collect";
+import { parseDays, scan } from "../src/commands/scan";
 
 const KEYS: CacheKeys = { codeKey: "build-a", redactionKey: "user-a" };
 let root: string;
@@ -41,6 +42,60 @@ beforeEach(async () => {
 afterEach(async () => {
   vi.restoreAllMocks();
   await rm(root, { recursive: true, force: true });
+});
+
+describe("the per-source file limit", () => {
+  const manyFiles = (id: "claude-code" | "codex", count: number): TranscriptAdapter =>
+    ({
+      id,
+      label: id,
+      detect: async () => ({ found: true, location: "" }),
+      requestPermission: async () => true,
+      discover: async () =>
+        Array.from({ length: count }, (_, i) => ({
+          path: join(root, `${id}-${i}.jsonl`),
+          sizeBytes: 1,
+          modifiedAt: new Date(Date.UTC(2026, 0, 1) + i * 60_000),
+        })),
+      parse: async () => ({ sessions: [], skippedRecords: 0, totalRecords: 0, unreadable: false }),
+    }) as unknown as TranscriptAdapter;
+
+  it("reports what it left out per source, and how far back it read", async () => {
+    const r = await run({ days: 36500, adapters: [manyFiles("claude-code", MAX_FILES_PER_SOURCE + 3), manyFiles("codex", 2)] });
+    expect(r.files).toBe(MAX_FILES_PER_SOURCE + 2);
+    expect(Object.keys(r.capped)).toEqual(["claude-code"]);
+    // The 3 oldest are left out, so the oldest read is the one with index 3.
+    expect(r.capped["claude-code"]).toEqual({ skipped: 3, oldestRead: new Date(Date.UTC(2026, 0, 1) + 3 * 60_000).toISOString() });
+    expect(cappedLine("claude-code", r.capped["claude-code"]!)).toBe("Claude Code: 3 older files not read. Each source reads its 2000 most recent, which go back to 2026-01-01.");
+  }, 60_000);
+});
+
+describe("a scan of all history", () => {
+  it("records the window for rescans, while the TUI shows only the time since the oldest session", async () => {
+    vi.spyOn(process.stdout, "write").mockImplementation(() => true);
+    await scan({ days: ALL_HISTORY_DAYS, claudeDir: claudeRoot, codexDir: codexRoot, yes: true, embedMinutes: 0 });
+    const store = new Store();
+    const days = store.latestScan()!.days;
+    store.close();
+    expect(days).toBe(ALL_HISTORY_DAYS);
+
+    const started = performance.now();
+    const data = await createLiveSource().load();
+    expect(performance.now() - started).toBeLessThan(5_000);
+    expect(data.sessions).toBeGreaterThan(0);
+    expect(data.days!.length).toBeLessThan(365);
+    if (data.window) expect(data.window.days).toBeLessThan(365);
+  }, 60_000);
+});
+
+describe("parseDays", () => {
+  it("accepts windows past a year, up to the one --all uses", () => {
+    expect(parseDays("730")).toBe(730);
+    expect(parseDays("36500")).toBe(36500);
+    expect(() => parseDays("36501")).toThrow("--days must be");
+    expect(() => parseDays("0")).toThrow("--days must be");
+    expect(() => parseDays("1.5")).toThrow("--days must be");
+  });
 });
 
 describe("incremental scan", () => {

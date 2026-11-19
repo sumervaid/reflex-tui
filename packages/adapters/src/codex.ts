@@ -2,7 +2,7 @@ import { homedir } from "node:os";
 import { basename, join } from "node:path";
 import { z } from "zod";
 import type { DetectionResult, DiscoveryOptions, ParseResult, TranscriptAdapter, TranscriptFile } from "@reflex/core";
-import { debug } from "@reflex/core";
+import { debug, historyWindow } from "@reflex/core";
 import { displayPath } from "@reflex/safety";
 import { readJsonl } from "./jsonl";
 import { SessionBuilder, clean, cutoffFor, isDirectory, listFiles, modelName, patchedFiles, toTranscriptFiles, tokens } from "./common";
@@ -152,7 +152,7 @@ export class CodexAdapter implements TranscriptAdapter {
   }
 
   async requestPermission(ask: (message: string) => Promise<boolean>, days: number): Promise<boolean> {
-    return ask(`Read Codex sessions from the last ${days} day${days === 1 ? "" : "s"} at ${displayPath(this.root)}?`);
+    return ask(`Read Codex sessions from ${historyWindow(days)} at ${displayPath(this.root)}?`);
   }
 
   async discover(options: DiscoveryOptions): Promise<TranscriptFile[]> {

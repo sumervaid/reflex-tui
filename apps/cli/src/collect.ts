@@ -3,16 +3,15 @@ import { lstat } from "node:fs/promises";
 import { sep } from "node:path";
 import { fileURLToPath } from "node:url";
 import type { SourceId, TranscriptAdapter, TranscriptFile, WorkflowTrace } from "@reflex/core";
-import { sha256 } from "@reflex/core";
+import { ALL_HISTORY_DAYS, SOURCE_LABELS, sha256 } from "@reflex/core";
 import { buildTrace, sessionContext } from "@reflex/analysis";
 import { redactDeep, redactionFingerprint } from "@reflex/safety";
-import type { CachedFile, CachedTrace, Store } from "@reflex/storage";
+import type { CachedFile, CachedTrace, CappedSource, ScanRecord, Store } from "@reflex/storage";
 
 /** Bounds the clustering step on very large histories (and, without the cache, parse time). */
 export const MAX_FILES_PER_SOURCE = 2000;
 
 /** Files are parsed without a window and the window is applied to their traces, so one cached read serves any --days. */
-const ALL_HISTORY_DAYS = 100 * 365;
 
 export type CacheKeys = {
   /** Hash of the Reflex build: any change to parsing or tracing makes cached traces stale. */
@@ -57,8 +56,14 @@ export type Collected = {
   partial: number;
   unreadable: number;
   skippedRecords: number;
-  capped: number;
+  capped: NonNullable<ScanRecord["capped"]>;
 };
+
+/** What a scan and `reflex doctor` say about a source that hit the file limit. */
+export function cappedLine(source: SourceId, capped: CappedSource): string {
+  const n = capped.skipped;
+  return `${SOURCE_LABELS[source]}: ${n} older file${n === 1 ? "" : "s"} not read. Each source reads its ${MAX_FILES_PER_SOURCE} most recent, which go back to ${capped.oldestRead.slice(0, 10)}.`;
+}
 
 function unchanged(c: CachedFile | undefined, f: TranscriptFile, keys: CacheKeys): c is CachedFile {
   const id = f.identity;
@@ -109,7 +114,7 @@ export async function collect(adapters: TranscriptAdapter[], store: Store, opts:
     partial: 0,
     unreadable: 0,
     skippedRecords: 0,
-    capped: 0,
+    capped: {},
   };
   const take = (source: SourceId, cached: CachedTrace[], include: (t: WorkflowTrace) => boolean): number => {
     let n = 0;
@@ -132,7 +137,7 @@ export async function collect(adapters: TranscriptAdapter[], store: Store, opts:
     result.perSource[a.id] = 0;
     const all = await a.discover({ days: opts.days, now: opts.now });
     const list = all.sort((x, y) => y.modifiedAt.getTime() - x.modifiedAt.getTime()).slice(0, MAX_FILES_PER_SOURCE);
-    result.capped += all.length - list.length;
+    if (all.length > list.length) result.capped[a.id] = { skipped: all.length - list.length, oldestRead: list.at(-1)!.modifiedAt.toISOString() };
     opts.onSource?.(a, list.length);
 
     for (const file of list) {

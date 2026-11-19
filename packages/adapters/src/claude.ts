@@ -2,7 +2,7 @@ import { homedir } from "node:os";
 import { basename, join } from "node:path";
 import { z } from "zod";
 import type { DetectionResult, DiscoveryOptions, ParseResult, TranscriptAdapter, TranscriptFile } from "@reflex/core";
-import { addUsage, debug } from "@reflex/core";
+import { addUsage, debug, historyWindow } from "@reflex/core";
 import { displayPath } from "@reflex/safety";
 import { readJsonl } from "./jsonl";
 import { SessionBuilder, clean, cutoffFor, isDirectory, listFiles, modelName, skillName, toTranscriptFiles, tokens } from "./common";
@@ -86,7 +86,7 @@ export class ClaudeCodeAdapter implements TranscriptAdapter {
   }
 
   async requestPermission(ask: (message: string) => Promise<boolean>, days: number): Promise<boolean> {
-    return ask(`Read Claude Code sessions from the last ${days} day${days === 1 ? "" : "s"} at ${displayPath(this.root)}?`);
+    return ask(`Read Claude Code sessions from ${historyWindow(days)} at ${displayPath(this.root)}?`);
   }
 
   async discover(options: DiscoveryOptions): Promise<TranscriptFile[]> {

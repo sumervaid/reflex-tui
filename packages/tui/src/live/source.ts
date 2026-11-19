@@ -138,10 +138,11 @@ async function loadLive(now: Date): Promise<{ data: TuiData; search?: LiveSearch
       data.attention.push({ tone: "ok", text: `${data.memory.entries.length} corrections your agents could remember · press m`, view: "dashboard" });
     if (!scan) return { data };
     data.scannedAt = clockLabel(new Date(scan.startedAt));
-    Object.assign(data, usage(scan, traces, now));
+    const shown = { ...scan, days: shownDays(scan, traces) };
+    Object.assign(data, usage(shown, traces, now));
     const priced = priceTraces(traces);
-    addCosts(data, costFields(priced, windowDays(scan, now), now));
-    data.router = buildRouter(priced, data.scannedAt, scan.days, store.routerSettings().autopilot);
+    addCosts(data, costFields(priced, windowDays(shown, now), now));
+    data.router = buildRouter(priced, data.scannedAt, shown.days, store.routerSettings().autopilot);
     const stale = needsRescan(priced);
     if (stale) data.attention.push({ tone: "warn", text: `press r to rescan: ${stale} ${stale === 1 ? "session was" : "sessions were"} stored before Reflex recorded models, so ${stale === 1 ? "it has" : "they have"} no cost yet`, view: "dashboard" });
     const skillOf = new Map(store.skills().map((k) => [k.suggestionSlug, k.name]));
@@ -203,10 +204,23 @@ const startedIn = (traces: WorkflowTrace[], from: Date, to: Date): WorkflowTrace
     return at >= from.getTime() && at < to.getTime();
   });
 
+const SHOWN_DAYS_UNCLAMPED = 365;
+
 /**
  * The scan window is the `days` x 24 hours before the scan. `days` has one entry per local day the
  * window touches (sessions by start time); `yesterday` is set only when the window covers all of it.
  */
+/**
+ * The window the views show. Past a year it stops at the oldest session: `scan --all` asks for a
+ * century, which would mean a chart of empty days and savings per month spread over all of them.
+ */
+export function shownDays(scan: Pick<ScanRecord, "days" | "startedAt">, traces: Array<Pick<WorkflowTrace, "startedAt" | "endedAt">>): number {
+  if (scan.days <= SHOWN_DAYS_UNCLAMPED) return scan.days;
+  const times = traces.map((t) => Date.parse(t.startedAt ?? t.endedAt ?? "")).filter((t) => !Number.isNaN(t));
+  if (!times.length) return SHOWN_DAYS_UNCLAMPED;
+  return Math.min(scan.days, Math.max(1, Math.ceil((Date.parse(scan.startedAt) - Math.min(...times)) / DAY_MS)));
+}
+
 /** Local days of the scan window, ending yesterday: the views read the last entry as yesterday. */
 function windowDays(scan: ScanRecord, now: Date): Date[] {
   const end = Math.min(new Date(scan.startedAt).getTime(), dayStart(now).getTime() - 1);
