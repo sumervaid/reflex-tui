@@ -1,5 +1,5 @@
 import { SOURCE_LABELS } from "@reflex/core";
-import { DEFAULT_MATCHING, type Suggestion, describeMatching, isDefaultMatching } from "@reflex/analysis";
+import { DEFAULT_MATCHING, learnedMatching, type Decision, type RejectReason, type Suggestion, describeMatching, isDefaultMatching } from "@reflex/analysis";
 import { displayPath, excerpt } from "@reflex/safety";
 import { type StoredSuggestion, Store, paths } from "@reflex/storage";
 import { approveSuggestion } from "@reflex/skills";
@@ -172,8 +172,10 @@ async function reviewLoop(store: Store, entry: StoredSuggestion): Promise<"next"
       continue;
     }
     if (action === "r") {
-      store.setStatus(entry.slug, "rejected");
+      const reason = await askRejectReason();
+      store.setStatus(entry.slug, "rejected", reason);
       ok(`Rejected ${entry.slug}. It won't be suggested again unless you run \`reflex suggest --all\`.`);
+      adjustBar(store);
       return "next";
     }
     await approveEntry(store, entry, {});
@@ -195,6 +197,7 @@ export async function approveEntry(store: Store, entry: StoredSuggestion, opts: 
   out(c.dim("Generation only writes to Reflex's own folder. Nothing was installed into Claude Code, Codex or Cursor."));
   out();
   fileBlock(displayPath(path), skill.content);
+  adjustBar(store);
   out();
   if (!opts.noInstall) {
     if (interactive() && !opts.yes) await installFlow(store, skill.name, {});
@@ -240,9 +243,41 @@ export async function reject(ref: string): Promise<void> {
   const store = new Store();
   try {
     const entry = findOrThrow(store, ref);
-    store.setStatus(entry.slug, "rejected");
+    const reason = await askRejectReason();
+    store.setStatus(entry.slug, "rejected", reason);
     ok(`Rejected ${entry.slug}. It won't be suggested again (see \`reflex suggest --all\`).`);
+    adjustBar(store);
   } finally {
     store.close();
+  }
+}
+
+/** Why the user is rejecting. "Not useful" says nothing about matching; "not the same task" does. */
+async function askRejectReason(): Promise<RejectReason> {
+  if (!interactive()) return "not-useful";
+  const reason = await chooseKey("Why are you rejecting it?", [
+    { value: "not-useful", label: "Not useful to me", hint: "matching stays as it is" },
+    { value: "wrong-grouping", label: "These aren't the same task", hint: "matching gets a bit stricter" },
+  ]);
+  return reason ?? "not-useful";
+}
+
+/**
+ * Learn the bar from the user's decisions. Reflex only moves a bar it set itself (or the untouched
+ * default); once the user runs `reflex settings matching`, their choice stands until they reset.
+ * At most one step per batch of decisions, and only after enough of them to mean something.
+ * Exported for tests.
+ */
+export function adjustBar(store: Store): void {
+  const current = store.matchingSettings();
+  if (current.locked || current.origin === "user") return;
+  const since = (current.decisionsSinceMove ?? 0) + 1;
+  const decisions = store.recentDecisions(since).map((d) => (d.status === "approved" ? "approved" : d.rejectReason ?? "not-useful") as Decision);
+  const learned = learnedMatching(current, decisions);
+  if (learned) {
+    store.setMatchingSettings({ ...learned.next, origin: "reflex", locked: false, decisionsSinceMove: 0 });
+    out(c.bold(learned.message));
+  } else {
+    store.setMatchingSettings({ ...current, decisionsSinceMove: since });
   }
 }

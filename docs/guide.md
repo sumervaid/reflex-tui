@@ -49,6 +49,15 @@ history may need `--sessions 2 --strictness looser`; a long one whose suggestion
 `--strictness stricter`. A change redoes the last scan's suggestions at once, and a suggestion found
 at settings other than the defaults says so in `reflex suggest` and `reflex show`.
 
+While the bar is at its defaults and unlocked, Reflex also learns it from your decisions. Each
+approve and reject is recorded; after at least 5 decisions since the bar last moved, mostly
+approvals move it a step looser (the strictness thresholds first, then the session count), and
+mostly rejections that said "these aren't the same task" move it a step stricter. Rejections that
+said "not useful to me" don't move it: the grouping was right, the workflow just isn't wanted.
+Reflex says when the bar moved ("Showing a bit more: you approved 6 of your last 8 suggestions")
+and the new bar applies at the next scan. `reflex settings matching --lock` stops this, and
+anything you set with `--sessions` or `--strictness` is yours until `--reset` hands the bar back.
+
 The skill contains only steps seen in at least half the sessions, in the order they usually
 happened, with example commands that recurred and passed a safety filter. Corrections you gave in
 follow-up messages ("don't change the CI workflow") become constraints when the same correction

@@ -290,7 +290,8 @@ describe("saved analysis", () => {
 
     await settingsMatching({ sessions: "5", strictness: "stricter" });
     const strict = read();
-    expect(strict.settings).toEqual({ sessions: 5, strictness: "stricter" });
+    // The database also records that the user set this bar themselves, so Reflex stops adjusting it.
+    expect(strict.settings).toEqual({ sessions: 5, strictness: "stricter", origin: "user" });
     expect(strict.suggestions.length).toBeLessThan(atDefaults.suggestions.length);
     expect(strict.suggestions.every((s) => s.instances >= 5 && s.matching?.sessions === 5)).toBe(true);
 
