@@ -58,6 +58,14 @@ Reflex says when the bar moved ("Showing a bit more: you approved 6 of your last
 and the new bar applies at the next scan. `reflex settings matching --lock` stops this, and
 anything you set with `--sessions` or `--strictness` is yours until `--reset` hands the bar back.
 
+Suggestions are shown with their moments, not only their counts: two recent sessions with date,
+project and redacted request open each suggestion in `reflex suggest`, and `reflex evidence`
+lists every one with its actions and outcome. Until you have decided a few suggestions, the
+evidence opens by itself in the review; after that it waits behind the `e` key. Before approving,
+`reflex approve` shows what saying yes means: the past sessions the skill would have applied to,
+at the tokens and tool calls they cost. The TUI's Workflows preview shows the same sessions,
+corrections and costs next to the skill it would generate.
+
 The skill contains only steps seen in at least half the sessions, in the order they usually
 happened, with example commands that recurred and passed a safety filter. Corrections you gave in
 follow-up messages ("don't change the CI workflow") become constraints when the same correction

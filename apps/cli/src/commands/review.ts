@@ -39,6 +39,13 @@ export function renderSuggestion(entry: StoredSuggestion): void {
     2,
   );
   out();
+  out("  Moments");
+  for (const e of s.evidence.slice(0, 2)) {
+    out(c.dim(`    ${shortDate(e.date)}, ${e.project ?? "unknown project"}: "${excerpt(e.excerpt, 80)}"`));
+  }
+  if (s.evidence.length > 2) out(c.dim(`    +${plural(s.evidence.length - 2, "more session")}`));
+  out(c.dim(`    every session: ${c.cyan(`reflex evidence ${entry.rank}`)}`));
+  out();
   out("  Typical workflow");
   const width = Math.max(...s.steps.map((st) => st.label.length));
   s.steps.forEach((st, i) => {
@@ -156,7 +163,31 @@ export async function suggest(opts: { all?: boolean; interactive?: boolean }): P
   }
 }
 
+/** How many decisions before evidence stops opening on its own. */
+export const FIRST_DECISIONS = 3;
+
+/**
+ * While the user is still deciding what a good suggestion looks like, the evidence opens by
+ * default; once a few decisions are made, it collapses back to the `e` key. Exported for tests.
+ */
+export function evidenceFirst(store: Store): boolean {
+  return store.recentDecisions(FIRST_DECISIONS).length < FIRST_DECISIONS;
+}
+
+/** What approving means, in sessions and cost, before the skill is generated. */
+export function renderImpactPreview(s: Suggestion): void {
+  out();
+  out("  What approving would change");
+  out(`  This skill would have applied to ${c.bold(plural(s.instances, "past session"))}${s.cost ? c.dim(` · ${describeCost(s.cost)}`) : ""}.`);
+  renderEvidence(s);
+}
+
 async function reviewLoop(store: Store, entry: StoredSuggestion): Promise<"next" | "quit"> {
+  let shown = false;
+  if (evidenceFirst(store)) {
+    renderImpactPreview(entry.data);
+    shown = true;
+  }
   for (;;) {
     const action = await chooseKey(`#${entry.rank} ${entry.data.title}`, [
       { value: "a", label: "Approve", hint: "generate a skill in ~/.reflex/skills" },
@@ -168,7 +199,8 @@ async function reviewLoop(store: Store, entry: StoredSuggestion): Promise<"next"
     if (!action || action === "q") return "quit";
     if (action === "s") return "next";
     if (action === "e") {
-      renderEvidence(entry.data);
+      renderImpactPreview(entry.data);
+      shown = true;
       continue;
     }
     if (action === "r") {
@@ -178,6 +210,7 @@ async function reviewLoop(store: Store, entry: StoredSuggestion): Promise<"next"
       adjustBar(store);
       return "next";
     }
+    if (!shown) renderImpactPreview(entry.data);
     await approveEntry(store, entry, {});
     return "next";
   }
@@ -229,6 +262,7 @@ export async function approve(ref: string, opts: { yes?: boolean; install?: bool
   try {
     const entry = findOrThrow(store, ref);
     renderSuggestion(entry);
+    renderImpactPreview(entry.data);
     if (!(await confirm(`Generate a skill from "${entry.data.title}"?`, opts))) {
       out("Not approved. Nothing was written.");
       return;
