@@ -11,7 +11,7 @@ Every command and its options. `reflex <command> --help` prints the same from th
 | `show <n\|name>` | A suggestion in detail: steps, support, uncertainty |
 | `evidence <n\|name>` | The sessions behind a suggestion: redacted request, actions, outcome, source |
 | `approve <n\|name>` | Generate `~/.reflex/skills/<name>/SKILL.md` (at most 150 lines). `--yes`, `--no-install` (don't offer installation afterwards) |
-| `reject <n\|name>` | Stop suggesting it |
+| `reject <n\|name>` | Stop suggesting it. Asks why when run interactively: "not useful to me" (nothing changes) or "these aren't the same task" (matching gets a bit stricter, once enough decisions agree) |
 | `skills` | Generated skills and where they are installed |
 | `show-skill <name>` | Print a generated skill |
 | `install <name>` | Install into Claude Code, Codex or Cursor. `--target`, `--as <new-name>`, `--yes`. Never overwrites |
@@ -28,7 +28,7 @@ Every command and its options. `reflex <command> --help` prints the same from th
 | `agents` | Sessions that launched agents (Cursor): how many, which kinds, and how many tool calls the agents made |
 | `handbook` | How work is done in the current repository, learned from past sessions: commands that worked (and ones that kept failing) and corrections you repeated, with the sessions behind each. `show <id>`, `ask "<question>"`, `export` (Markdown for a teammate, no request text), `--project`, `--all`, `--json`. Read-only, so agents can call it |
 | `cursor-usage [on\|off]` | Record Cursor's token counts locally through a Cursor hook. `on` adds Reflex's hook to `~/.cursor/hooks.json` (asks first, keeps your other hooks, backs the file up); `off` removes it. Not available on Windows yet. See the [guide](guide.md#sources-in-detail) |
-| `settings matching` | What counts as a repeated workflow: `--sessions <2-5>` (default 3) and `--strictness looser\|default\|stricter`, `--reset`. A change redoes the last scan's suggestions, and each one shows the settings when they aren't the defaults. See the [guide](guide.md#how-detection-works) |
+| `settings matching` | What counts as a repeated workflow: `--sessions <2-5>` (default 3) and `--strictness looser\|default\|stricter`, `--reset`, `--lock`. A change redoes the last scan's suggestions, and each one shows the settings when they aren't the defaults. While the bar is at its defaults and unlocked, Reflex also moves it a step at a time from your approve/reject decisions; anything you set here is yours until `--reset`. See the [guide](guide.md#how-detection-works) |
 | `settings retention [days\|off]` | How many days of sessions Reflex keeps. With a number, sessions that ended longer ago are forgotten after each scan, as `forget --older-than` would. `off` (the default) keeps everything |
 | `forget` | Remove kept sessions from Reflex's database: `--older-than <days>` (ended longer ago) and/or `--missing` (their transcript was deleted). Shows how many, from when and which agents, then asks. Their cached comparisons by meaning, their evidence in suggestions and memory entries only they supported go too; transcripts and generated skills are not touched. `--yes` |
 | `stats` | Counts from local data |

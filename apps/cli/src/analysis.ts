@@ -40,7 +40,9 @@ export async function latestAnalysis(store: Store): Promise<SavedAnalysis & { re
   if (!scan) throw new Error("No scan yet. Run `reflex scan --days 7` first.");
   const active = await activeModel(paths.models());
   const skills = await skillSets(store);
-  const matching = store.matchingSettings();
+  const stored = store.matchingSettings();
+  // The analysis only knows the bar itself; who set it and whether it may move stays in the database.
+  const matching: MatchingSettings = { sessions: stored.sessions, strictness: stored.strictness };
   if (scan.analysis && scan.analysisKey === analysisKey(active?.id, skills, matching)) return { ...scan.analysis, reused: true };
   const traces = store.traces();
   const meaning = await sessionVectors(traces, store, { cacheOnly: true });

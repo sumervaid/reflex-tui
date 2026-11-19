@@ -252,7 +252,9 @@ Scanning, suggesting and installing don't. Commands that start an agent do, afte
 A workflow needs the same kind of task in at least 3 independent sessions; copies, resumed sessions
 and quick retries count once. Try a longer window (`reflex scan --days 30`), or lower the bar with
 `reflex settings matching --sessions 2 --strictness looser`. With the optional model
-(`reflex model fetch`), requests worded differently can match too.
+(`reflex model fetch`), requests worded differently can match too. If you review suggestions and
+mostly approve them, Reflex also lowers the bar a step at a time on its own; lock it with
+`reflex settings matching --lock`.
 </details>
 
 <details>

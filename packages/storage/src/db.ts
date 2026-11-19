@@ -11,6 +11,7 @@ import {
   MAX_SESSIONS,
   MIN_SESSIONS,
   type MatchingSettings,
+  type RejectReason,
   type RouteRun,
   type RouterSettings,
   STRICTNESS,
@@ -26,6 +27,18 @@ export type StoredSuggestion = {
   slug: string;
   status: SuggestionStatus;
   data: Suggestion;
+  /** When the decision was made, if one was. */
+  decidedAt?: string;
+  /** Why it was rejected, if it was and the user said. */
+  rejectReason?: RejectReason;
+};
+
+/** Matching settings as the database keeps them: the bar, plus who set it and whether it may move. */
+export type StoredMatchingSettings = MatchingSettings & {
+  /** Who last set the bar. Absent in older databases, which counts as the user's. */
+  origin?: "user" | "reflex";
+  locked?: boolean;
+  decisionsSinceMove?: number;
 };
 
 /** Files a source's limit left out of a scan, and how far back the files it did read go. */
@@ -193,7 +206,9 @@ CREATE TABLE IF NOT EXISTS suggestions (
   rank INTEGER,
   scan_id INTEGER,
   data_json TEXT NOT NULL,
-  updated_at TEXT NOT NULL
+  updated_at TEXT NOT NULL,
+  decided_at TEXT,
+  reject_reason TEXT
 );
 CREATE TABLE IF NOT EXISTS skills (
   name TEXT PRIMARY KEY,
@@ -269,6 +284,13 @@ const MIGRATIONS: Array<(db: DatabaseSync) => void> = [
     const columns = db.prepare("PRAGMA table_info(scans)").all() as Array<{ name: string }>;
     if (!columns.some((c) => c.name === "capped_json")) db.exec("ALTER TABLE scans ADD COLUMN capped_json TEXT");
   },
+  (db) => {
+    // When each decision was made, and why a suggestion was rejected. `updated_at` can't serve:
+    // a scan rewrites it for every stored suggestion, which would erase the decision order.
+    const columns = db.prepare("PRAGMA table_info(suggestions)").all() as Array<{ name: string }>;
+    if (!columns.some((c) => c.name === "decided_at")) db.exec("ALTER TABLE suggestions ADD COLUMN decided_at TEXT");
+    if (!columns.some((c) => c.name === "reject_reason")) db.exec("ALTER TABLE suggestions ADD COLUMN reject_reason TEXT");
+  },
 ];
 
 export const SCHEMA_VERSION = BASELINE_VERSION + MIGRATIONS.length;
@@ -281,7 +303,18 @@ const SuggestionShape = z.object({ slug: z.string(), title: z.string(), steps: z
 const Source = z.enum(["claude-code", "codex", "cursor"]);
 const SkillChangeShape = z.object({ skill: z.string(), at: z.string(), beforeHash: z.string(), afterHash: z.string(), applied: z.boolean() }).passthrough();
 const RouterSettingsShape = z.object({ autopilot: z.boolean(), explore: z.number(), protect: z.array(z.string()) }).partial();
-const MatchingShape = z.object({ sessions: z.number().int().min(MIN_SESSIONS).max(MAX_SESSIONS), strictness: z.enum(STRICTNESS) }).partial();
+const MatchingShape = z
+  .object({
+    sessions: z.number().int().min(MIN_SESSIONS).max(MAX_SESSIONS),
+    strictness: z.enum(STRICTNESS),
+    /** Who last set the bar: the user with `reflex settings matching`, or Reflex learning from decisions. */
+    origin: z.enum(["user", "reflex"]).optional(),
+    /** Set by `reflex settings matching --lock`: Reflex never moves the bar on its own. */
+    locked: z.boolean().optional(),
+    /** Approve/reject decisions made since the bar last moved (Reflex-owned bookkeeping). */
+    decisionsSinceMove: z.number().int().min(0).optional(),
+  })
+  .partial();
 const RouteRunShape = z.object({ at: z.string(), source: Source, mode: z.enum(["pick", "learning", "explore", "default", "manual"]), randomized: z.boolean(), outcome: z.enum(["done", "not-done"]).optional() }).passthrough();
 const BenchResultShape = z.object({ at: z.string(), batch: z.string(), source: Source, model: z.string(), pass: z.boolean(), durationMs: z.number(), timedOut: z.boolean() }).passthrough();
 
@@ -594,6 +627,8 @@ export class Store {
       slug: String(r.slug),
       status: r.status as SuggestionStatus,
       data: parseJson<Suggestion>(String(r.data_json), SuggestionShape, "suggestion"),
+      decidedAt: r.decided_at == null ? undefined : String(r.decided_at),
+      rejectReason: r.reject_reason == null ? undefined : (String(r.reject_reason) as RejectReason),
     }));
   }
 
@@ -605,8 +640,25 @@ export class Store {
     return list.find((s) => s.slug === ref);
   }
 
-  setStatus(slug: string, status: SuggestionStatus): void {
-    this.db.prepare("UPDATE suggestions SET status = ?, updated_at = ? WHERE slug = ?").run(status, new Date().toISOString(), slug);
+  /** Store a decision, and when it was made. A reject keeps why; a decision on another status clears it. */
+  setStatus(slug: string, status: SuggestionStatus, reason?: RejectReason): void {
+    const now = new Date().toISOString();
+    this.db
+      .prepare("UPDATE suggestions SET status = ?, reject_reason = ?, decided_at = ?, updated_at = ? WHERE slug = ?")
+      .run(status, status === "rejected" ? (reason ?? "not-useful") : null, now, now, slug);
+  }
+
+  /** Recent decisions, newest first: what the learned bar reads. Excludes suggestions never decided. */
+  recentDecisions(limit: number): Array<{ slug: string; status: Exclude<SuggestionStatus, "pending">; decidedAt: string; rejectReason?: RejectReason }> {
+    const rows = this.db
+      .prepare("SELECT slug, status, decided_at, reject_reason FROM suggestions WHERE status IN ('approved','rejected') AND decided_at IS NOT NULL ORDER BY decided_at DESC, rowid DESC LIMIT ?")
+      .all(limit) as Array<Record<string, unknown>>;
+    return rows.map((r) => ({
+      slug: String(r.slug),
+      status: r.status as Exclude<SuggestionStatus, "pending">,
+      decidedAt: String(r.decided_at),
+      rejectReason: r.reject_reason == null ? undefined : (String(r.reject_reason) as RejectReason),
+    }));
   }
 
   statusCounts(): Record<SuggestionStatus, number> {
@@ -782,14 +834,14 @@ export class Store {
   }
 
   /** What counts as a repeated workflow (`reflex settings matching`); the defaults until changed. */
-  matchingSettings(): MatchingSettings {
+  matchingSettings(): StoredMatchingSettings {
     const row = this.db.prepare("SELECT value FROM settings WHERE key = 'matching'").get() as { value: string } | undefined;
     const parsed = MatchingShape.safeParse(row ? safeJson(row.value) : {});
     return parsed.success ? { ...DEFAULT_MATCHING, ...parsed.data } : { ...DEFAULT_MATCHING };
   }
 
-  setMatchingSettings(m: MatchingSettings): void {
-    const value = JSON.stringify(MatchingShape.parse({ sessions: m.sessions, strictness: m.strictness }));
+  setMatchingSettings(m: StoredMatchingSettings): void {
+    const value = JSON.stringify(MatchingShape.parse(m));
     this.db.prepare("INSERT INTO settings (key, value) VALUES ('matching', ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value").run(value);
   }
 

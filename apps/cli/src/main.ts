@@ -225,6 +225,7 @@ settings
   .option("--sessions <n>", "independent sessions a suggestion needs, 2 to 5 (default 3)")
   .option("--strictness <level>", "how alike their requests and steps must be: looser, default or stricter")
   .option("--reset", "go back to 3 sessions and default strictness")
+  .option("--lock", "stop Reflex from adjusting matching on its own from your decisions")
   .action(run(settingsMatching));
 settings
   .command("retention [days]")

@@ -3,6 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { beforeEach, describe, expect, it } from "vitest";
+import type { Suggestion } from "@reflex/analysis";
 import { SCHEMA_VERSION, Store } from "../src/db";
 import { paths } from "../src/paths";
 
@@ -76,6 +77,23 @@ describe("database upgrades", () => {
     db.close();
   });
 
+  it("gives a new database and an older one the columns for decision times and reject reasons", () => {
+    const suggestion = (slug: string) => ({ slug, title: "Fix CI", steps: [], evidence: [] }) as unknown as Suggestion;
+    const check = () => {
+      const store = new Store();
+      try {
+        store.saveSuggestions(1, [suggestion("a")]);
+        store.setStatus("a", "rejected", "wrong-grouping");
+        expect(store.recentDecisions(10)).toEqual([expect.objectContaining({ slug: "a", status: "rejected", rejectReason: "wrong-grouping" })]);
+      } finally {
+        store.close();
+      }
+    };
+    check();
+    writtenThen((db) => db.exec("ALTER TABLE suggestions DROP COLUMN decided_at; ALTER TABLE suggestions DROP COLUMN reject_reason; PRAGMA user_version = 4"));
+    check();
+  });
+
   it("gives a new database and an older one the column for capped sources", () => {
     const capped = { codex: { skipped: 1, oldestRead: "2026-01-01T00:00:00.000Z" } };
     const scan = { startedAt: "2026-10-01T00:00:00Z", days: 7, mode: "local" as const, sources: {}, files: 0, sessions: 0, partial: 0, unreadable: 0, skippedRecords: 0 };
@@ -91,7 +109,7 @@ describe("database upgrades", () => {
       }
     };
     check();
-    writtenThen((db) => db.exec(`ALTER TABLE scans DROP COLUMN capped_json; PRAGMA user_version = ${SCHEMA_VERSION - 1}`));
+    writtenThen((db) => db.exec(`ALTER TABLE scans DROP COLUMN capped_json; PRAGMA user_version = ${SCHEMA_VERSION - 2}`));
     check();
   });
 });

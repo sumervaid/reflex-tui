@@ -1,6 +1,7 @@
 import { existsSync } from "node:fs";
 import { beforeAll, describe, expect, it } from "vitest";
 import { BGE_M3, MINILM, type ModelSpec, centerOnReference, loadEmbedder, modelDir, modelReads } from "@reflex/embeddings";
+import { DEFAULT_MATCHING, type MatchingSettings, stepMatching, describeMatching } from "../../src/matching";
 import { EVAL_SESSIONS, EVAL_SESSIONS_KO } from "@reflex/test-fixtures";
 import { sessionContext, withFloor } from "../../src/context";
 import { type EvalData, type EvalResult, evaluate, loadEvalData } from "./harness";
@@ -75,6 +76,27 @@ describe("evaluation set", () => {
     expect(count("default", 5)).toBeLessThan(count("default", 3));
     expect(count("stricter", 4)).toBeLessThan(count("default", 4));
     expect(evaluate(en, { matching: { strictness: "looser", sessions: 3 } }).clusterF1).toBeGreaterThanOrEqual(evaluate(en).clusterF1);
+  });
+
+  // The learned bar (issue #68) walks one step at a time from the defaults: the strictness
+  // thresholds first, then the session count. Every state it can reach must stay above the floor.
+  it("every state the learned bar can reach from the defaults keeps quality", () => {
+    const reachable = (start: MatchingSettings, direction: "looser" | "stricter") => {
+      const path: MatchingSettings[] = [];
+      for (let m = start; ;) {
+        const next = stepMatching(m, direction);
+        path.push(next);
+        if (next.sessions === m.sessions && next.strictness === m.strictness) return path;
+        m = next;
+      }
+    };
+    for (const state of [...reachable(DEFAULT_MATCHING, "looser"), ...reachable(DEFAULT_MATCHING, "stricter")]) {
+      const r = evaluate(en, { matching: state });
+      report(`learned path ${describeMatching(state)}`, r);
+      expect(r.clusterF1).toBeGreaterThan(0.55);
+      expect(r.suggestions).toBeGreaterThan(0);
+      expect(r.impure).toBeLessThanOrEqual(4);
+    }
   });
 });
 
