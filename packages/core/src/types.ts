@@ -46,7 +46,7 @@ export type SessionEvent =
   | { kind: "user"; at?: string; text: string }
   | { kind: "assistant"; at?: string; text: string }
   | { kind: "tool"; at?: string; tool: string; isError?: boolean; skill?: string; byAgent?: true }
-  | { kind: "shell"; at?: string; command: string; isError?: boolean; byAgent?: true }
+  | { kind: "shell"; at?: string; command: string; isError?: boolean; rejected?: true; byAgent?: true }
   | { kind: "file"; at?: string; op: FileOp; path: string; isError?: boolean; byAgent?: true }
   | { kind: "error"; at?: string; message: string };
 

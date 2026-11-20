@@ -97,6 +97,10 @@ describe("Cursor tool outcomes from the app database", () => {
     expect(byCommand.get("rm -rf /")).toBeUndefined(); // rejected: never ran
     expect(byCommand.get("git push")).toBeUndefined(); // cancelled: never finished
     expect(byCommand.get("npm ci")).toBe(true); // error status
+    // The refusal itself is recorded for the corrections pipeline (#72).
+    const refused = shells.find((e) => e.command === "rm -rf /");
+    expect(refused?.rejected).toBe(true);
+    expect(shells.find((e) => e.command === "pnpm test")?.rejected).toBeUndefined();
     const files = session!.events.filter((e) => e.kind === "file");
     expect(files[0]!.isError).toBeUndefined(); // read completed
     expect(files[1]!.isError).toBe(true); // edit failed

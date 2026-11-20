@@ -409,7 +409,10 @@ export class CursorAdapter implements TranscriptAdapter {
     for (const ev of b.events) {
       if (ev.kind === "shell") {
         const row = claim("shell", ev.command);
-        if (row && failed(row)) ev.isError = true;
+        if (!row) continue;
+        // A refusal is the developer's clearest correction (#72), but it is not a failure.
+        if (row.rejected) ev.rejected = true;
+        else if (failed(row)) ev.isError = true;
       } else if (ev.kind === "file") {
         const row = claim(ev.op === "read" ? "read" : "edit");
         if (row && failed(row)) ev.isError = true;
