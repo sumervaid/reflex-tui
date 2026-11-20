@@ -38,8 +38,11 @@ Each adapter implements `detect` (location and file count, no reads), `requestPe
 skip bad lines, cap line size and events per session).
 
 - Claude Code: `~/.claude/projects/<encoded-cwd>/<session>.jsonl`. `user`/`assistant` records with
-  string or block content (`text`, `tool_use`, `tool_result`). Sidechain, meta, harness-injected and
-  duplicate-uuid records are dropped.
+  string or block content (`text`, `tool_use`, `tool_result`). Meta, harness-injected and
+  duplicate-uuid records are dropped. Sidechain records — a sub-agent's conversation, written into
+  the same file — keep only their tool calls and the results that grade them, marked `byAgent` and
+  inserted right after the `Task` call that launched the sub-agent; the sub-agent's prompt (written
+  by the parent agent) and its narration are never read, and the event cap still holds.
 - Codex: `$CODEX_HOME/sessions/YYYY/MM/DD/rollout-*.jsonl`. `{timestamp, type, payload}` lines:
   `session_meta`, `response_item` (messages, `shell`/`exec_command` calls, `local_shell_call`,
   `apply_patch`, outputs with exit codes), `event_msg`. Requests are the user messages Codex itself
@@ -85,8 +88,9 @@ All text is truncated and redacted inside the adapter, before anything else sees
 Token usage, where recorded, is attached to the session as `{input, output, cacheRead, cacheWrite}`:
 
 - Claude Code: `message.usage` on assistant records, counted once per `message.id` (Claude Code
-  repeats the same usage on every content-block record of one API message). Sidechain records are
-  skipped, so subagent tokens are not included.
+  repeats the same usage on every content-block record of one API message). Sidechain usage is not
+  counted: it belongs to the sub-agent's own API calls, and whether sub-agent tokens belong in the
+  parent session's totals is a question for `reflex impact`, not for the event stream.
 - Codex: the last cumulative `event_msg` `token_count.info.total_token_usage`. `input_tokens`
   includes `cached_input_tokens`, so the cached part is moved into `cacheRead`. Like the rest of the
   Codex parser, this is checked against Codex's source, not yet on real history.
