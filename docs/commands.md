@@ -7,10 +7,10 @@ Every command and its options. `reflex <command> --help` prints the same from th
 | `doctor` | Node and SQLite check, detected history locations and file counts, what the last scan's file limit left out, install targets, agent CLIs, Cursor hook |
 | `scan --days <n>` | Ask per source, then read and store redacted workflow traces. `--days` defaults to 7. `--all` reads all of your history instead. Either way each source reads at most its 2,000 most recent files, and the summary says what that left out. `--source <claude-code\|codex\|cursor>` (repeatable), `--claude-dir`, `--codex-dir`, `--cursor-dir`, `--yes`, `--full` (re-read every file instead of reusing unchanged ones), `--embed-minutes <n>` (most time spent comparing new sessions by meaning; default 5, the rest continue next scan) |
 | `sessions` | Sessions from the last scan, redacted |
-| `suggest` | Detect repeated workflows and review them interactively: `[a]`pprove, `[e]`vidence, `[r]`eject, `[s]`kip, `[q]`uit (`--no-interactive`, `--all`) |
+| `suggest` | Detect repeated workflows and review them interactively: `[a]`pprove, `[e]`vidence, `[r]`eject, `[s]`kip, `[q]`uit. While you have made fewer than 3 decisions, each suggestion opens with its evidence already shown; after that it stays behind `[e]` until you ask (`--no-interactive`, `--all`) |
 | `show <n\|name>` | A suggestion in detail: steps, support, uncertainty |
 | `evidence <n\|name>` | The sessions behind a suggestion: redacted request, actions, outcome, source |
-| `approve <n\|name>` | Generate `~/.reflex/skills/<name>/SKILL.md` (at most 150 lines). `--yes`, `--no-install` (don't offer installation afterwards) |
+| `approve <n\|name>` | Shows the evidence and what approving would change (the past sessions it would have covered, at their costs), then generates `~/.reflex/skills/<name>/SKILL.md` (at most 150 lines). `--yes`, `--no-install` (don't offer installation afterwards) |
 | `reject <n\|name>` | Stop suggesting it. Asks why when run interactively: "not useful to me" (nothing changes) or "these aren't the same task" (matching gets a bit stricter, once enough decisions agree) |
 | `skills` | Generated skills and where they are installed |
 | `show-skill <name>` | Print a generated skill |
