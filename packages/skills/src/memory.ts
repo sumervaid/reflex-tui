@@ -1,16 +1,17 @@
-import { lstat, readFile, stat } from "node:fs/promises";
+import { lstat, readFile, rmdir, stat, unlink } from "node:fs/promises";
 import { homedir } from "node:os";
 import { dirname, join } from "node:path";
 import { recurringMemory } from "@reflex/analysis";
 import type { WorkflowTrace } from "@reflex/core";
 import { displayPath, ensureDir, findLeaks, pathExists, redactWithReport, replaceOwnedFile } from "@reflex/safety";
 
-export type MemoryTargetId = "claude-code" | "codex";
+export type MemoryTargetId = "claude-code" | "codex" | "cursor";
 
 export type MemoryTarget = {
   id: MemoryTargetId;
   label: string;
-  /** The agent's global instructions file, read at the start of every session. */
+  /** How the memory is delivered: a marked block inside the agent's instructions file, or (Cursor) a skill file Reflex owns wholly. */
+  kind: "block" | "skill";
   file: string;
   /** The agent's home directory exists on this machine. */
   detected: boolean;
@@ -19,24 +20,45 @@ export type MemoryTarget = {
 export const MEMORY_START = "<!-- reflex:memory:start -->";
 export const MEMORY_END = "<!-- reflex:memory:end -->";
 
-/** Where each agent reads global instructions. Cursor keeps user rules in its app settings, not a file. */
+/** Where each agent reads global instructions. Cursor keeps user rules in its app settings, so its memory is a skill Reflex owns wholly. */
 export async function memoryTargets(): Promise<MemoryTarget[]> {
   const claudeHome = join(homedir(), ".claude");
   const codexHome = process.env.CODEX_HOME ?? join(homedir(), ".codex");
+  const cursorHome = join(homedir(), ".cursor");
   return [
     {
       id: "claude-code",
       label: "Claude Code",
+      kind: "block",
       file: process.env.REFLEX_CLAUDE_MEMORY_FILE ?? join(claudeHome, "CLAUDE.md"),
       detected: process.env.REFLEX_CLAUDE_MEMORY_FILE ? true : await pathExists(claudeHome),
     },
     {
       id: "codex",
       label: "Codex",
+      kind: "block",
       file: process.env.REFLEX_CODEX_MEMORY_FILE ?? join(codexHome, "AGENTS.md"),
       detected: process.env.REFLEX_CODEX_MEMORY_FILE ? true : await pathExists(codexHome),
     },
+    {
+      id: "cursor",
+      label: "Cursor",
+      kind: "skill",
+      file: process.env.REFLEX_CURSOR_MEMORY_FILE ?? join(cursorHome, "skills", "reflex-memory", "SKILL.md"),
+      detected: process.env.REFLEX_CURSOR_MEMORY_FILE ? true : await pathExists(cursorHome),
+    },
   ];
+}
+
+/** The front matter of the `reflex-memory` skill: what makes Cursor load it, and what it is for. */
+export function renderMemorySkill(rules: Array<{ text: string; sessions?: number }>): string {
+  return `---
+name: reflex-memory
+description: How the developer wants repeated work done: corrections Reflex learned from more than one past coding session. Consult for any task in this environment.
+---
+
+${renderMemoryBlock(rules)}
+`;
 }
 
 /** One rule per line: no line breaks, no markers, nothing that needed redaction. Returns undefined for text that cannot be used. */
@@ -82,8 +104,13 @@ export function applyMemoryBlock(existing: string, block: string | null): string
 
 export type MemoryWrite = { target: MemoryTarget; path: string; changed: boolean; skipped?: string };
 
-/** Write (or with `block` null, remove) Reflex's memory block in one agent's instructions file. Never follows a symlinked file. */
-export async function writeMemory(target: MemoryTarget, block: string | null): Promise<MemoryWrite> {
+/** Write (or with `block` null, remove) Reflex's memory in one agent's target. Never follows a symlinked file. */
+export async function writeMemory(
+  target: MemoryTarget,
+  block: string | null,
+  rules?: Array<{ text: string; sessions?: number }>,
+): Promise<MemoryWrite> {
+  if (target.kind === "skill") return writeSkillMemory(target, block, rules);
   const path = target.file;
   const exists = await pathExists(path);
   if (exists && (await lstat(path)).isSymbolicLink()) {
@@ -95,6 +122,42 @@ export async function writeMemory(target: MemoryTarget, block: string | null): P
   if (!exists) await ensureDir(dirname(path), 0o755);
   const mode = exists ? (await stat(path)).mode & 0o777 : 0o644;
   await replaceOwnedFile(path, next, mode);
+  return { target, path, changed: true };
+}
+
+/**
+ * The Cursor memory is a whole skill file Reflex owns: front matter plus the marked block. A file
+ * that is not Reflex's (no markers) is never touched, and turning memory off removes the file —
+ * and its folder, when no other skill needs it.
+ */
+async function writeSkillMemory(
+  target: MemoryTarget,
+  block: string | null,
+  rules: Array<{ text: string; sessions?: number }> | undefined,
+): Promise<MemoryWrite> {
+  const path = target.file;
+  const exists = await pathExists(path);
+  if (exists && (await lstat(path)).isSymbolicLink()) {
+    return { target, path, changed: false, skipped: `${displayPath(path)} is a symlink; Reflex does not write through it` };
+  }
+  const current = exists ? await readFile(path, "utf8") : "";
+  if (exists && !current.includes(MEMORY_START)) {
+    return { target, path, changed: false, skipped: `${displayPath(path)} exists and is not Reflex's` };
+  }
+  if (!block) {
+    if (!exists) return { target, path, changed: false };
+    await unlink(path);
+    try {
+      await rmdir(dirname(path));
+    } catch {
+      // other files keep the folder; that is fine
+    }
+    return { target, path, changed: true };
+  }
+  const next = renderMemorySkill(rules ?? []);
+  if (next === current) return { target, path, changed: false };
+  await ensureDir(dirname(path), 0o755);
+  await replaceOwnedFile(path, next, 0o644);
   return { target, path, changed: true };
 }
 
@@ -118,7 +181,7 @@ export async function syncMemory(store: MemoryStore, opts: { mine?: boolean } = 
   if (!store.memoryState().enabled) return { rules: active.length, writes: [] };
   const block = active.length ? renderMemoryBlock(active) : null;
   const writes: MemoryWrite[] = [];
-  for (const t of (await memoryTargets()).filter((x) => x.detected)) writes.push(await writeMemory(t, block));
+  for (const t of (await memoryTargets()).filter((x) => x.detected)) writes.push(await writeMemory(t, block, active));
   return { rules: active.length, writes };
 }
 

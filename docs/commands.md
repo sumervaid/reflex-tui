@@ -20,7 +20,7 @@ Every command and its options. `reflex <command> --help` prints the same from th
 | `validate <name>` | Static checks and installed-copy comparison. For `fix-ci`, also a fresh-task sandbox (`--run` starts Claude Code) |
 | `impact [name]` | Tokens and tool calls per run before the skill vs. runs that loaded it, plus the skill's own size |
 | `tui` | Full-screen terminal UI over the last scan: sessions, tokens, skills to review. `space` installs or removes a skill. Needs an interactive terminal |
-| `memory` | What new agent sessions remember: corrections you gave in at least 2 independent sessions. `on` writes a marked block into `~/.claude/CLAUDE.md` and `~/.codex/AGENTS.md` (refreshed after every scan), `off` removes it, plus `status`, `forget`, `remember` and `add` |
+| `memory` | What new agent sessions remember: corrections you gave in at least 2 independent sessions. `on` writes a marked block into `~/.claude/CLAUDE.md` and `~/.codex/AGENTS.md`, and a `reflex-memory` skill into `~/.cursor/skills` (refreshed after every scan), `off` removes it, plus `status`, `forget`, `remember` and `add` |
 | `run <request>` | Start Claude Code or Codex on the model the router picks for this kind of task. `--dry-run` shows the pick and why, `--tool`, `--model`, `--yes`, `--no-ask`. Asks first unless autopilot is on |
 | `route` | The router: picks per kind of task, settings, randomized trials and bench results. `status`, `autopilot on\|off`, `explore <percent>\|off [--protect <kind...>]` |
 | `bench <task>` | Run one task on several Claude Code models, each in a fresh copy of the current repository, scored by `--check "<command>"`. `--models`, `--setup`, `--runs`, `--timeout`, `--keep`, `--yes` |
