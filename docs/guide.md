@@ -262,6 +262,9 @@ network. The chat id is the transcript's file name, so `reflex scan` attaches th
 Cursor chat and prices them like other sessions. Only turns from while the hook is on are counted;
 Cursor's command-line agent in `-p` mode sends no end-of-turn hook. On Windows the hook command is
 a PowerShell call (`& 'node.exe' 'script'`), since Cursor runs hook commands through PowerShell there.
+`reflex suggest`, `reflex impact` and the TUI say when the counts begin ("recorded since 12 Oct") and
+mark the sessions older than that as "before token recording started" — a session without counts from
+before the hook was on is not a broken hook.
 
 **Agents a session launched.** When a Cursor chat launches agents (its `Task` / `Subagent` tool),
 Reflex records each one (kind, model, background or not, its short description) and reads the

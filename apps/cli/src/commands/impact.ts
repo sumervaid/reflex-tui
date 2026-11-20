@@ -1,6 +1,7 @@
 import { readFile } from "node:fs/promises";
 import { MIN_COMPARISON_RUNS, type WorkflowCost, measureImpact } from "@reflex/analysis";
 import { type SkillRecord, Store } from "@reflex/storage";
+import { cursorRecordingSince } from "./cursor-usage";
 import { c, fmtTokens, out, pct, plural, rows, shortDate, title } from "../ui";
 
 /** Rough size of the skill file in context; real tokenizers differ. */
@@ -80,6 +81,8 @@ export async function impact(name?: string): Promise<void> {
     out(c.dim("Tokens are whole sessions as Claude Code and Codex record them, cache reads included. Cursor records tokens only"));
     out(c.dim("while `reflex cursor-usage` is on; its other runs count tool calls only. A run uses the skill when the agent invoked it"));
     out(c.dim("or read its SKILL.md."));
+    const since = cursorRecordingSince();
+    if (since) out(c.dim(`Cursor's counts start ${shortDate(new Date(since).toISOString())}: runs before that have no token data.`));
     out(c.dim("Small samples are noisy: this measures what happened, it does not predict savings."));
   } finally {
     store.close();

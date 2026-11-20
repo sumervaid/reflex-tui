@@ -3,7 +3,7 @@ import { mkdir, mkdtemp, readFile, readdir, rm, symlink, writeFile } from "node:
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
-import { cursorUsageOff, cursorUsageOn, cursorUsageStatus } from "../src/commands/cursor-usage";
+import { cursorRecordingSince, cursorUsageOff, cursorUsageOn, cursorUsageStatus } from "../src/commands/cursor-usage";
 import { hookCommand, hookScript, hookStatus, installHook, removeHook, stableNode } from "../src/cursor-hook";
 
 let root: string;
@@ -158,5 +158,17 @@ describe("reflex cursor-usage", () => {
     const fresh = join(root, "fresh", "hooks.json");
     await installHook(fresh);
     expect((await readJson(fresh)).hooks.stop![0]!.command).toBe(hookCommand());
+  });
+});
+
+describe("cursorRecordingSince", () => {
+  it("is the earliest recorded turn, and nothing when no turn was ever recorded", async () => {
+    process.env.REFLEX_HOME = await mkdtemp(join(tmpdir(), "reflex-recording-"));
+    expect(cursorRecordingSince()).toBeUndefined();
+    const log = join(process.env.REFLEX_HOME, "cursor-usage.jsonl");
+    const line = (at: string, gen: string) =>
+      JSON.stringify({ v: 1, at, event: "stop", conversation_id: "c1", generation_id: gen, model_id: "claude-4.5-sonnet", input_tokens: 10, output_tokens: 2, cache_read_tokens: 0, cache_write_tokens: 0 });
+    await writeFile(log, [line("2026-10-05T10:00:00Z", "g2"), line("2026-10-01T10:00:00Z", "g1")].join("\n") + "\n");
+    expect(cursorRecordingSince()).toBe(Date.parse("2026-10-01T10:00:00Z"));
   });
 });
