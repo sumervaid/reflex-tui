@@ -67,7 +67,11 @@ skip bad lines, cap line size and events per session).
   scan is allowed to read Cursor's app database, each tool call is marked `error` from the
   database's status or a non-zero shell exit code (strict matching: a shell call only by its own
   command text, the rest by the next unconsumed row of the same kind, and an unmatched call is left
-  unmarked), so Cursor sessions count as "recovered from a failure" like the other sources. Tested
+  unmarked), so Cursor sessions count as "recovered from a failure" like the other sources. Chats
+  with no transcript file are read from the database itself (with their own consent): the composer's
+  header list gives the bubble order, the developer's messages become redacted requests, and Cursor
+  records no workspace for them, so they carry no project. Sub-agent chats are skipped, so nothing
+  is counted twice. Tested
   on fixtures and parsed cleanly on real history.
 
 - Conductor: not a separate source. Its bundled Claude Code and Codex write to `~/.claude` and

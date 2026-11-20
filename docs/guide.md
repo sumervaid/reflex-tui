@@ -245,6 +245,15 @@ shell exit code was non-zero), so Cursor sessions can end with a passing check l
 sources'. Rejected and cancelled calls are not failures — the command never ran or never finished.
 The transcripts themselves stay unchanged; `reflex doctor` lists what each session is missing.
 
+**Chats with no transcript file.** Cursor writes agent-transcript files for some chats only; the
+rest exist solely in its app database (13 of 340 in one real history, mostly sub-agents, which are
+skipped so nothing is counted twice). With the database read allowed, `reflex scan` lists those
+chats and parses them from their bubbles in the order the chat itself records: the developer's
+messages become requests (redacted like transcripts before anything is stored), tool calls become
+events with their outcomes, and each bubble's own timestamp places it. Cursor records no workspace
+for these chats, so they carry no project. Their identity is the chat's own last-updated time, so
+a chat that grows is re-read like a changed file.
+
 **Cursor token usage.** Cursor's transcripts and app database have no token counts (every
 `tokenCount` is 0), but Cursor passes each agent turn's counts to its hooks. `reflex cursor-usage on`
 adds one hook (`stop`, with `afterAgentResponse` as fallback) that appends the chat and turn ids, the
