@@ -206,7 +206,7 @@ export async function explain(name: string): Promise<void> {
       suggestion.steps.forEach((st, i) => out(`    ${i + 1}. ${st.label.padEnd(30)} ${c.dim(`${Math.round(st.support * suggestion.instances)}/${suggestion.instances}`)}`));
       out();
       out("  Supporting sessions (local references only)");
-      for (const e of suggestion.evidence) out(`    ${c.dim(shortDate(e.date))}  ${(e.project ?? "?").padEnd(14)} ${SOURCE_LABELS[e.source].padEnd(12)} ${c.dim(e.sessionId.slice(0, 24))}`);
+      for (const e of suggestion.evidence) out(`    ${c.dim(shortDate(e.date))}  ${(e.project ?? "?").padEnd(14)} ${SOURCE_LABELS[e.source].padEnd(12)}${e.afterInstall ? c.dim(" since install ") : "  "}${c.dim(e.sessionId.slice(0, 24))}`);
     } else {
       out();
       out(c.dim("  The suggestion is not in the current scan; showing stored provenance only."));

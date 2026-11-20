@@ -41,6 +41,21 @@ export function usedSkill(trace: WorkflowTrace, name: string): boolean {
   return (trace.skillsUsed ?? []).some((s) => s === name || s.endsWith(`:${name}`));
 }
 
+/** When each installed skill went in, by name. The value is the earliest install, any target. */
+export type InstalledSkills = ReadonlyMap<string, string>;
+
+/**
+ * True if the trace started after one of the skills it loaded was installed: use of Reflex's own
+ * output, not independent evidence for a workflow. `plugin:name` loads look up the bare name too.
+ */
+export function usedInstalledSkill(trace: WorkflowTrace, installed: InstalledSkills): boolean {
+  if (!trace.startedAt) return false;
+  return (trace.skillsUsed ?? []).some((name) => {
+    const at = installed.get(name) ?? (name.includes(":") ? installed.get(name.slice(name.lastIndexOf(":") + 1)) : undefined);
+    return at !== undefined && trace.startedAt! >= at;
+  });
+}
+
 export function buildTrace(session: NormalizedSession): WorkflowTrace {
   const steps: Step[] = [];
   const commands: CommandFingerprint[] = [];

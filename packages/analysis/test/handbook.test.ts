@@ -89,6 +89,20 @@ describe("buildHandbook", () => {
     const again = buildHandbook([...traces, copy]).find((p) => p.text.startsWith("Run tests"))!;
     expect(again.sessions).toBe(3);
   });
+
+  it("flags the sessions that loaded a skill after it was installed", () => {
+    // `d` ran the tests on day 4, after fix-ci went in on day 3, and loaded it; `a` ran before.
+    const flagged = traces.map((t) => (t.sessionId === "d" ? { ...t, skillsUsed: ["fix-ci"] } : t));
+    const book2 = buildHandbook(flagged, { installed: new Map([["fix-ci", new Date(Date.UTC(2026, 9, 3, 12)).toISOString()]]) });
+    const test = book2.find((p) => p.kind === "command" && p.text.startsWith("Run tests"))!;
+    expect(test.sources.find((s) => s.request === "bump vitest")?.afterInstall).toBe(true);
+    expect(test.sources.find((s) => s.request === "fix the slow query")?.afterInstall).toBeUndefined();
+    // A load before the install, or of a skill that is not installed, is not flagged.
+    const early = buildHandbook(traces.map((t) => (t.sessionId === "d" ? { ...t, skillsUsed: ["fix-ci"] } : t)), {
+      installed: new Map([["fix-ci", new Date(Date.UTC(2026, 9, 5, 12)).toISOString()]]),
+    });
+    expect(early.find((p) => p.kind === "command" && p.text.startsWith("Run tests"))!.sources.every((s) => !s.afterInstall)).toBe(true);
+  });
 });
 
 describe("askHandbook", () => {

@@ -27,9 +27,9 @@ export function renderSuggestion(entry: StoredSuggestion): void {
   out();
   out(`  ${c.bold(s.title)}`);
   out();
-  rows(
+    rows(
     [
-      ["Observed", `${plural(s.instances, "independent session")} · ${plural(s.repositories.length, "repository", "repositories")} · ${sourceSummary(s)}`],
+      ["Observed", `${plural(s.instances, "independent session")}${s.usage ? c.dim(` · ${plural(s.usage, "since you installed it")}`) : ""} · ${plural(s.repositories.length, "repository", "repositories")} · ${sourceSummary(s)}`],
       ["Consolidated", `${plural(s.records, "history record")} (copies, resumes and retries counted once)`],
       ["Confidence", `${c.bold(pct(s.confidence))} ${c.dim("ranking heuristic, not a probability")}`],
       ["Window", `${shortDate(s.firstSeen)} → ${shortDate(s.lastSeen)}`],
@@ -41,7 +41,7 @@ export function renderSuggestion(entry: StoredSuggestion): void {
   out();
   out("  Moments");
   for (const e of s.evidence.slice(0, 2)) {
-    out(c.dim(`    ${shortDate(e.date)}, ${e.project ?? "unknown project"}: "${excerpt(e.excerpt, 80)}"`));
+    out(c.dim(`    ${shortDate(e.date)}, ${e.project ?? "unknown project"}${e.afterInstall ? " (loaded the skill)" : ""}: "${excerpt(e.excerpt, 80)}"`));
   }
   if (s.evidence.length > 2) out(c.dim(`    +${plural(s.evidence.length - 2, "more session")}`));
   out(c.dim(`    every session: ${c.cyan(`reflex evidence ${entry.rank}`)}`));
@@ -75,7 +75,8 @@ export function renderEvidence(s: Suggestion): void {
     const cost = [e.tokens !== undefined ? `${fmtTokens(e.tokens)} tokens` : "", e.toolCalls !== undefined ? plural(e.toolCalls, "tool call") : ""]
       .filter(Boolean)
       .join(", ");
-    out(`${c.bold(shortDate(e.date))} · ${e.project ?? "unknown project"} · ${c.dim(agent)}${cost ? c.dim(` · ${cost}`) : ""}`);
+    const since = e.afterInstall ? c.dim(" · loaded the skill since install") : "";
+    out(`${c.bold(shortDate(e.date))} · ${e.project ?? "unknown project"} · ${c.dim(agent)}${cost ? c.dim(` · ${cost}`) : ""}${since}`);
     out(`  "${excerpt(e.excerpt, 170)}"`);
     out(`  ${c.dim("Actions:")} ${e.actions.slice(0, 8).join(c.dim(" → "))}`);
     const outcome = e.verified ? c.green("checks passed after the change") : c.yellow("no passing check observed");

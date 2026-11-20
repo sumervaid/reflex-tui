@@ -161,6 +161,19 @@ describe("evidence and impact in the review flow", () => {
     expect(text).toContain("40 tool calls");
   });
 
+  it("the suggest list separates use from evidence when the skill is installed", () => {
+    const withUsage = {
+      ...full,
+      instances: 3,
+      usage: 1,
+      evidence: [evidence("2026-11-12T10:00:00Z", "billing-api", "the CI run is red again"), { ...evidence("2026-11-13T10:00:00Z", "billing-api", "red CI, same flake as yesterday"), afterInstall: true }],
+    } as unknown as Suggestion;
+    const text = printed(() => renderSuggestion({ rank: 1, slug: "fix-ci", status: "pending", data: withUsage }));
+    expect(text).toContain("3 independent sessions");
+    expect(text).toContain("1 since you installed it");
+    expect(text).toContain("(loaded the skill)");
+  });
+
   it("evidence opens by default until a few decisions are made, then collapses", () => {
     const store = new Store();
     try {

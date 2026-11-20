@@ -16,7 +16,7 @@ const plural = (n: number, one: string, many = `${one}s`): string => `${count(n)
 export function workflowMarkdown(s: Suggestion): string[] {
   const tools = SOURCE_IDS.filter((x) => s.sources[x]).map((x) => `${TOOL_OF[x]} ${s.sources[x]}`);
   const L = [`# ${s.title}`, "", s.description, ""];
-  L.push(`${plural(s.instances, "independent session")} · ${plural(s.repositories.length, "repository", "repositories")} · ${tools.join(", ")}`);
+  L.push(`${plural(s.instances, "independent session")}${s.usage ? ` · ${plural(s.usage, "since you installed it")}` : ""} · ${plural(s.repositories.length, "repository", "repositories")} · ${tools.join(", ")}`);
   L.push(`confidence ${s.confidence.toFixed(2)} · verified in ${Math.round(s.verifiedRate * 100)}% of runs`);
   const cost: string[] = [];
   if (s.cost?.medianTokens !== undefined) cost.push(`median ${tok(s.cost.medianTokens)} tokens`);
@@ -41,7 +41,7 @@ export function workflowMarkdown(s: Suggestion): string[] {
   L.push("", "## Sessions", "");
   for (const e of s.evidence.slice(0, MAX_EVIDENCE)) {
     const date = e.date ? dayLabel(new Date(e.date)) : "—";
-    L.push(`- ${date}  ${TOOL_OF[e.source]}  ${e.project ?? "—"}  ${e.excerpt}`);
+    L.push(`- ${date}  ${TOOL_OF[e.source]}  ${e.project ?? "—"}  ${e.excerpt}${e.afterInstall ? "  (loaded the skill since install)" : ""}`);
   }
   if (s.evidence.length > MAX_EVIDENCE) L.push(`- +${count(s.evidence.length - MAX_EVIDENCE)} more (reflex evidence ${s.slug})`);
   return L.map(toCells);

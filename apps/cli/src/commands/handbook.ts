@@ -2,6 +2,7 @@ import { dirname } from "node:path";
 import { type Practice, askHandbook, buildHandbook, practicesFor } from "@reflex/analysis";
 import { shortHash } from "@reflex/core";
 import { Store } from "@reflex/storage";
+import { installedSkills } from "../analysis";
 import { c, out, plural, shortDate, title } from "../ui";
 
 /**
@@ -19,8 +20,7 @@ function load(): Practice[] {
   try {
     if (!store.latestScan()) throw new Error("No scan yet. Run `reflex scan --days 30` first.");
     const forgotten = new Set(store.memoryEntries().filter((e) => e.status === "forgotten").map((e) => e.text));
-    return buildHandbook(store.traces(), { forgotten });
-  } finally {
+    return buildHandbook(store.traces(), { forgotten, installed: installedSkills(store) });  } finally {
     store.close();
   }
 }
@@ -94,7 +94,7 @@ export async function handbookShow(id: string, opts: HandbookOptions): Promise<v
   out(`  ${p.project?.name ? `In ${p.project.name}` : "Across your repositories"} · ${plural(p.sessions, "independent session")}`);
   out();
   out(c.bold(`  Sessions behind it${p.sessions > p.sources.length ? ` (newest ${p.sources.length})` : ""}`));
-  for (const s of p.sources) out(`  ${shortDate(s.date)}  ${(TOOL[s.tool] ?? s.tool).padEnd(11)}  ${c.dim(s.request || "(no request text)")}`);
+  for (const s of p.sources) out(`  ${shortDate(s.date)}  ${(TOOL[s.tool] ?? s.tool).padEnd(11)}${s.afterInstall ? c.dim(" loaded a skill  ") : "  "}${c.dim(s.request || "(no request text)")}`);
 }
 
 export async function handbookAsk(words: string[], opts: HandbookOptions): Promise<void> {
