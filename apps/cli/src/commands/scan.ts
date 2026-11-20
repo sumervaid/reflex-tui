@@ -10,7 +10,7 @@ import { c, confirm, out, plural, rows, spinner, title, warn } from "../ui";
 import { DEFAULT_MODEL, MINILM, modelBytes } from "@reflex/embeddings";
 import { EMBED_BUDGET_MS, type VectorResult, sessionVectors, vectorNeeds } from "../embeddings";
 import { cappedLine, collect, currentKeys } from "../collect";
-import { analysisKey, skillSets, summarize } from "../analysis";
+import { analysisKey, installedSkills, skillSets, summarize } from "../analysis";
 import { applyRetention } from "./forget";
 
 export type ScanOptions = {
@@ -145,12 +145,12 @@ export async function scan(opts: ScanOptions): Promise<void> {
     if (embedding) embedSpin.stop(meaning.status === "ok" ? "Compared by meaning" : "Meaning comparison unavailable");
     const skills = await skillSets(store);
     const matching = store.matchingSettings();
-    const analysis = analyze(traces, { ...(meaning.status === "ok" ? { vectors: meaning.vectors } : {}), ...skills, matching });
+    const analysis = analyze(traces, { ...(meaning.status === "ok" ? { vectors: meaning.vectors } : {}), ...skills, matching, installed: installedSkills(store) });
     suggestions = analysis.suggestions;
     covered = analysis.stats.covered ?? [];
     const scanId = store.latestScan()!.id;
     store.saveSuggestions(scanId, suggestions);
-    store.saveAnalysis(scanId, analysisKey(meaning.status === "ok" ? meaning.model.id : undefined, skills, matching), summarize(analysis, traces));
+    store.saveAnalysis(scanId, analysisKey(meaning.status === "ok" ? meaning.model.id : undefined, skills, matching, installedSkills(store)), summarize(analysis, traces));
     memoryResult = await syncMemory(store);
   } finally {
     store.close();

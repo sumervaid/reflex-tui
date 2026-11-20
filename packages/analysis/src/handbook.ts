@@ -1,6 +1,7 @@
 import type { ActionCategory, SourceId, WorkflowTrace } from "@reflex/core";
 import { shortHash } from "@reflex/core";
 import { recurringCorrectionsBySession } from "./corrections";
+import { usedInstalledSkill, type InstalledSkills } from "./trace";
 import { type WorkflowInstance, deduplicate } from "./dedup";
 import { stem } from "./intents";
 import { isSafeConstraint, isSafeExample } from "./suggest";
@@ -14,7 +15,7 @@ import { isSafeConstraint, isSafeExample } from "./suggest";
 export type PracticeKind = "rule" | "command";
 
 /** A session behind a practice. `request` is the redacted, truncated first request. */
-export type PracticeSource = { date?: string; tool: SourceId; request: string };
+export type PracticeSource = { date?: string; tool: SourceId; request: string; /** The session loaded a skill after it was installed: use, not evidence (#70). */ afterInstall?: boolean };
 
 export type Practice = {
   /** Stable across scans while the practice holds: kind, scope and wording. */
@@ -59,11 +60,16 @@ const VERIFY: Array<{ action: ActionCategory; label: string; words: string[] }> 
 const projectOf = (i: WorkflowInstance) => i.primary.projectHash;
 const time = (t: WorkflowTrace) => (t.startedAt ? Date.parse(t.startedAt) || 0 : 0);
 
-function sourcesOf(group: WorkflowInstance[]): Pick<Practice, "last" | "sources"> {
+function sourcesOf(group: WorkflowInstance[], installed: InstalledSkills | undefined): Pick<Practice, "last" | "sources"> {
   const newest = [...group].sort((a, b) => time(b.primary) - time(a.primary));
   return {
     last: newest[0]?.primary.startedAt,
-    sources: newest.slice(0, MAX_SOURCES).map((i) => ({ date: i.primary.startedAt, tool: i.primary.source, request: i.primary.excerpt })),
+    sources: newest.slice(0, MAX_SOURCES).map((i) => ({
+      date: i.primary.startedAt,
+      tool: i.primary.source,
+      request: i.primary.excerpt,
+      ...(installed && usedInstalledSkill(i.primary, installed) ? { afterInstall: true } : {}),
+    })),
   };
 }
 
@@ -88,7 +94,7 @@ function situation(group: WorkflowInstance[], others: WorkflowInstance[]): strin
   return best?.when;
 }
 
-function rules(instances: WorkflowInstance[], forgotten: ReadonlySet<string>): Practice[] {
+function rules(instances: WorkflowInstance[], forgotten: ReadonlySet<string>, installed: InstalledSkills | undefined): Practice[] {
   const out: Practice[] = [];
   for (const r of recurringCorrectionsBySession(instances.map((i) => i.primary.corrections ?? []))) {
     // Agents read these: the same filter as a skill's constraints keeps steering text out.
@@ -98,12 +104,12 @@ function rules(instances: WorkflowInstance[], forgotten: ReadonlySet<string>): P
     const members = new Set(group);
     const others = instances.filter((i) => !members.has(i) && (!project || projectOf(i) === project.hash));
     const when = situation(group, others);
-    out.push({ id: practiceId("rule", project?.hash, r.text), kind: "rule", project, text: r.text, when, sessions: r.sessions, ...sourcesOf(group) });
+    out.push({ id: practiceId("rule", project?.hash, r.text), kind: "rule", project, text: r.text, when, sessions: r.sessions, ...sourcesOf(group, installed) });
   }
   return out;
 }
 
-function commands(instances: WorkflowInstance[]): Practice[] {
+function commands(instances: WorkflowInstance[], installed: InstalledSkills | undefined): Practice[] {
   const byProject = new Map<string, WorkflowInstance[]>();
   for (const i of instances) {
     const h = projectOf(i);
@@ -137,7 +143,7 @@ function commands(instances: WorkflowInstance[]): Practice[] {
         project: { name: sessions[0]!.primary.projectName, hash },
         text,
         sessions: sessions.length,
-        ...sourcesOf(sessions),
+        ...sourcesOf(sessions, installed),
       });
     }
   }
@@ -151,12 +157,14 @@ function practiceId(kind: PracticeKind, project: string | undefined, key: string
 export type HandbookOptions = {
   /** Rule texts the developer told Reflex to forget (`reflex memory forget`). */
   forgotten?: ReadonlySet<string>;
+  /** When each skill Reflex installed went in, by name. Flags sessions that only used a skill (#70). */
+  installed?: InstalledSkills;
 };
 
 /** Every practice in the stored sessions, most-supported first. Copies, resumes and retries count once. */
 export function buildHandbook(traces: WorkflowTrace[], opts: HandbookOptions = {}): Practice[] {
   const { instances } = deduplicate(traces);
-  return [...commands(instances), ...rules(instances, opts.forgotten ?? new Set())].sort(
+  return [...commands(instances, opts.installed), ...rules(instances, opts.forgotten ?? new Set(), opts.installed)].sort(
     (a, b) => b.sessions - a.sessions || a.kind.localeCompare(b.kind) || a.text.localeCompare(b.text),
   );
 }

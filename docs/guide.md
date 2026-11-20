@@ -66,6 +66,15 @@ evidence opens by itself in the review; after that it waits behind the `e` key. 
 at the tokens and tool calls they cost. The TUI's Workflows preview shows the same sessions,
 corrections and costs next to the skill it would generate.
 
+Once a suggestion's skill is installed, the sessions where the agent loaded it say so. Those
+sessions are use of your skill, not evidence for the workflow: the count in `reflex suggest`,
+`reflex explain` and the TUI is the sessions that found the workflow on their own (they started
+before the install, or they never loaded the skill), and the sessions that loaded it after the
+install are shown next to it as use ("3 independent sessions · 12 since you installed it"). A
+workflow whose every observed session came after the install says so instead of reading as a
+strong pattern Reflex found on its own. `reflex impact` keeps using the runs without the skill
+as its baseline, which is the same definition.
+
 The skill contains only steps seen in at least half the sessions, in the order they usually
 happened, with example commands that recurred and passed a safety filter. Corrections you gave in
 follow-up messages ("don't change the CI workflow") become constraints when the same correction

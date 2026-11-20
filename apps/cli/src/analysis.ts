@@ -22,8 +22,21 @@ const setKey = (s: ReadonlySet<string>) => sha256([...s].sort().join("\n")).slic
  * your own skills is not suggested again), and your matching settings. Rejecting suggestions
  * changes none of these.
  */
-export function analysisKey(modelId: string | undefined, skills: SkillSets, matching: MatchingSettings): string {
-  return `${currentKeys().codeKey}|${modelId ?? "words"}|${setKey(skills.ownSkills)}|${setKey(skills.userSkills)}|${matching.sessions}-${matching.strictness}`;
+export function analysisKey(modelId: string | undefined, skills: SkillSets, matching: MatchingSettings, installed?: ReadonlyMap<string, string>): string {
+  // A new install changes which sessions count as use rather than evidence, so it invalidates the
+  // saved analysis like any other input.
+  const installs = installed ? sha256([...installed].map(([n, t]) => `${n}@${t}`).sort().join("\n")).slice(0, 12) : "none";
+  return `${currentKeys().codeKey}|${modelId ?? "words"}|${setKey(skills.ownSkills)}|${setKey(skills.userSkills)}|${matching.sessions}-${matching.strictness}|${installs}`;
+}
+
+/** When each installed skill went in, earliest install across targets, by name. */
+export function installedSkills(store: Store): Map<string, string> {
+  const at = new Map<string, string>();
+  for (const i of store.installations()) {
+    const prev = at.get(i.skill);
+    if (!prev || i.installedAt < prev) at.set(i.skill, i.installedAt);
+  }
+  return at;
 }
 
 export function summarize(a: Analysis, traces: WorkflowTrace[]): SavedAnalysis {
@@ -43,12 +56,13 @@ export async function latestAnalysis(store: Store): Promise<SavedAnalysis & { re
   const stored = store.matchingSettings();
   // The analysis only knows the bar itself; who set it and whether it may move stays in the database.
   const matching: MatchingSettings = { sessions: stored.sessions, strictness: stored.strictness };
-  if (scan.analysis && scan.analysisKey === analysisKey(active?.id, skills, matching)) return { ...scan.analysis, reused: true };
+  const installed = installedSkills(store);
+  if (scan.analysis && scan.analysisKey === analysisKey(active?.id, skills, matching, installed)) return { ...scan.analysis, reused: true };
   const traces = store.traces();
   const meaning = await sessionVectors(traces, store, { cacheOnly: true });
-  const a = analyze(traces, { ...(meaning.status === "ok" ? { vectors: meaning.vectors } : {}), ...skills, matching });
+  const a = analyze(traces, { ...(meaning.status === "ok" ? { vectors: meaning.vectors } : {}), ...skills, matching, installed: installedSkills(store) });
   store.saveSuggestions(scan.id, a.suggestions);
   const saved = summarize(a, traces);
-  store.saveAnalysis(scan.id, analysisKey(meaning.status === "ok" ? meaning.model.id : undefined, skills, matching), saved);
+  store.saveAnalysis(scan.id, analysisKey(meaning.status === "ok" ? meaning.model.id : undefined, skills, matching, installed), saved);
   return { ...saved, reused: false };
 }

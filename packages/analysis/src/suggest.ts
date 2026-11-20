@@ -8,7 +8,7 @@ import { type DedupStats, type WorkflowInstance, deduplicate } from "./dedup";
 import { MODIFY_TARGET_LABEL, STEP_TEXT, type StepKind } from "./steps";
 import { type Constraint, recurringCorrections } from "./corrections";
 import { type WorkflowCost, median, workflowCost } from "./impact";
-import { isGenericTrace, usedSkill } from "./trace";
+import { isGenericTrace, usedSkill, type InstalledSkills } from "./trace";
 import { fillerWeights } from "./fillers";
 import { DEVELOPER_WORDS, stem } from "./intents";
 import { isGenericWord } from "./languages";
@@ -74,6 +74,8 @@ export type Evidence = {
   tokens?: number;
   toolCalls?: number;
   usedSkill?: boolean;
+  /** The session started after this skill was installed and loaded it: use, not evidence (#70). */
+  afterInstall?: boolean;
 };
 
 export type Suggestion = {
@@ -101,6 +103,8 @@ export type Suggestion = {
   sourceSessions: string[];
   /** Cost of the runs that did not load a skill with this name: the baseline for `reflex impact`. */
   cost?: WorkflowCost;
+  /** Sessions that started after the skill was installed and loaded it: use, not evidence (#70). */
+  usage?: number;
   /** Corrections built from the words at least two independent sessions shared. */
   constraints?: Constraint[];
   /** The matching settings it was found with, when they differ from the defaults. */
@@ -311,7 +315,7 @@ export function distinctiveTerms(instances: WorkflowInstance[], ctx: TermContext
   return out;
 }
 
-function evidenceFor(inst: WorkflowInstance, slug: string): Evidence {
+function evidenceFor(inst: WorkflowInstance, slug: string, installedAt?: string): Evidence {
   const t = inst.primary;
   const actions = t.displaySteps.slice(0, 12);
   if (t.outcome.summarized) actions.push("summarize");
@@ -328,6 +332,7 @@ function evidenceFor(inst: WorkflowInstance, slug: string): Evidence {
     tokens: t.usage ? totalTokens(t.usage) : undefined,
     toolCalls: t.toolCalls,
     usedSkill: usedSkill(t, slug) || undefined,
+    afterInstall: installedAt !== undefined && !!t.startedAt && t.startedAt >= installedAt && usedSkill(t, slug) ? true : undefined,
   };
 }
 
@@ -343,6 +348,8 @@ export type AnalyzeOptions = {
   userSkills?: ReadonlySet<string>;
   /** Sessions needed and strictness (`reflex settings matching`); the defaults when absent. */
   matching?: MatchingSettings;
+  /** When each skill Reflex installed went in, by name. Lets the analysis tell use from evidence (#70). */
+  installed?: InstalledSkills;
 };
 
 export function analyze(traces: WorkflowTrace[], opts: AnalyzeOptions = {}): Analysis {
@@ -380,6 +387,15 @@ export function analyze(traces: WorkflowTrace[], opts: AnalyzeOptions = {}): Ana
 
     const fallbackTerms = terms.slice(0, 3);
     const baseSlug = family?.slug ?? toSlug(fallbackTerms.join(" ") || steps.map((s) => s.kind).slice(0, 2).join(" "));
+
+    // Sessions that started after the skill was installed and loaded it are use of Reflex's own
+    // output, not evidence for the workflow (#70). The count means the sessions that found the
+    // workflow on their own; usage is reported next to it. The skill may have been installed under
+    // the bare slug while this one needed a suffix; the stored suggestion keeps its own slug, and
+    // the install is looked up by the name it was generated under.
+    const installedAt = opts.installed?.get(baseSlug);
+    const usage = installedAt === undefined ? 0 : group.filter((g) => !!g.primary.startedAt && g.primary.startedAt >= installedAt && usedSkill(g.primary, baseSlug)).length;
+    const independent = group.length - usage;
 
     // Your own skills already run this workflow: improve those instead of adding a duplicate.
     const inside = new Map<string, number>();
@@ -431,10 +447,14 @@ export function analyze(traces: WorkflowTrace[], opts: AnalyzeOptions = {}): Ana
 
     const notes: string[] = [];
     if (repos.length === 1) notes.push("All evidence comes from a single repository; the skill may be repository-specific.");
-    if (group.length < 5) notes.push(`Only ${group.length} independent instances; treat as an early signal.`);
+    if (independent < 5) notes.push(`Only ${independent} independent instances; treat as an early signal.`);
     if (Object.keys(sources).length === 1) notes.push("Observed with one coding agent only.");
     if (verifiedRate < 1) notes.push(`${group.length - group.filter((g) => g.primary.outcome.verified).length} of ${group.length} instances did not end with a passing check.`);
     if (!family) notes.push("No known workflow family matched; the name is derived from common request terms.");
+    if (usage > 0 && independent > 0)
+      notes.push(`${usage} of ${group.length} sessions started after the skill was installed and loaded it; they count as use, not evidence.`);
+    if (usage > 0 && independent === 0)
+      notes.push("Every observed session loaded the skill after it was installed: use of your skill, not independent evidence.");
 
     suggestions.push({
       slug,
@@ -443,7 +463,7 @@ export function analyze(traces: WorkflowTrace[], opts: AnalyzeOptions = {}): Ana
       whenToUse: family?.whenToUse ?? `Use for requests similar to: ${terms.slice(0, 5).join(", ")}.`,
       confidence: Math.round(confidence * 100) / 100,
       cohesion: Math.round(cluster.cohesion * 100) / 100,
-      instances: group.length,
+      instances: independent,
       records: group.reduce((acc, g) => acc + 1 + g.merged.length, 0),
       repositories: repoNames,
       sources,
@@ -452,12 +472,13 @@ export function analyze(traces: WorkflowTrace[], opts: AnalyzeOptions = {}): Ana
       steps,
       completion: completionCriteria(stepKinds),
       topTerms: terms,
-      evidence: group.map((g) => evidenceFor(g, slug)).sort((a, b) => (a.date ?? "").localeCompare(b.date ?? "")),
+      evidence: group.map((g) => evidenceFor(g, slug, installedAt)).sort((a, b) => (a.date ?? "").localeCompare(b.date ?? "")),
       notes,
       verifiedRate: Math.round(verifiedRate * 100) / 100,
       medianMinutes: median(durations),
       sourceSessions: group.flatMap((g) => [g.primary.sessionId, ...g.merged.map((m) => m.sessionId)]),
       cost: workflowCost(group.map((g) => g.primary).filter((t) => !usedSkill(t, slug))),
+      ...(usage ? { usage } : {}),
       constraints: recurringCorrections(group.map((g) => g.primary.corrections ?? []))
         .filter(isSafeConstraint)
         .slice(0, MAX_CONSTRAINTS),
