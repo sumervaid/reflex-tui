@@ -1,7 +1,7 @@
 import { realpathSync } from "node:fs";
 import { readFile } from "node:fs/promises";
 import { homedir } from "node:os";
-import { delimiter, join, sep } from "node:path";
+import { delimiter, join } from "node:path";
 import { ensureDir, isSymlink, pathExists, replaceOwnedFile, writeNewFile } from "@reflex/safety";
 import { paths } from "@reflex/storage";
 
@@ -10,11 +10,17 @@ export const HOOK_EVENTS = ["stop", "afterAgentResponse"] as const;
 const SCRIPT_NAME = "cursor-usage.mjs";
 
 /**
- * The hook command is quoted for a POSIX shell. How Cursor runs hook commands on Windows is not
- * verified yet, so Reflex doesn't install one there rather than install one that never runs.
+ * The hook command is quoted for a POSIX shell. On Windows, Cursor runs hook commands through
+ * PowerShell (docs.cursor.com/hooks), so the command is a PowerShell call: the call operator with
+ * single-quoted paths, which survives spaces in a way cmd.exe quoting does not through PowerShell.
  */
-export function assertHookSupported(platform: NodeJS.Platform = process.platform): void {
-  if (platform === "win32") throw new Error("reflex cursor-usage isn't available on Windows yet: Reflex can't yet write a hook command Cursor runs there.");
+export function hookCommand(node = stableNode(), script = hookScript(), platform: NodeJS.Platform = process.platform): string {
+  if (platform === "win32") {
+    for (const p of [node, script]) if (p.includes("'")) throw new Error(`Reflex can't quote the path ${p} for a PowerShell hook command.`);
+    return `& '${node}' '${script}'`;
+  }
+  for (const p of [node, script]) if (p.includes("'")) throw new Error(`Reflex can't quote the path ${p} for a hook command.`);
+  return `'${node}' '${script}'`;
 }
 
 /** Cursor's user-level hooks file. */
@@ -78,27 +84,27 @@ export function stableNode(execPath = process.execPath, pathEnv = process.env.PA
   }
   for (const dir of pathEnv.split(delimiter)) {
     if (!dir) continue;
-    const candidate = join(dir, "node");
-    try {
-      if (candidate !== execPath && realpathSync(candidate) === real) return candidate;
-    } catch {
-      continue;
+    // Windows names the binary node.exe; the extension-less lookup covers POSIX and WSL.
+    for (const name of ["node", "node.exe"]) {
+      const candidate = join(dir, name);
+      try {
+        if (candidate !== execPath && realpathSync(candidate) === real) return candidate;
+      } catch {
+        continue;
+      }
     }
   }
   return execPath;
 }
 
-/** The command Cursor runs: this machine's Node and the script, both absolute, single-quoted for the shell. */
-export function hookCommand(node = stableNode(), script = hookScript()): string {
-  for (const p of [node, script]) if (p.includes("'")) throw new Error(`Reflex can't quote the path ${p} for a hook command.`);
-  return `'${node}' '${script}'`;
-}
-
 type HookEntry = { command?: unknown; [k: string]: unknown };
 type HooksFile = { version?: unknown; hooks?: Record<string, unknown>; [k: string]: unknown };
 
-/** Reflex's own entry: a command that ends with its script in a `hooks` folder, as `hookCommand` writes it. */
-const ours = (e: unknown): boolean => typeof (e as HookEntry)?.command === "string" && ((e as HookEntry).command as string).endsWith(`${sep}hooks${sep}${SCRIPT_NAME}'`);
+/** Reflex's own entry: a command that ends with its script in a `hooks` folder, as `hookCommand` writes it. Both separators, so an entry written on another platform is still recognized. */
+const ours = (e: unknown): boolean => {
+  const command = (e as HookEntry)?.command;
+  return typeof command === "string" && /[/\\]hooks[/\\]cursor-usage\.mjs'$/.test(command);
+};
 
 /** The entries for one event, refusing a value that isn't a list rather than replacing it. */
 function entries(hooks: Record<string, unknown>, event: string, file: string): unknown[] {
@@ -151,14 +157,13 @@ async function writeHooks(file: string, data: HooksFile, raw: string | undefined
  * Write the hook script and add Reflex's entries to Cursor's hooks file. Every other key and hook
  * is kept as it was; the previous file is copied to `~/.reflex/backups` first.
  */
-export async function installHook(file = cursorHooksFile()): Promise<{ added: string[]; backup?: string }> {
-  assertHookSupported();
+export async function installHook(file = cursorHooksFile(), platform: NodeJS.Platform = process.platform): Promise<{ added: string[]; backup?: string }> {
   await ensureDir(paths.home(), 0o700);
   await ensureDir(paths.hooks(), 0o700);
   await replaceOwnedFile(hookScript(), hookSource(paths.cursorUsage()), 0o700);
   const { data, raw } = await readHooks(file);
   const hooks = { ...(data.hooks ?? {}) };
-  const command = hookCommand();
+  const command = hookCommand(undefined, undefined, platform);
   const added: string[] = [];
   for (const event of HOOK_EVENTS) {
     const list = entries(hooks, event, file);
