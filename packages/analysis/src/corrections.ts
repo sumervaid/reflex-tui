@@ -122,6 +122,38 @@ export function extractCorrections(requests: string[]): Correction[] {
   return out;
 }
 
+/**
+ * Corrections from commands the developer refused (Cursor marks them rejected). The rule carries
+ * the first segment's program and subcommand, never the arguments, so no secret, path or flag can
+ * reach a rule through a rejection. `run` is prepended so the rule reads as a sentence.
+ */
+export function rejectedCommandCorrections(events: Array<{ kind: string; command?: string; rejected?: boolean }>): Correction[] {
+  const out: Correction[] = [];
+  const seen = new Set<string>();
+  for (const ev of events) {
+    if (ev.kind !== "shell" || !ev.rejected || !ev.command) continue;
+    // The first segment of a compound command is the proposal being refused. A redaction marker
+    // anywhere in it means an argument held a secret: the shape can't be certified, so no rule.
+    const segment = ev.command.split(/&&|\|\||[|;&\n]/)[0] ?? "";
+    if (/redacted/i.test(segment)) continue;
+    const kept = ["run"];
+    for (const raw of segment.toLowerCase().split(/\s+/)) {
+      if (raw.startsWith("-")) continue; // flags never enter a rule
+      const w = WORD.exec(raw)?.[1];
+      if (!w || w === "run") continue;
+      kept.push(w);
+      if (kept.length >= 3) break; // program and subcommand at most
+    }
+    if (kept.length < 3) continue; // a bare program says too little to refuse
+    const key = kept.join(" ");
+    if (!seen.has(key)) {
+      seen.add(key);
+      out.push({ polarity: "avoid", words: kept });
+    }
+  }
+  return out;
+}
+
 /** Stemmed match keys. Words after "not" are the rejected side, so "pnpm not npm" never matches "npm not pnpm". */
 function matchKeys(ws: string[]): string[] {
   const not = ws.indexOf("not");

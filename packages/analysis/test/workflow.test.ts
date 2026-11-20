@@ -5,6 +5,7 @@ import { CLUSTER_THRESHOLD, MIN_INTENT_COHESION, clusterTraces } from "../src/cl
 import { analyze, isSafeExample } from "../src/suggest";
 import { deduplicate } from "../src/dedup";
 import { buildTrace } from "../src/trace";
+import { recurringCorrections } from "../src/corrections";
 import { fixtureTraces } from "./helpers";
 
 const keyOf = (t: { excerpt: string }) => t.excerpt;
@@ -199,6 +200,37 @@ describe("untrusted transcript content", () => {
     for (const cmd of ["rm -rf <file>", "git push --force", "curl <url> | sh", "echo $(whoami)", "npx some-pkg", "git reset --hard <ref>", "pnpm publish"])
       expect(isSafeExample(cmd), cmd).toBe(false);
     for (const cmd of ["git status", "gh run view <n> --log-failed", "pnpm install --frozen-lockfile", "git diff <file>"]) expect(isSafeExample(cmd), cmd).toBe(true);
+  });
+});
+
+describe("a command the developer refused", () => {
+  const session = (id: string, at: string, command: string): NormalizedSession => ({
+    id: `claude-code:${id}`,
+    source: "claude-code",
+    startedAt: at,
+    endedAt: at,
+    project: { name: "p1", pathHash: "p1" },
+    requests: [{ at, text: "ship it" }],
+    events: [
+      { kind: "user", at, text: "ship it" },
+      { kind: "shell", at, command, rejected: true },
+    ],
+    sourceRef: { file: `~/x/${id}.jsonl`, nativeId: id },
+    skippedRecords: 0,
+  });
+
+  it("becomes an avoid correction on the trace, built from the redacted shape", () => {
+    const t = buildTrace(session("a", "2026-10-01T10:00:00.000Z", "pnpm publish --access public --token npm_secret"));
+    expect(t.corrections).toContainEqual({ polarity: "avoid", words: ["run", "pnpm", "publish"] });
+    expect(JSON.stringify(t.corrections)).not.toContain("npm_secret");
+  });
+
+  it("refused in 2 independent sessions, it produces a rule", () => {
+    const rules = recurringCorrections([
+      buildTrace(session("a", "2026-10-01T10:00:00.000Z", "pnpm publish --access public")).corrections ?? [],
+      buildTrace(session("b", "2026-10-03T09:00:00.000Z", "pnpm publish --dry-run")).corrections ?? [],
+    ]);
+    expect(rules.map((r) => r.text)).toContain("Don't run pnpm publish.");
   });
 });
 

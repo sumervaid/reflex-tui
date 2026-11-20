@@ -2,7 +2,7 @@ import type { ActionCategory, AgentSummary, CommandFingerprint, NormalizedSessio
 import { shortHash } from "@reflex/core";
 import { excerpt } from "@reflex/safety";
 import { type FileCategory, MODIFY_ACTIONS, VERIFY_ACTIONS, classifyCommand, fileAction, fileCategory } from "./classify";
-import { extractCorrections } from "./corrections";
+import { extractCorrections, rejectedCommandCorrections } from "./corrections";
 import { contextHash, sessionContext } from "./context";
 import { intentTerms } from "./intents";
 
@@ -161,7 +161,11 @@ export function buildTrace(session: NormalizedSession): WorkflowTrace {
     toolErrors: session.events.filter((e) => "isError" in e && e.isError === true).length,
     toolCalls,
     skillsUsed: [...skills].sort(),
-    corrections: extractCorrections(session.requests.map((r) => r.text)),
+    corrections: [
+      // Refused commands are corrections too (#72); they join what the follow-up requests said.
+      ...rejectedCommandCorrections(session.events),
+      ...extractCorrections(session.requests.map((r) => r.text)),
+    ],
   };
   // Only a hash is kept: the longer request text used for embedding is never stored.
   trace.contextHash = contextHash(sessionContext(session, trace));

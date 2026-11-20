@@ -78,7 +78,10 @@ as its baseline, which is the same definition.
 The skill contains only steps seen in at least half the sessions, in the order they usually
 happened, with example commands that recurred and passed a safety filter. Corrections you gave in
 follow-up messages ("don't change the CI workflow") become constraints when the same correction
-appears in at least 2 sessions; only the words those sessions share are kept. No transcript excerpts.
+appears in at least 2 sessions; only the words those sessions share are kept. A command you refused
+in Cursor counts too: it becomes an "avoid" correction built from the command's shape (its program
+and subcommand, never the arguments), and a refusal in 2 independent sessions produces a rule.
+No transcript excerpts.
 Details: [architecture.md](architecture.md).
 
 ## Matching by meaning: which model

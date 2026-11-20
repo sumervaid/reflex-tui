@@ -139,7 +139,7 @@ export class CursorToolOutcomes {
           status: r.status as string,
           command: typeof r.command === "string" ? r.command : undefined,
           exitCode: typeof r.exitCode === "number" ? r.exitCode : undefined,
-          rejected: r.rejected === true || r.decision === "rejected",
+          rejected: r.rejected === true || r.rejected === 1 || r.decision === "rejected",
         }));
     } catch (err) {
       debug("cursor outcome lookup failed", { code: (err as { code?: string }).code ?? "error" });

