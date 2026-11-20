@@ -6,7 +6,7 @@ import { z } from "zod";
 import type { DetectionResult, DiscoveryOptions, ParseResult, SessionEvent, SpawnedAgent, TranscriptAdapter, TranscriptFile, WorkflowTrace } from "@reflex/core";
 import { debug, historyWindow } from "@reflex/core";
 import { displayPath, excerpt } from "@reflex/safety";
-import { CursorModelIndex, CursorToolOutcomes, SHELL_DB_TOOLS, type ToolOutcome, defaultCursorStateDb } from "./cursor-models";
+import { CursorDbChats, CursorModelIndex, CursorToolOutcomes, SHELL_DB_TOOLS, type DbBubble, type ToolOutcome, defaultCursorStateDb } from "./cursor-models";
 import { CursorUsageLog } from "./cursor-usage";
 import { readJsonl } from "./jsonl";
 
@@ -129,6 +129,7 @@ export class CursorAdapter implements TranscriptAdapter {
   readonly stateDb?: string;
   private models?: CursorModelIndex;
   private outcomes?: CursorToolOutcomes;
+  private dbChats?: CursorDbChats;
   /** Token counts recorded by Reflex's Cursor hook, when it was turned on. */
   private usage?: CursorUsageLog;
 
@@ -156,6 +157,11 @@ export class CursorAdapter implements TranscriptAdapter {
   /** Whether the user allowed reading tool outcomes from Cursor's app database in this scan. */
   get readsOutcomes(): boolean {
     return this.outcomes !== undefined;
+  }
+
+  /** Whether the user allowed reading chats that have no transcript file from the app database. */
+  get readsDbChats(): boolean {
+    return this.dbChats !== undefined;
   }
 
   private async transcriptPaths(): Promise<string[]> {
@@ -194,6 +200,10 @@ export class CursorAdapter implements TranscriptAdapter {
         `Also read whether each tool call succeeded or failed, from the same database? Read-only; only tool names, statuses, shell commands, exit codes and rejected flags are extracted — never messages or tool output.`,
       );
       if (outcomes) this.outcomes = new CursorToolOutcomes(this.stateDb);
+      const dbChats = await ask(
+        `Some chats exist only in Cursor's app database, with no transcript file. Read those too? Their message text is redacted like transcripts before anything is stored, and tool output is never read.`,
+      );
+      if (dbChats) this.dbChats = new CursorDbChats(this.stateDb);
     }
     return true;
   }
@@ -228,10 +238,29 @@ export class CursorAdapter implements TranscriptAdapter {
       }
       if (f.modifiedAt >= cutoff) out.push(f);
     }
+    // Chats that exist only in the database: no transcript file, not a sub-agent, still in the window.
+    if (this.dbChats) {
+      const disk = new Set(files.map((f) => basename(f.path, ".jsonl")));
+      const subagents = this.dbChats.subagentIds() ?? new Set<string>();
+      for (const chat of this.dbChats.chats(disk, subagents) ?? []) {
+        const modifiedAt = new Date(chat.lastUpdatedMs);
+        if (modifiedAt < cutoff) continue;
+        const path = join(this.root, "_app-database", `${chat.id}.jsonl`);
+        out.push({
+          path,
+          displayPath: displayPath(path),
+          modifiedAt,
+          sizeBytes: chat.bubbles,
+          identity: { mtimeMs: chat.lastUpdatedMs, ctimeMs: chat.lastUpdatedMs, ino: `db:${chat.id}` },
+        });
+      }
+    }
     return out;
   }
 
   async parse(file: TranscriptFile, options: DiscoveryOptions): Promise<ParseResult> {
+    // Chats read from the app database have a synthetic path under `_app-database`.
+    if (this.dbChats && basename(dirname(file.path)) === "_app-database") return this.parseDbChat(file, options);
     const cutoff = cutoffFor(options.days, options.now).toISOString();
     const b = new SessionBuilder(this.id, basename(file.path, ".jsonl").slice(0, 80), file);
     const workspaceDir = basename(join(file.path, "..", "..", ".."));
@@ -413,8 +442,7 @@ export class CursorAdapter implements TranscriptAdapter {
         // A refusal is the developer's clearest correction (#72), but it is not a failure.
         if (row.rejected) ev.rejected = true;
         else if (failed(row)) ev.isError = true;
-      } else if (ev.kind === "file") {
-        const row = claim(ev.op === "read" ? "read" : "edit");
+      } else if (ev.kind === "file") {        const row = claim(ev.op === "read" ? "read" : "edit");
         if (row && failed(row)) ev.isError = true;
       } else if (ev.kind === "tool") {
         const row = claim("tool");
@@ -422,4 +450,67 @@ export class CursorAdapter implements TranscriptAdapter {
       }
     }
   }
+
+  /**
+   * Parses a chat that only Cursor's database holds: its bubbles in the order the composer's
+   * headers give. The message text is raw here and is redacted by the session builder before
+   * anything is stored; the tool data is the same six fields the outcome reader extracts.
+   */
+  private parseDbChat(file: TranscriptFile, options: DiscoveryOptions): ParseResult {
+    const cutoff = cutoffFor(options.days, options.now).toISOString();
+    const b = new SessionBuilder(this.id, basename(file.path, ".jsonl").slice(0, 80), file);
+    const counts = { total: 0, skipped: 0 };
+    const bubbles = this.dbChats!.bubbles(b.nativeId);
+    if (!bubbles) {
+      debug("db chat unreadable", { adapter: this.id, chat: b.nativeId.slice(0, 12) });
+      return { sessions: [], skippedRecords: 0, totalRecords: 0, unreadable: true, error: "database unavailable" };
+    }
+    for (const bubble of bubbles) {
+      counts.total++;
+      b.touch(bubble.createdAt);
+      if (bubble.tool) {
+        this.pushDbTool(b, bubble);
+        continue;
+      }
+      if (!bubble.text) {
+        counts.skipped++;
+        continue;
+      }
+      if (bubble.type === 1) b.addRequest(bubble.text, bubble.createdAt);
+      else b.push({ kind: "assistant", at: bubble.createdAt, text: clean.assistant(bubble.text) });
+    }
+    b.touch(file.modifiedAt.toISOString());
+    const session = b.build();
+    // The tool data came with the chat itself; there is no second read to consent to.
+    session.outcomesRead = true;
+    if (this.models) session.models = this.models.modelsFor(b.nativeId);
+    const sessions = session.requests.length > 0 && (!session.endedAt || session.endedAt >= cutoff) ? [session] : [];
+    debug("db chat parsed", { adapter: this.id, records: counts.total, skipped: counts.skipped, sessions: sessions.length });
+    return { sessions, skippedRecords: counts.skipped, totalRecords: counts.total, unreadable: false };
+  }
+
+  /** Maps a database tool call onto the events the analysis understands, with its outcome. */
+  private pushDbTool(b: SessionBuilder, bubble: DbBubble): void {
+    const tool = bubble.tool!;
+    const failed = tool.status === "error" || (tool.status === "completed" && tool.exitCode !== undefined && tool.exitCode !== 0);
+    const outcome = tool.rejected ? { rejected: true as const } : failed ? { isError: true as const } : {};
+    if (SHELL_DB_TOOLS.has(tool.name)) {
+      if (tool.command) b.push({ kind: "shell", at: bubble.createdAt, command: clean.command(tool.command), ...outcome });
+      else b.push({ kind: "tool", at: bubble.createdAt, tool: "Shell", ...outcome });
+      return;
+    }
+    if (/^(read_file_v2|Read|ReadFile)$/.test(tool.name)) {
+      b.push(tool.readPath ? { kind: "file", at: bubble.createdAt, op: "read", path: clean.path(tool.readPath), ...outcome } : { kind: "tool", at: bubble.createdAt, tool: "Read", ...outcome });
+      return;
+    }
+    if (/^(edit_file_v2|delete_file|Write|EditFile|StrReplace|EditNotebook)$/.test(tool.name)) {
+      b.push(tool.editPath ? { kind: "file", at: bubble.createdAt, op: "edit", path: clean.path(tool.editPath), ...outcome } : { kind: "tool", at: bubble.createdAt, tool: "Edit", ...outcome });
+      return;
+    }
+    const name = (DB_TOOL_ALIASES[tool.name] ?? tool.name.replace(/_v2$/, "")).slice(0, 64);
+    b.push({ kind: "tool", at: bubble.createdAt, tool: name, ...outcome });
+  }
 }
+
+/** Database tool names mapped onto the names the analysis understands. */
+const DB_TOOL_ALIASES: Record<string, string> = { ripgrep_raw_search: "Grep", run_terminal_command: "Shell" };
