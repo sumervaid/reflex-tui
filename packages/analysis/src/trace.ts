@@ -154,6 +154,7 @@ export function buildTrace(session: NormalizedSession): WorkflowTrace {
     usage: session.usage,
     usageByModel: session.usageByModel,
     models: session.models,
+    outcomesRead: session.outcomesRead,
     agents,
     harness: session.harness,
     requests: session.requests.length,

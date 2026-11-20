@@ -235,9 +235,12 @@ Codex history is found through `CODEX_HOME` when it is set (default `~/.codex`).
 
 **What Cursor sessions lack.** Cursor records less than Claude Code and Codex: no token counts
 unless the hook below was on (so its other sessions have no cost, in the TUI, `impact` and bench
-estimates), no command results (so no pass/fail, and a session never counts as "recovered from a
-failure"), and no times for the steps of agents a chat launched (they are placed right after the
-launch). These come from Cursor's data, not from Reflex; `reflex doctor` lists them too.
+estimates), and no times for the steps of agents a chat launched (they are placed right after the
+launch). Command results are not in the transcripts, but Cursor's app database has them: when you
+allow the read, `reflex scan` marks each tool call that failed (the database says `error`, or the
+shell exit code was non-zero), so Cursor sessions can end with a passing check like the other
+sources'. Rejected and cancelled calls are not failures — the command never ran or never finished.
+The transcripts themselves stay unchanged; `reflex doctor` lists what each session is missing.
 
 **Cursor token usage.** Cursor's transcripts and app database have no token counts (every
 `tokenCount` is 0), but Cursor passes each agent turn's counts to its hooks. `reflex cursor-usage on`

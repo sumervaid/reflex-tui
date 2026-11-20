@@ -80,6 +80,8 @@ export type NormalizedSession = {
   usageByModel?: Record<string, TokenUsage>;
   /** Models the source named for this session, most used first, when it records no usage per model (Cursor). */
   models?: string[];
+  /** Tool outcomes were read for this session (Cursor's app database); absent when not read or not allowed. */
+  outcomesRead?: boolean;
   /** Agents this session launched, and how many of their transcripts were read into `events`. */
   agents?: { spawned: SpawnedAgent[]; transcripts: number };
 };
@@ -235,6 +237,8 @@ export type WorkflowTrace = {
   usageByModel?: Record<string, TokenUsage>;
   /** Models named without usage (Cursor), most used first. `[]` means looked up and none recorded; undefined means not looked up. */
   models?: string[];
+  /** Tool outcomes were read for this trace (Cursor's app database); absent when not read or not allowed. */
+  outcomesRead?: boolean;
   /** Agents the session launched; their work is included in the actions above. */
   agents?: AgentSummary;
   /** Requests the developer typed. Optional in traces stored before it existed. */

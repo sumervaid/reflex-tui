@@ -60,11 +60,15 @@ skip bad lines, cap line size and events per session).
   `subagent_type`, `model`, `run_in_background`, `description`) are recorded on the session, and
   their transcripts (`<id>/subagents/*.jsonl`, up to 300) are read for tool calls only: their
   user messages (the parent agent's prompt) and assistant text are dropped. Those events, marked
-  `byAgent`, are inserted after the first launch, since Cursor records no times or tool results that
-  would place each agent. A chat's file identity folds in its agent transcripts (summed size,
+  `byAgent`, are inserted after the first launch, since Cursor records no times that would place
+  each agent. A chat's file identity folds in its agent transcripts (summed size,
   latest mtime and ctime), so a background agent finishing later re-reads the chat. The workspace path is decoded
-  by checking which folders exist (metadata only). Cursor records no tool results, so its sessions
-  never count as "recovered from a failure". Tested on fixtures and parsed cleanly on real history.
+  by checking which folders exist (metadata only). Tool results are not in the transcripts; when the
+  scan is allowed to read Cursor's app database, each tool call is marked `error` from the
+  database's status or a non-zero shell exit code (strict matching: a shell call only by its own
+  command text, the rest by the next unconsumed row of the same kind, and an unmatched call is left
+  unmarked), so Cursor sessions count as "recovered from a failure" like the other sources. Tested
+  on fixtures and parsed cleanly on real history.
 
 - Conductor: not a separate source. Its bundled Claude Code and Codex write to `~/.claude` and
   `~/.codex`. `SessionBuilder.build` recognizes a working folder under

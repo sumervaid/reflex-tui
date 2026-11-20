@@ -6,7 +6,7 @@ import { z } from "zod";
 import type { DetectionResult, DiscoveryOptions, ParseResult, SessionEvent, SpawnedAgent, TranscriptAdapter, TranscriptFile, WorkflowTrace } from "@reflex/core";
 import { debug, historyWindow } from "@reflex/core";
 import { displayPath, excerpt } from "@reflex/safety";
-import { CursorModelIndex, defaultCursorStateDb } from "./cursor-models";
+import { CursorModelIndex, CursorToolOutcomes, SHELL_DB_TOOLS, type ToolOutcome, defaultCursorStateDb } from "./cursor-models";
 import { CursorUsageLog } from "./cursor-usage";
 import { readJsonl } from "./jsonl";
 
@@ -17,8 +17,9 @@ import { MAX_EVENTS_PER_SESSION, SessionBuilder, clean, cutoffFor, isDirectory, 
 /**
  * Cursor agent transcripts: `<root>/<encoded-workspace>/agent-transcripts/<id>/<id>.jsonl`, one
  * `{ role, message: { content: [text | tool_use] } }` record per line plus `{ type: "turn_ended" }`
- * markers. There are no per-record timestamps, working directory or tool results; time comes from
- * the `<timestamp>` tag Cursor adds to user messages, falling back to the file's mtime.
+ * markers. There are no per-record timestamps, working directory or tool results in the transcript;
+ * time comes from the `<timestamp>` tag Cursor adds to user messages, falling back to the file's
+ * mtime, and tool outcomes (when the app-database read is allowed) come from `state.vscdb`.
  */
 const Block = z
   .object({
@@ -124,9 +125,10 @@ export class CursorAdapter implements TranscriptAdapter {
   readonly id = "cursor" as const;
   readonly label = "Cursor";
   readonly root: string;
-  /** Cursor's app database, for model names. Undefined for a custom transcript folder, which reads only that folder. */
+  /** Cursor's app database, for model names and tool outcomes. Undefined for a custom transcript folder, which reads only that folder. */
   readonly stateDb?: string;
   private models?: CursorModelIndex;
+  private outcomes?: CursorToolOutcomes;
   /** Token counts recorded by Reflex's Cursor hook, when it was turned on. */
   private usage?: CursorUsageLog;
 
@@ -149,6 +151,11 @@ export class CursorAdapter implements TranscriptAdapter {
   /** Whether the user allowed reading model names from Cursor's app database in this scan. */
   get readsModels(): boolean {
     return this.models !== undefined;
+  }
+
+  /** Whether the user allowed reading tool outcomes from Cursor's app database in this scan. */
+  get readsOutcomes(): boolean {
+    return this.outcomes !== undefined;
   }
 
   private async transcriptPaths(): Promise<string[]> {
@@ -183,12 +190,17 @@ export class CursorAdapter implements TranscriptAdapter {
         `Also read which model each Cursor chat used, from Cursor's app database at ${displayPath(this.stateDb)}? Read-only; only model names are extracted, never messages.`,
       );
       if (allowed) this.models = new CursorModelIndex(this.stateDb);
+      const outcomes = await ask(
+        `Also read whether each tool call succeeded or failed, from the same database? Read-only; only tool names, statuses, shell commands, exit codes and rejected flags are extracted — never messages or tool output.`,
+      );
+      if (outcomes) this.outcomes = new CursorToolOutcomes(this.stateDb);
     }
     return true;
   }
 
   needsReread(trace: WorkflowTrace): boolean {
-    return this.readsModels && trace.source === "cursor" && trace.models === undefined;
+    if (this.readsModels && trace.source === "cursor" && trace.models === undefined) return true;
+    return this.readsOutcomes && trace.source === "cursor" && trace.outcomesRead !== true;
   }
 
   /**
@@ -245,6 +257,8 @@ export class CursorAdapter implements TranscriptAdapter {
       return { sessions: [], skippedRecords: counts.skipped, totalRecords: counts.total, unreadable: true, error: "unreadable" };
     }
 
+    if (this.outcomes) this.applyOutcomes(b);
+
     // Agents' work joins the chat where the first agent was launched. Their opening message was
     // written by the parent agent, not the developer, so it is never read as a request.
     const delegated: SessionEvent[] = [];
@@ -272,6 +286,7 @@ export class CursorAdapter implements TranscriptAdapter {
     const session = b.build();
     if (spawned.length || transcripts) session.agents = { spawned, transcripts };
     if (this.models) session.models = this.models.modelsFor(b.nativeId);
+    if (this.outcomes) session.outcomesRead = true;
     const totalRecords = counts.total;
     const skippedRecords = counts.skipped;
     const sessions = session.requests.length > 0 && (!session.endedAt || session.endedAt >= cutoff) ? [session] : [];
@@ -324,8 +339,7 @@ export class CursorAdapter implements TranscriptAdapter {
     return at;
   }
 
-  private pushTool(b: SessionBuilder, name: string, input: Record<string, unknown> | string, at: string | undefined, spawned?: SpawnedAgent[]): void {
-    const args = typeof input === "string" ? {} : input;
+  private pushTool(b: SessionBuilder, name: string, input: Record<string, unknown> | string, at: string | undefined, spawned?: SpawnedAgent[]): void {    const args = typeof input === "string" ? {} : input;
     if (spawned && SPAWN_TOOLS.has(name) && spawned.length < MAX_AGENT_TRANSCRIPTS) {
       const type = str(args.subagent_type);
       spawned.push({
@@ -353,5 +367,56 @@ export class CursorAdapter implements TranscriptAdapter {
       return;
     }
     b.push({ kind: "tool", at, tool: (TOOL_ALIASES[name] ?? name).slice(0, 64) });
+  }
+
+  /**
+   * Marks the transcript's tool calls with what Cursor's database recorded about them. The match is
+   * strict, so a wrong call never gets marked: shell calls must agree on the command text, and the
+   * rest must be the next unconsumed row of the same class; anything that cannot be matched is left
+   * alone. A rejected call never ran, and a cancelled one did not finish, so neither is an error.
+   */
+  private applyOutcomes(b: SessionBuilder): void {
+    const rows = this.outcomes!.forChat(b.nativeId);
+    if (!rows?.length) return;
+    const flat = (s: string): string => s.replace(/\s+/g, " ").trim();
+    const classOf = (row: { name: string }): "shell" | "read" | "edit" | "tool" =>
+      SHELL_DB_TOOLS.has(row.name)
+        ? "shell"
+        : /^(read_file_v2|Read|ReadFile)$/.test(row.name)
+          ? "read"
+          : /^(edit_file_v2|delete_file|Write|EditFile|StrReplace|EditNotebook)$/.test(row.name)
+            ? "edit"
+            : "tool";
+    const errorOf = (row: { status: string; exitCode?: number }): boolean =>
+      row.status === "error" || (row.status === "completed" && row.exitCode !== undefined && row.exitCode !== 0);
+    // The database holds rows the transcript export never had, so a row that matches nothing stays
+    // unconsumed: each event claims the first free row of its class, and a shell event only the one
+    // that ran the same command. A wrong call never gets marked; an unmatched one is left alone.
+    const used = new Array<boolean>(rows.length).fill(false);
+    const claim = (kind: "shell" | "read" | "edit" | "tool", command?: string): ToolOutcome | undefined => {
+      const want = command !== undefined ? flat(command) : undefined;
+      for (let j = 0; j < rows.length; j++) {
+        if (used[j]) continue;
+        const row = rows[j]!;
+        if (classOf(row) !== kind) continue;
+        if (want !== undefined && flat(row.command ?? "") !== want) continue;
+        used[j] = true;
+        return row;
+      }
+      return undefined;
+    };
+    const failed = (row: ToolOutcome): boolean => !row.rejected && row.status !== "cancelled" && row.status !== "loading" && errorOf(row);
+    for (const ev of b.events) {
+      if (ev.kind === "shell") {
+        const row = claim("shell", ev.command);
+        if (row && failed(row)) ev.isError = true;
+      } else if (ev.kind === "file") {
+        const row = claim(ev.op === "read" ? "read" : "edit");
+        if (row && failed(row)) ev.isError = true;
+      } else if (ev.kind === "tool") {
+        const row = claim("tool");
+        if (row && failed(row)) ev.isError = true;
+      }
+    }
   }
 }
