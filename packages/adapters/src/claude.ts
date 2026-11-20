@@ -1,11 +1,11 @@
 import { homedir } from "node:os";
 import { basename, join } from "node:path";
 import { z } from "zod";
-import type { DetectionResult, DiscoveryOptions, ParseResult, TranscriptAdapter, TranscriptFile } from "@reflex/core";
+import type { DetectionResult, DiscoveryOptions, ParseResult, SessionEvent, TranscriptAdapter, TranscriptFile } from "@reflex/core";
 import { addUsage, debug, historyWindow } from "@reflex/core";
 import { displayPath } from "@reflex/safety";
 import { readJsonl } from "./jsonl";
-import { SessionBuilder, clean, cutoffFor, isDirectory, listFiles, modelName, skillName, toTranscriptFiles, tokens } from "./common";
+import { MAX_EVENTS_PER_SESSION, SessionBuilder, clean, cutoffFor, isDirectory, listFiles, modelName, skillName, toTranscriptFiles, tokens } from "./common";
 
 const ContentBlock = z
   .object({
@@ -104,6 +104,10 @@ export class ClaudeCodeAdapter implements TranscriptAdapter {
     let totalRecords = 0;
     let skippedRecords = 0;
     const fallbackId = basename(file.path, ".jsonl");
+    const sidechains = new Map<string, SessionBuilder>();
+    /** Where the first sub-agent was launched: their work joins the session right after that. */
+    let spawnBuilder: SessionBuilder | undefined;
+    let spawnIndex: number | undefined;
 
     try {
       for await (const line of readJsonl(file.path)) {
@@ -122,10 +126,13 @@ export class ClaudeCodeAdapter implements TranscriptAdapter {
           if (!METADATA_TYPES.has(rec.type)) debug("unknown record type", { adapter: this.id, type: rec.type.slice(0, 32) });
           continue;
         }
-        if (rec.isSidechain) continue;
         if (rec.uuid) {
           if (seenUuids.has(rec.uuid)) continue;
           seenUuids.add(rec.uuid);
+        }
+        if (rec.isSidechain) {
+          this.parseSidechain(rec, sidechains, file);
+          continue;
         }
 
         const sessionId = (rec.sessionId ?? fallbackId).slice(0, 80);
@@ -190,12 +197,30 @@ export class ClaudeCodeAdapter implements TranscriptAdapter {
             b.push({ kind: "assistant", at, text: clean.assistant(blk.text) });
           } else if (blk.type === "tool_use" && blk.name) {
             this.pushTool(b, blk.name, blk.input ?? {}, at, blk.id);
+            if (blk.name === "Task" && spawnIndex === undefined) {
+              spawnBuilder = b;
+              spawnIndex = b.events.length;
+            }
           }
         }
       }
     } catch (err) {
       debug("file unreadable", { adapter: this.id, code: (err as NodeJS.ErrnoException).code });
       return { sessions: [], skippedRecords, totalRecords, unreadable: true, error: "unreadable" };
+    }
+
+    // Sub-agent work joins the session that launched it, right after the launch, marked byAgent —
+    // as Cursor's adapter folds agent work into the chat. The cap holds, so a chatty sub-agent
+    // cannot drown the parent's own events.
+    if (sidechains.size) {
+      const delegated: SessionEvent[] = [];
+      for (const s of sidechains.values())
+        for (const ev of s.events) if (ev.kind === "shell" || ev.kind === "file" || ev.kind === "tool") delegated.push({ ...ev, byAgent: true });
+      const target = spawnBuilder ?? builders.values().next().value;
+      if (target) {
+        const index = spawnBuilder === target ? (spawnIndex ?? target.events.length) : target.events.length;
+        target.events.splice(index, 0, ...delegated.slice(0, Math.max(0, MAX_EVENTS_PER_SESSION - target.events.length)));
+      }
     }
 
     const sessions = [...builders.values()]
@@ -227,5 +252,49 @@ export class ClaudeCodeAdapter implements TranscriptAdapter {
       return;
     }
     b.push({ kind: "tool", at, tool: name.slice(0, 64) }, id);
+  }
+
+  /**
+   * A sidechain is a sub-agent's conversation, written into the same file as its parent. Its
+   * prompt was written by the parent agent, so it is never read as a request, and its text is the
+   * agent's narration; only its tool calls (and the results that grade them) are kept.
+   */
+  private parseSidechain(
+    rec: z.infer<typeof ClaudeRecord>,
+    sidechains: Map<string, SessionBuilder>,
+    file: TranscriptFile,
+  ): void {
+    const sessionId = (rec.sessionId ?? basename(file.path, ".jsonl")).slice(0, 80);
+    let b = sidechains.get(sessionId);
+    if (!b) {
+      b = new SessionBuilder(this.id, sessionId, file);
+      sidechains.set(sessionId, b);
+    }
+    b.touch(rec.timestamp);
+    const at = rec.timestamp;
+    const content = rec.message?.content;
+    if (!Array.isArray(content)) return;
+    if (rec.type === "user") {
+      for (const raw of content) {
+        const block = ContentBlock.safeParse(raw);
+        if (!block.success) {
+          b.skipped++;
+          continue;
+        }
+        if (block.data.type === "tool_result" && block.data.tool_use_id) b.markResult(block.data.tool_use_id, block.data.is_error === true);
+      }
+      return;
+    }
+    // A sub-agent's own usage is billed on its sidechain records; folding it into the parent's
+    // totals is a question for `reflex impact`, not for the event stream.
+    for (const raw of content) {
+      const block = ContentBlock.safeParse(raw);
+      if (!block.success) {
+        b.skipped++;
+        continue;
+      }
+      const blk = block.data;
+      if (blk.type === "tool_use" && blk.name) this.pushTool(b, blk.name, blk.input ?? {}, at, blk.id);
+    }
   }
 }

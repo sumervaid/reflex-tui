@@ -3,6 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { ClaudeCodeAdapter } from "../src/claude";
+import { MAX_EVENTS_PER_SESSION } from "../src/common";
 import { FIX_CI, toClaudeLines } from "@reflex/test-fixtures";
 
 const NOW = new Date("2026-10-11T12:00:00Z");
@@ -85,11 +86,78 @@ describe("ClaudeCodeAdapter", () => {
     expect(result!.sessions[0]!.endedAt).toBeDefined();
   });
 
-  it("drops duplicated records and sidechain (subagent) records", async () => {
+  it("drops duplicated records; a sidechain prompt is never a request", async () => {
     const rec = { ...user("deploy fix"), uuid: "u1" };
     await writeSession("s1", [rec, rec, { ...user("subagent chatter"), uuid: "u2", isSidechain: true }]);
     const [result] = await parseOnly(new ClaudeCodeAdapter(root));
     expect(result!.sessions[0]!.requests).toHaveLength(1);
+  });
+
+  it("folds sub-agent work into the parent session, marked byAgent, after the launch", async () => {
+    const toolUse = (id: string, name: string, input: Record<string, unknown>) => ({
+      type: "assistant",
+      sessionId: "s1",
+      timestamp: "2026-10-10T10:01:00.000Z",
+      cwd: "/Users/jordan/code/app",
+      message: { role: "assistant", content: [{ type: "tool_use", id, name, input }] },
+    });
+    const toolResult = (id: string, isError = false) => ({
+      type: "user",
+      sessionId: "s1",
+      timestamp: "2026-10-10T10:02:00.000Z",
+      message: { role: "user", content: [{ type: "tool_result", tool_use_id: id, is_error: isError }] },
+    });
+    const side = (extra: Record<string, unknown>) => ({ timestamp: "2026-10-10T10:05:00.000Z", isSidechain: true, ...extra });
+    await writeSession("s1", [
+      user("review the auth module"),
+      toolUse("t1", "Task", { subagent_type: "code-reviewer", prompt: "review it" }),
+      // The sub-agent's own prompt, its failing shell call, its result, and its narration.
+      side({ type: "user", sessionId: "sub-1", message: { role: "user", content: "review the auth module now" } }),
+      side({ type: "assistant", sessionId: "sub-1", message: { role: "assistant", content: [{ type: "tool_use", id: "s1", name: "Bash", input: { command: "gh pr diff 41" } }] } }),
+      side({ type: "user", sessionId: "sub-1", message: { role: "user", content: [{ type: "tool_result", tool_use_id: "s1", is_error: true }] } }),
+      side({ type: "assistant", sessionId: "sub-1", message: { role: "assistant", content: [{ type: "text", text: "the diff looks fine" }] } }),
+      // The parent continues after the sub-agent finished.
+      { ...toolUse("t2", "Bash", { command: "git status --short" }), timestamp: "2026-10-10T10:06:00.000Z" },
+      { ...toolResult("t2"), timestamp: "2026-10-10T10:07:00.000Z" },
+    ]);
+    const [result] = await parseOnly(new ClaudeCodeAdapter(root));
+    const s = result!.sessions[0]!;
+    // The sub-agent's prompt is not a request; the parent's is.
+    expect(s.requests.map((r) => r.text)).toEqual(["review the auth module"]);
+    const byAgent = s.events.filter((e) => "byAgent" in e && e.byAgent);
+    expect(byAgent).toHaveLength(1);
+    expect(byAgent[0]).toMatchObject({ kind: "shell", command: "gh pr diff 41", isError: true, byAgent: true });
+    // The delegated events sit between the launch and the parent's next call, in time order.
+    const kinds = s.events.map((e) => (e.kind === "tool" ? `tool:${e.tool}` : e.kind === "shell" ? `shell:${"command" in e ? e.command : ""}` : e.kind));
+    expect(kinds.indexOf("tool:Task")).toBeLessThan(kinds.indexOf("shell:gh pr diff 41"));
+    expect(kinds.indexOf("shell:gh pr diff 41")).toBeLessThan(kinds.indexOf("shell:git status --short"));
+    expect(s.events.every((e) => !("text" in e && e.text === "review the auth module now"))).toBe(true);
+  });
+
+  it("the event cap still holds with sub-agent work folded in", async () => {
+    const events: Array<Record<string, unknown>> = [user("do it all"), {
+      type: "assistant",
+      sessionId: "s1",
+      timestamp: "2026-10-10T10:00:00.000Z",
+      message: { role: "assistant", content: [{ type: "tool_use", id: "t1", name: "Task", input: { prompt: "go" } }] },
+    }];
+    for (let i = 0; i < 400; i++) {
+      events.push({ type: "user", sessionId: "sub-1", isSidechain: true, timestamp: "2026-10-10T10:01:00.000Z", message: { role: "user", content: "keep going" } });
+      events.push({
+        type: "assistant",
+        sessionId: "sub-1",
+        isSidechain: true,
+        timestamp: "2026-10-10T10:02:00.000Z",
+        message: { role: "assistant", content: [{ type: "tool_use", id: `s${i}`, name: "Bash", input: { command: `echo ${i}` } }] },
+      });
+    }
+    await writeSession("s1", events);
+    const [result] = await parseOnly(new ClaudeCodeAdapter(root));
+    const s = result!.sessions[0]!;
+    expect(s.events.length).toBeLessThanOrEqual(MAX_EVENTS_PER_SESSION);
+    const byAgent = s.events.filter((e) => "byAgent" in e && e.byAgent).length;
+    expect(byAgent).toBeGreaterThan(0);
+    expect(s.events.length - byAgent).toBeGreaterThan(0); // the parent's own events are not crowded out
   });
 
   it("keeps Unicode intact", async () => {
