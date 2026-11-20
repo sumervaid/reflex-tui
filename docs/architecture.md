@@ -43,6 +43,9 @@ skip bad lines, cap line size and events per session).
   the same file — keep only their tool calls and the results that grade them, marked `byAgent` and
   inserted right after the `Task` call that launched the sub-agent; the sub-agent's prompt (written
   by the parent agent) and its narration are never read, and the event cap still holds.
+  `thinking` blocks are captured as one redacted, truncated excerpt per session (400 characters per
+  block, 2,000 in total) for analysis only: nothing displays it, and no skill, memory entry or
+  handbook practice is generated from it.
 - Codex: `$CODEX_HOME/sessions/YYYY/MM/DD/rollout-*.jsonl`. `{timestamp, type, payload}` lines:
   `session_meta`, `response_item` (messages, `shell`/`exec_command` calls, `local_shell_call`,
   `apply_patch`, outputs with exit codes), `event_msg`. Requests are the user messages Codex itself

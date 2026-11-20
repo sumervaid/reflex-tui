@@ -166,6 +166,29 @@ describe("ClaudeCodeAdapter", () => {
     expect(result!.sessions[0]!.requests[0]!.text).toBe("修复 CI 失败 🚀 — ça marche?");
   });
 
+  it("captures thinking blocks redacted and capped, and never the raw text", async () => {
+    const assistant = (content: Array<Record<string, unknown>>) => ({
+      type: "assistant",
+      sessionId: "s1",
+      timestamp: "2026-10-10T10:01:00.000Z",
+      cwd: "/Users/jordan/code/app",
+      message: { role: "assistant", content },
+    });
+    const events: Array<Record<string, unknown>> = [
+      user("fix the failing test"),
+      assistant([{ type: "thinking", thinking: "the token is NPM_TOKEN=npm_a1B2c3D4e5F6g7H8i9J0k1L2m3N4o5P6q7R8, never print it" }]),
+    ];
+    for (let i = 0; i < 8; i++) events.push(assistant([{ type: "thinking", thinking: `consideration ${i}: ${"detailed reasoning ".repeat(12)}` }]));
+    await writeSession("s1", events);
+    const [result] = await parseOnly(new ClaudeCodeAdapter(root));
+    const s = result!.sessions[0]!;
+    expect(s.thinking).toBeDefined();
+    expect(s.thinking).toContain("REDACTED"); // the key was redacted before storage
+    expect(s.thinking).not.toContain("npm_a1B2");
+    expect(s.thinking!.length).toBeLessThanOrEqual(2000); // the whole excerpt is capped
+    expect(s.thinking).toContain("consideration 0"); // several blocks join into one excerpt
+  });
+
   it("streams a giant session and caps stored events", async () => {
     const lines: Record<string, unknown>[] = [user("big one")];
     for (let i = 0; i < 20_000; i++) {

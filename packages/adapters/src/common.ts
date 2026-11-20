@@ -9,11 +9,15 @@ export const MAX_REQUESTS_PER_SESSION = 40;
 const MAX_REQUEST_CHARS = 2000;
 const MAX_COMMAND_CHARS = 600;
 const MAX_ASSISTANT_CHARS = 400;
+const MAX_THINKING_CHARS = 400;
+/** The session's thinking excerpt stops here: it is context for analysis, not a transcript. */
+const MAX_THINKING_TOTAL = 2000;
 
 export const clean = {
   request: (text: string) => redactTruncated(text, MAX_REQUEST_CHARS).trim(),
   command: (text: string) => redactTruncated(text, MAX_COMMAND_CHARS).trim(),
   assistant: (text: string) => redactTruncated(text, MAX_ASSISTANT_CHARS).trim(),
+  thinking: (text: string) => redactTruncated(text, MAX_THINKING_CHARS).trim(),
   path: (text: string) => redactTruncated(text, 400),
 };
 
@@ -139,6 +143,8 @@ export class SessionBuilder {
   cwd?: string;
   usage?: TokenUsage;
   usageByModel?: Record<string, TokenUsage>;
+  /** Redacted, truncated excerpts of the agent's thinking blocks (#78): for analysis, never displayed or generated from. */
+  thinking?: string;
   private pendingTools = new Map<string, SessionEvent>();
 
   constructor(
@@ -174,6 +180,13 @@ export class SessionBuilder {
     this.pendingTools.delete(toolId);
   }
 
+  /** Adds one thinking block, redacted per block and truncated as a whole excerpt. */
+  addThinking(text: string): void {
+    const piece = clean.thinking(text);
+    if (!piece) return;
+    this.thinking = this.thinking ? `${this.thinking}\n${piece}` : piece;
+  }
+
   build(): NormalizedSession {
     const conductor = this.cwd ? conductorWorkspace(this.cwd) : undefined;
     const project = conductor
@@ -194,6 +207,7 @@ export class SessionBuilder {
       skippedRecords: this.skipped,
       usage: this.usage,
       usageByModel: this.usageByModel,
+      ...(this.thinking ? { thinking: this.thinking.slice(0, MAX_THINKING_TOTAL) } : {}),
     };
   }
 }
