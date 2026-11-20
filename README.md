@@ -116,7 +116,8 @@ Details: [How detection works](https://github.com/sumervaid/reflex-tui/blob/main
 - **Improve skills you already have.** `reflex improve <skill>` compares a skill with the sessions
   that loaded it and proposes an edit, asking before it reads or changes anything.
 - **Memory.** Corrections you gave in at least 2 independent sessions, written as a marked block into
-  `~/.claude/CLAUDE.md` and `~/.codex/AGENTS.md` once you run `reflex memory on`.
+  `~/.claude/CLAUDE.md` and `~/.codex/AGENTS.md`, and as a `reflex-memory` skill for Cursor, once you
+  run `reflex memory on`.
 - **A handbook per repository.** `reflex handbook` lists the commands that worked in a repository,
   the ones that kept failing and the corrections you repeated, with the sessions behind each.
   Read-only, so agents can call it; `export` writes one for a teammate.
@@ -183,7 +184,7 @@ Every scanned session's opening request and steps. Enter reopens it in Claude Co
 | **Pick models** | `reflex run "<request>"` | Start Claude Code or Codex on the model the router picks (`--dry-run` shows why) |
 | | `reflex route` | Picks per kind of task, autopilot, exploration and bench results |
 | | `reflex bench "<task>" --check "<cmd>"` | Run one task on several models, scored by your check command |
-| **Memory** | `reflex memory on` · `off` | Tell new sessions the corrections you keep repeating, via `CLAUDE.md` / `AGENTS.md` |
+| **Memory** | `reflex memory on` · `off` | Tell new sessions the corrections you keep repeating, via `CLAUDE.md` / `AGENTS.md` and a Cursor skill |
 | | `reflex handbook` | How work is done in this repository: commands that worked, ones that failed, repeated corrections |
 | **Setup** | `reflex model fetch` | Optional local model for matching requests by meaning (`--light` for 23 MB). It also downloads the 14 MB WebAssembly runtime it runs on, from the npm registry, verified |
 | | `reflex cursor-usage on` | Record Cursor's token counts through a Cursor hook (macOS, Linux and Windows) |
@@ -261,7 +262,8 @@ mostly approve them, Reflex also lowers the bar a step at a time on its own; loc
 <summary><b>Will it change my CLAUDE.md, AGENTS.md, Cursor hooks or existing skills?</b></summary>
 
 Only if you ask. `reflex memory on` writes a marked block into `~/.claude/CLAUDE.md` and
-`~/.codex/AGENTS.md` and leaves the rest of each file as it was; `reflex memory off` removes it.
+`~/.codex/AGENTS.md` and leaves the rest of each file as it was; it also writes a `reflex-memory`
+skill for Cursor, which Reflex owns wholly; `reflex memory off` removes them.
 `reflex cursor-usage on` adds Reflex's hook to `~/.cursor/hooks.json`, keeps your other hooks and
 backs the file up first; `off` removes it. Installs never overwrite a file, and `reflex improve` asks
 before it changes a skill and keeps a backup.

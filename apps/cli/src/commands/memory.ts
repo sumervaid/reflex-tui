@@ -56,12 +56,13 @@ export async function memoryOn(opts: { yes?: boolean }): Promise<void> {
   try {
     const targets = (await memoryTargets()).filter((t) => t.detected);
     if (!targets.length) {
-      warn("Neither Claude Code (~/.claude) nor Codex (~/.codex) was found on this machine.");
+      warn("Neither Claude Code (~/.claude), Codex (~/.codex) nor Cursor (~/.cursor) was found on this machine.");
       return;
     }
     out("Reflex will keep a marked block in:");
     rows(targets.map((t) => [t.label, displayPath(t.file)]));
     out(c.dim("Only the text between <!-- reflex:memory:start --> and <!-- reflex:memory:end --> is Reflex's; the rest of each file is never changed."));
+    out(c.dim("For Cursor, where rules are not a file, the memory is a `reflex-memory` skill in ~/.cursor/skills that Reflex owns wholly."));
     if (!(await confirm("Turn agent memory on?", opts))) return;
     store.setMemoryState({ enabled: true });
     const res = await syncMemory(store, { mine: Boolean(store.latestScan()) });
