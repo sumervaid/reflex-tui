@@ -31,7 +31,7 @@ async function conductorWorkspaces(): Promise<{ dir: string; repos: number } | u
 /** What Cursor's own records lack, so its sessions get less from Reflex. */
 export const CURSOR_GAPS = [
   "no tokens unless the hook was on, so no cost",
-  "no command results, so no pass/fail, and never \"recovered from a failure\"",
+  "no command results unless the app-database read was allowed at scan time",
   "no times for a launched agent's steps, so they are placed right after the launch",
 ];
 

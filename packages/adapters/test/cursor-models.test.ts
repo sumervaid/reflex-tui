@@ -75,7 +75,9 @@ describe("CursorAdapter model names", () => {
     expect(s.models).toEqual(["claude-opus-5-5", "gpt-5.5"]);
     expect(JSON.stringify(s)).not.toContain("secret message text");
     expect(allowed.needsReread({ source: "cursor" } as WorkflowTrace)).toBe(true);
-    expect(allowed.needsReread({ source: "cursor", models: [] } as unknown as WorkflowTrace)).toBe(false);
+    expect(allowed.needsReread({ source: "cursor", models: [], outcomesRead: true } as unknown as WorkflowTrace)).toBe(false);
+    // Outcomes are their own consent: a trace with models but no outcome read is still stale.
+    expect(allowed.needsReread({ source: "cursor", models: [] } as unknown as WorkflowTrace)).toBe(true);
   });
 
   it("never touches the app database for a custom transcript folder", async () => {
