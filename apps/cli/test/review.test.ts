@@ -1,10 +1,10 @@
-import { mkdtemp } from "node:fs/promises";
+import { mkdtemp, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { Suggestion } from "@reflex/analysis";
 import { Store } from "@reflex/storage";
-import { adjustBar, evidenceFirst, FIRST_DECISIONS, reject, renderImpactPreview, renderSuggestion } from "../src/commands/review";
+import { adjustBar, evidenceFirst, FIRST_DECISIONS, reject, renderEvidence, renderImpactPreview, renderSuggestion } from "../src/commands/review";
 import { settingsMatching } from "../src/commands/settings";
 
 // Tests run without a TTY, so `reflex reject` records its default reason ("not useful to me").
@@ -185,5 +185,28 @@ describe("evidence and impact in the review flow", () => {
     } finally {
       store.close();
     }
+  });
+
+  it("says when Cursor recording started instead of claiming it never records", async () => {
+    const cursorOnly = {
+      ...full,
+      sources: { cursor: 4 },
+      cost: { runs: 4, runsWithTokens: 0, medianToolCalls: 40 },
+      evidence: [{ ...evidence("2026-11-12T10:00:00Z", "billing-api", "the CI run is red again"), source: "cursor", tokens: undefined }],
+    } as unknown as Suggestion;
+    // No usage log yet: the old message stands.
+    const before = printed(() => renderSuggestion({ rank: 1, slug: "fix-ci", status: "pending", data: cursorOnly }));
+    expect(before).toContain("(Cursor doesn't record tokens)");
+    // The hook recorded its first turn after these sessions ran.
+    const log = join(process.env.REFLEX_HOME!, "cursor-usage.jsonl");
+    await writeFile(
+      log,
+      JSON.stringify({ v: 1, at: "2026-11-20T10:00:00Z", event: "stop", conversation_id: "c1", generation_id: "g1", model_id: "claude-4.5-sonnet", input_tokens: 10, output_tokens: 2, cache_read_tokens: 0, cache_write_tokens: 0 }) + "\n",
+    );
+    const after = printed(() => renderSuggestion({ rank: 1, slug: "fix-ci", status: "pending", data: cursorOnly }));
+    expect(after).toContain("tokens recorded since Nov 20");
+    expect(after).not.toContain("doesn't record tokens");
+    const marked = printed(() => renderEvidence(cursorOnly));
+    expect(marked).toContain("before token recording started");
   });
 });

@@ -110,4 +110,16 @@ export class CursorUsageLog {
       }
     return { turns, latest };
   }
+
+  /**
+   * When the earliest recorded turn was, in ms, or undefined when the log has none: sessions older
+   * than this have no counts through no fault of the hook. A log longer than the tail reads only
+   * its last bytes, so a very long history reports the earliest turn within that window.
+   */
+  firstTurnAt(): number | undefined {
+    let first: number | undefined;
+    for (const byGen of this.load().values())
+      for (const t of byGen.values()) if (t.at) first = first === undefined ? t.at : Math.min(first, t.at);
+    return first;
+  }
 }

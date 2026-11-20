@@ -4,6 +4,7 @@ import { displayPath, excerpt } from "@reflex/safety";
 import { type StoredSuggestion, Store, paths } from "@reflex/storage";
 import { approveSuggestion } from "@reflex/skills";
 import { latestAnalysis } from "../analysis";
+import { cursorRecordingSince } from "./cursor-usage";
 import { c, chooseKey, confirm, fileBlock, fmtTokens, interactive, ok, out, pct, plural, rows, shortDate, title } from "../ui";
 import { describeCost } from "./impact";
 import { installFlow } from "./skills";
@@ -17,7 +18,12 @@ function costLine(s: Suggestion): string {
   const cost = s.cost!;
   const line = describeCost(cost);
   if (cost.runsWithTokens) return line;
-  return s.sources.cursor ? `${line} ${c.dim("(Cursor doesn't record tokens)")}` : line;
+  if (!s.sources.cursor) return line;
+  const since = cursorRecordingSince();
+  // With the hook on, a workflow with no counts is an old one, not a broken hook.
+  return since
+    ? `${line} ${c.dim(`(Cursor: tokens recorded since ${shortDate(new Date(since).toISOString())}, after these sessions)`)}`
+    : `${line} ${c.dim("(Cursor doesn't record tokens)")}`;
 }
 
 export function renderSuggestion(entry: StoredSuggestion): void {
@@ -76,7 +82,12 @@ export function renderEvidence(s: Suggestion): void {
       .filter(Boolean)
       .join(", ");
     const since = e.afterInstall ? c.dim(" · loaded the skill since install") : "";
-    out(`${c.bold(shortDate(e.date))} · ${e.project ?? "unknown project"} · ${c.dim(agent)}${cost ? c.dim(` · ${cost}`) : ""}${since}`);
+    // A Cursor session older than the first recorded turn has no counts through no fault of the hook (#75).
+    const before =
+      e.source === "cursor" && e.tokens === undefined && e.date && Date.parse(e.date) < (cursorRecordingSince() ?? Infinity)
+        ? c.dim(" · before token recording started")
+        : "";
+    out(`${c.bold(shortDate(e.date))} · ${e.project ?? "unknown project"} · ${c.dim(agent)}${cost ? c.dim(` · ${cost}`) : ""}${since}${before}`);
     out(`  "${excerpt(e.excerpt, 170)}"`);
     out(`  ${c.dim("Actions:")} ${e.actions.slice(0, 8).join(c.dim(" → "))}`);
     const outcome = e.verified ? c.green("checks passed after the change") : c.yellow("no passing check observed");

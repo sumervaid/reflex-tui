@@ -1,8 +1,31 @@
 import { readFile } from "node:fs/promises";
+import { statSync } from "node:fs";
+import { CursorUsageLog } from "@reflex/adapters";
 import { displayPath, pathExists } from "@reflex/safety";
 import { Store, paths } from "@reflex/storage";
 import { HOOK_EVENTS, cursorHooksFile, hookCommand, hookScript, hookStatus, installHook, removeHook } from "../cursor-hook";
 import { c, confirm, ok, out, plural, rows, title, warn } from "../ui";
+
+let sinceCache: { path: string; mtime: number; value: number | undefined } | undefined;
+
+/**
+ * When the Cursor usage log's earliest turn was, in ms: sessions older than this have no counts
+ * through no fault of the hook. Undefined when nothing was ever recorded. Cached per path and
+ * file mtime, so a log that grows is read again (the TUI stays open across turns).
+ */
+export function cursorRecordingSince(): number | undefined {
+  const path = paths.cursorUsage();
+  let mtime = 0;
+  try {
+    mtime = statSync(path).mtimeMs;
+  } catch {
+    // no log yet: nothing was ever recorded
+  }
+  if (sinceCache?.path === path && sinceCache.mtime === mtime) return sinceCache.value;
+  const value = new CursorUsageLog(path).firstTurnAt();
+  sinceCache = { path, mtime, value };
+  return value;
+}
 
 /** What the hook has recorded so far: turns, conversations, the latest time. Counts only. */
 async function recorded(): Promise<{ turns: number; conversations: Set<string>; latest?: string }> {

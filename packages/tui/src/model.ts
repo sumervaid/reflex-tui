@@ -117,6 +117,8 @@ export type TokenWindow = {
   byProject?: Bar[];
   /** Cursor records models but no tokens: sessions per model, unpriced. */
   cursorModels?: Array<{ name: string; sessions: number }>;
+  /** When Cursor's token recording began ("12 Oct"): sessions older than this have no counts. */
+  cursorRecordingSince?: string;
   /** When the built-in prices were checked: "11 Oct 2026". */
   pricesChecked?: string;
   /** Models Reflex has no price for: sessions per model, in no dollar figure. */

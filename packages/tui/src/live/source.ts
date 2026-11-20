@@ -1,8 +1,8 @@
-import { ClaudeCodeAdapter, CodexAdapter, CursorAdapter } from "@reflex/adapters";
+import { ClaudeCodeAdapter, CodexAdapter, CursorAdapter, CursorUsageLog } from "@reflex/adapters";
 import { PRICES_CHECKED, SOURCE_IDS, type SourceId, type TokenUsage, type WorkflowTrace, totalTokens, unknownModels } from "@reflex/core";
 import { displayPath } from "@reflex/safety";
 import { detectTargets, memoryTargets, removeMemory, syncMemory } from "@reflex/skills";
-import { type ScanRecord, Store, reflexHome } from "@reflex/storage";
+import { type ScanRecord, Store, paths, reflexHome } from "@reflex/storage";
 import type { Attention, Day, Item, TuiData } from "../model";
 import { toCells } from "../render/text";
 import type { ActionResult, DataSource, RescanResult } from "../types";
@@ -240,12 +240,14 @@ function usage(scan: ScanRecord, traces: WorkflowTrace[], now: Date): Pick<TuiDa
   const all = totals(traces);
   if (all.measured) {
     const unknown = unknownModels(traces.map((t) => t.usageByModel)).map((m) => ({ name: toCells(m.model), sessions: m.sessions }));
+    const recording = cursorModels(traces) ? new CursorUsageLog(paths.cursorUsage()).firstTurnAt() : undefined;
     out.window = {
       days: scan.days,
       range: rangeLabel(start, end),
       sessions: scan.sessions,
       tokens: all.usage,
       cursorModels: cursorModels(traces),
+      ...(recording ? { cursorRecordingSince: dayLabel(new Date(recording)) } : {}),
       pricesChecked: PRICES_CHECKED,
       ...(unknown.length ? { unknownModels: unknown } : {}),
     };

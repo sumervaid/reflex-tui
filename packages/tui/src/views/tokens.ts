@@ -158,7 +158,8 @@ export function renderTokens(w: number, h: number, data: TuiData, _ui: UiState):
   const right: Line[] = [...barList("by model", win.byModel, pw), [], ...barList("by project", win.byProject, pw)];
   if (win.cursorModels?.length) {
     const items = win.cursorModels.slice(0, 5).map((m): [string, number] => [m.name, m.sessions]);
-    right.push([], ...hbars("cursor by model · sessions, no token data", items, pw, { nw: 11, fmt: (v) => `${v} sess` }));
+    const since = win.cursorRecordingSince ? ` · recorded since ${win.cursorRecordingSince}` : "";
+    right.push([], ...hbars(`cursor by model · sessions, no token data${since}`, items, pw, { nw: 11, fmt: (v) => `${v} sess` }));
   }
   L.push(...hcat([{ lines: left, w: chartW }, { lines: right, w: pw }], 4));
   L.push([]);
