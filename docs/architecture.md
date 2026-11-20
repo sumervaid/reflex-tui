@@ -108,7 +108,8 @@ Token usage, where recorded, is attached to the session as `{input, output, cach
   The adapter joins on the chat id only and sets `usage` / `usageByModel`, so pricing and the router
   treat those chats like any other. Agents a chat launched may report turns of their own; whether
   the chat's totals already include them isn't known yet, so they are left out rather than possibly
-  counted twice. Not available on Windows yet: the hook command is quoted for a POSIX shell. A chat's file identity folds in the
+  counted twice. On Windows the hook command is a PowerShell call (`& 'node.exe' 'script'`), since
+  Cursor runs hook commands through PowerShell there. A chat's file identity folds in the
   number of recorded turns and the latest one, so new turns re-read a cached chat.
 
 ## From sessions to suggestions

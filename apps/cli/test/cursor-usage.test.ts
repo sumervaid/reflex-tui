@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { cursorUsageOff, cursorUsageOn, cursorUsageStatus } from "../src/commands/cursor-usage";
-import { assertHookSupported, hookCommand, hookScript, installHook, removeHook, stableNode } from "../src/cursor-hook";
+import { hookCommand, hookScript, hookStatus, installHook, removeHook, stableNode } from "../src/cursor-hook";
 
 let root: string;
 let hooksFile: string;
@@ -132,9 +132,26 @@ describe("reflex cursor-usage", () => {
     expect((await readJson(other)).hooks.stop).toEqual([theirs]);
   });
 
-  it("isn't installed on Windows, where its command line isn't verified yet", () => {
-    expect(() => assertHookSupported("win32")).toThrow(/isn't available on Windows yet/);
-    expect(() => assertHookSupported("darwin")).not.toThrow();
+  it("quotes for PowerShell on Windows, so paths with spaces work", () => {
+    const command = hookCommand("C:\\Program Files\\nodejs\\node.exe", "C:\\Users\\jordan\\.cursor\\hooks\\cursor-usage.mjs", "win32");
+    expect(command).toBe(`& 'C:\\Program Files\\nodejs\\node.exe' 'C:\\Users\\jordan\\.cursor\\hooks\\cursor-usage.mjs'`);
+    expect(() => hookCommand("C:\\no'quote\\node.exe", "C:\\s.mjs", "win32")).toThrow(/can't quote/);
+    expect(hookCommand("/opt/homebrew/bin/node", "/Users/me/.reflex/hooks/cursor-usage.mjs", "darwin")).toBe(
+      "'/opt/homebrew/bin/node' '/Users/me/.reflex/hooks/cursor-usage.mjs'",
+    );
+  });
+
+  it("installs, recognizes and removes its entry on Windows", async () => {
+    const fresh = join(root, "win", "hooks.json");
+    const { added } = await installHook(fresh, "win32");
+    expect(added).toEqual(["stop", "afterAgentResponse"]);
+    const entry = (await readJson(fresh)).hooks.stop![0]!;
+    expect(entry.command).toBe(hookCommand(undefined, undefined, "win32"));
+    expect(entry.command).toContain("& '");
+    expect(await hookStatus(fresh)).toEqual({ events: ["stop", "afterAgentResponse"] });
+    const { removed } = await removeHook(fresh);
+    expect(removed).toEqual(["stop", "afterAgentResponse"]);
+    expect((await readJson(fresh)).hooks.stop).toBeUndefined();
   });
 
   it("creates the hooks file when Cursor has none", async () => {

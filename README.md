@@ -186,7 +186,7 @@ Every scanned session's opening request and steps. Enter reopens it in Claude Co
 | **Memory** | `reflex memory on` · `off` | Tell new sessions the corrections you keep repeating, via `CLAUDE.md` / `AGENTS.md` |
 | | `reflex handbook` | How work is done in this repository: commands that worked, ones that failed, repeated corrections |
 | **Setup** | `reflex model fetch` | Optional local model for matching requests by meaning (`--light` for 23 MB). It also downloads the 14 MB WebAssembly runtime it runs on, from the npm registry, verified |
-| | `reflex cursor-usage on` | Record Cursor's token counts through a Cursor hook (not on Windows yet) |
+| | `reflex cursor-usage on` | Record Cursor's token counts through a Cursor hook (macOS, Linux and Windows) |
 | | `reflex settings matching` | How many sessions make a repeat (2-5) and how strictly they must match |
 | | `reflex forget` | Remove older sessions, or ones whose transcript was deleted, from Reflex's data |
 | | `reflex settings retention` | Keep only the last N days of sessions, forgetting older ones after each scan |
@@ -286,7 +286,7 @@ Known gaps, from the current docs:
 - [ ] Read agents launched from Claude Code sessions (Cursor's are read today)
 - [ ] Read Cursor and OpenCode sessions run through Conductor
 - [ ] Measure usage limits in the TUI (shows `not measured yet` today)
-- [ ] Record Cursor's token counts on Windows (`reflex cursor-usage` is macOS and Linux only)
+- [x] Record Cursor's token counts on Windows (done: the hook command is a PowerShell call, #74)
 <!-- TEMPLATE: add planned features here, or link a GitHub project board / milestones. -->
 
 ## Docs
