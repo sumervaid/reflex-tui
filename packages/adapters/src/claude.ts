@@ -11,6 +11,7 @@ const ContentBlock = z
   .object({
     type: z.string(),
     text: z.string().optional(),
+    thinking: z.string().optional(),
     id: z.string().optional(),
     name: z.string().optional(),
     input: z.record(z.string(), z.unknown()).optional(),
@@ -195,6 +196,9 @@ export class ClaudeCodeAdapter implements TranscriptAdapter {
           const blk = block.data;
           if (blk.type === "text" && blk.text) {
             b.push({ kind: "assistant", at, text: clean.assistant(blk.text) });
+          } else if (blk.type === "thinking" && blk.thinking) {
+            // The agent's reasoning, redacted and truncated (#78): analysis context, never a request or generated text.
+            b.addThinking(blk.thinking);
           } else if (blk.type === "tool_use" && blk.name) {
             this.pushTool(b, blk.name, blk.input ?? {}, at, blk.id);
             if (blk.name === "Task" && spawnIndex === undefined) {
