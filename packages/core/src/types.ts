@@ -45,9 +45,9 @@ export function addUsage(a: TokenUsage | undefined, b: TokenUsage): TokenUsage {
 export type SessionEvent =
   | { kind: "user"; at?: string; text: string }
   | { kind: "assistant"; at?: string; text: string }
-  | { kind: "tool"; at?: string; tool: string; isError?: boolean; skill?: string; byAgent?: true }
-  | { kind: "shell"; at?: string; command: string; isError?: boolean; rejected?: true; byAgent?: true }
-  | { kind: "file"; at?: string; op: FileOp; path: string; isError?: boolean; byAgent?: true }
+  | { kind: "tool"; at?: string; tool: string; isError?: boolean; errorExcerpt?: string; skill?: string; byAgent?: true }
+  | { kind: "shell"; at?: string; command: string; isError?: boolean; errorExcerpt?: string; rejected?: true; byAgent?: true }
+  | { kind: "file"; at?: string; op: FileOp; path: string; isError?: boolean; errorExcerpt?: string; byAgent?: true }
   | { kind: "error"; at?: string; message: string };
 
 export type LocalSourceReference = {

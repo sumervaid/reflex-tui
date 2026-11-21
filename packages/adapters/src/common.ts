@@ -2,7 +2,7 @@ import { lstat, readdir } from "node:fs/promises";
 import { basename, join } from "node:path";
 import type { NormalizedSession, SessionEvent, SourceId, TokenUsage, TranscriptFile } from "@reflex/core";
 import { shortHash } from "@reflex/core";
-import { displayPath, redactTruncated } from "@reflex/safety";
+import { displayPath, findLeaks, redactTruncated } from "@reflex/safety";
 
 export const MAX_EVENTS_PER_SESSION = 3000;
 export const MAX_REQUESTS_PER_SESSION = 40;
@@ -12,6 +12,8 @@ const MAX_ASSISTANT_CHARS = 400;
 const MAX_THINKING_CHARS = 400;
 /** The session's thinking excerpt stops here: it is context for analysis, not a transcript. */
 const MAX_THINKING_TOTAL = 2000;
+/** How much raw output an error excerpt may draw from, and the excerpt's own length. */
+const MAX_ERROR_EXCERPT = 200;
 
 export const clean = {
   request: (text: string) => redactTruncated(text, MAX_REQUEST_CHARS).trim(),
@@ -20,6 +22,28 @@ export const clean = {
   thinking: (text: string) => redactTruncated(text, MAX_THINKING_CHARS).trim(),
   path: (text: string) => redactTruncated(text, 400),
 };
+
+/**
+ * The first 200 characters of a failed tool call's output, redacted — and dropped entirely when
+ * something the redaction does not cover is still visible (#79). Only failed results keep one.
+ */
+export function errorExcerpt(text: string | undefined): string | undefined {
+  if (!text) return undefined;
+  const flat = text.replace(/\s+/g, " ").trim();
+  if (!flat) return undefined;
+  const cut = redactTruncated(flat, MAX_ERROR_EXCERPT).trim();
+  if (!cut || findLeaks(cut).length) return undefined;
+  return cut;
+}
+
+/** The text of a tool result whose content is a string or a list of text blocks. */
+export function textContent(content: unknown): string | undefined {
+  if (typeof content === "string") return content;
+  if (!Array.isArray(content)) return undefined;
+  return content
+    .map((c) => (c && typeof c === "object" && typeof (c as { text?: unknown }).text === "string" ? (c as { text: string }).text : ""))
+    .join("\n");
+}
 
 /** Text injected by the harness rather than typed by the developer. */
 export function isHarnessText(text: string): boolean {
@@ -174,9 +198,12 @@ export class SessionBuilder {
     if (toolId) this.pendingTools.set(toolId, event);
   }
 
-  markResult(toolId: string, isError: boolean): void {
+  markResult(toolId: string, isError: boolean, excerpt?: string): void {
     const ev = this.pendingTools.get(toolId);
-    if (ev && (ev.kind === "shell" || ev.kind === "file" || ev.kind === "tool")) ev.isError = isError;
+    if (ev && (ev.kind === "shell" || ev.kind === "file" || ev.kind === "tool")) {
+      ev.isError = isError;
+      if (isError && excerpt) ev.errorExcerpt = excerpt;
+    }
     this.pendingTools.delete(toolId);
   }
 

@@ -132,7 +132,14 @@ export class CursorDbChats {
                 json_extract(json_extract(value, '$.toolFormerData.params'), '$.targetFile') AS toolReadPath,
                 json_extract(json_extract(value, '$.toolFormerData.params'), '$.relativeWorkspacePath') AS toolEditPath,
                 json_extract(json_extract(value, '$.toolFormerData.result'), '$.exitCode') AS toolExitCode,
-                json_extract(json_extract(value, '$.toolFormerData.result'), '$.rejected') AS toolRejected
+                json_extract(json_extract(value, '$.toolFormerData.result'), '$.rejected') AS toolRejected,
+                CASE
+                  WHEN json_extract(value, '$.toolFormerData.status') = 'error'
+                    THEN substring(json_extract(json_extract(value, '$.toolFormerData.result'), '$.output'), 1, 400)
+                  WHEN json_extract(json_extract(value, '$.toolFormerData.result'), '$.exitCode') IS NOT NULL
+                    THEN substring(json_extract(json_extract(value, '$.toolFormerData.result'), '$.output'), 1, 400)
+                  ELSE NULL
+                END AS toolErrorOutput
          FROM cursorDiskKV WHERE key >= ? AND key < ?`,
       );
       return true;
@@ -208,6 +215,7 @@ export class CursorDbChats {
             rejected: row.toolRejected === true || row.toolRejected === 1 || row.toolDecision === "rejected",
             readPath: typeof row.toolReadPath === "string" ? row.toolReadPath : undefined,
             editPath: typeof row.toolEditPath === "string" ? row.toolEditPath : undefined,
+            errorOutput: typeof row.toolErrorOutput === "string" ? row.toolErrorOutput : undefined,
           };
         }
         out.push(bubble);
@@ -240,6 +248,8 @@ export type ToolOutcome = {
   exitCode?: number;
   /** The user declined to let the command run. */
   rejected: boolean;
+  /** The first 400 characters of a failed call's output, for the redacted error excerpt (#79). Absent when the call succeeded. */
+  errorOutput?: string;
 };
 
 /** Shell tool names across Cursor versions: the transcript says Shell or run_terminal_cmd. */
@@ -248,9 +258,10 @@ export const SHELL_DB_TOOLS = new Set(["run_terminal_command_v2", "run_terminal_
 /**
  * Tool outcomes per Cursor chat, read from the same app database as the model names. Each tool
  * bubble carries `toolFormerData` with `name` and `status`; `params` and `result` are JSON-encoded
- * strings, and SQLite parses them inline (`json_extract` over `json_extract`), so only the name,
- * status, the shell command and the result's exit code and rejected flag ever reach Reflex —
- * the output text is not even selected. Opened read-only, like the model index.
+ * strings, and SQLite parses them inline (`json_extract` over `json_extract`). For a failed call
+ * the query also takes the first 400 characters of the output, for the redacted error excerpt
+ * (#79); the output of a call that succeeded is never selected. Opened read-only, like the model
+ * index.
  */
 export class CursorToolOutcomes {
   private db?: DatabaseSync;
@@ -268,7 +279,14 @@ export class CursorToolOutcomes {
                 json_extract(value, '$.toolFormerData.userDecision') AS decision,
                 json_extract(json_extract(value, '$.toolFormerData.params'), '$.command') AS command,
                 json_extract(json_extract(value, '$.toolFormerData.result'), '$.exitCode') AS exitCode,
-                json_extract(json_extract(value, '$.toolFormerData.result'), '$.rejected') AS rejected
+                json_extract(json_extract(value, '$.toolFormerData.result'), '$.rejected') AS rejected,
+                CASE
+                  WHEN json_extract(value, '$.toolFormerData.status') = 'error'
+                    THEN substring(json_extract(json_extract(value, '$.toolFormerData.result'), '$.output'), 1, 400)
+                  WHEN json_extract(json_extract(value, '$.toolFormerData.result'), '$.exitCode') IS NOT NULL
+                    THEN substring(json_extract(json_extract(value, '$.toolFormerData.result'), '$.output'), 1, 400)
+                  ELSE NULL
+                END AS errorOutput
          FROM cursorDiskKV WHERE key >= ? AND key < ? AND json_type(value, '$.toolFormerData') IS NOT NULL`,
       );
       return true;
@@ -291,6 +309,7 @@ export class CursorToolOutcomes {
         command: unknown;
         exitCode: unknown;
         rejected: unknown;
+        errorOutput: unknown;
       }>;
       return rows
         .filter((r) => typeof r.name === "string" && typeof r.status === "string")
@@ -300,6 +319,7 @@ export class CursorToolOutcomes {
           command: typeof r.command === "string" ? r.command : undefined,
           exitCode: typeof r.exitCode === "number" ? r.exitCode : undefined,
           rejected: r.rejected === true || r.rejected === 1 || r.decision === "rejected",
+          errorOutput: typeof r.errorOutput === "string" ? r.errorOutput : undefined,
         }));
     } catch (err) {
       debug("cursor outcome lookup failed", { code: (err as { code?: string }).code ?? "error" });

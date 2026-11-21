@@ -4,6 +4,7 @@ import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { ClaudeCodeAdapter } from "../src/claude";
 import { MAX_EVENTS_PER_SESSION } from "../src/common";
+import type { SessionEvent } from "@reflex/core";
 import { FIX_CI, toClaudeLines } from "@reflex/test-fixtures";
 
 const NOW = new Date("2026-10-11T12:00:00Z");
@@ -187,6 +188,44 @@ describe("ClaudeCodeAdapter", () => {
     expect(s.thinking).not.toContain("npm_a1B2");
     expect(s.thinking!.length).toBeLessThanOrEqual(2000); // the whole excerpt is capped
     expect(s.thinking).toContain("consideration 0"); // several blocks join into one excerpt
+  });
+
+  it("keeps a redacted excerpt of a failed tool result, and drops a leaky one", async () => {
+    const toolUse = (id: string, name: string, input: Record<string, unknown>) => ({
+      type: "assistant",
+      sessionId: "s1",
+      timestamp: "2026-10-10T10:01:00.000Z",
+      message: { role: "assistant", content: [{ type: "tool_use", id, name, input }] },
+    });
+    const toolResult = (id: string, content: unknown, isError = true) => ({
+      type: "user",
+      sessionId: "s1",
+      timestamp: "2026-10-10T10:02:00.000Z",
+      message: { role: "user", content: [{ type: "tool_result", tool_use_id: id, content, is_error: isError }] },
+    });
+    await writeSession("s1", [
+      user("fix the tests"),
+      toolUse("t1", "Bash", { command: "pnpm test" }),
+      toolResult("t1", "Error: NPM_TOKEN=npm_a1B2c3D4e5F6g7H8i9J0k1L2m3N4o5P6q7R8 missing\n    at run (x)".repeat(3)),
+      toolUse("t2", "Bash", { command: "git push" }),
+      toolResult("t2", "git@github.com: Permission denied (publickey)"),
+      toolUse("t3", "Bash", { command: "pnpm lint" }),
+      toolResult("t3", "22 passed", false),
+    ]);
+    const [result] = await parseOnly(new ClaudeCodeAdapter(root));
+    const s = result!.sessions[0]!;
+    const shells = s.events.filter((e): e is Extract<SessionEvent, { kind: "shell" }> => e.kind === "shell");
+    const failed = shells.find((e) => e.command === "pnpm test")!;
+    expect(failed.isError).toBe(true);
+    expect(failed.errorExcerpt).toBeDefined();
+    expect(failed.errorExcerpt!.length).toBeLessThanOrEqual(200);
+    expect(failed.errorExcerpt).not.toContain("npm_a1B2");
+    const leaky = shells.find((e) => e.command === "git push")!;
+    expect(leaky.isError).toBe(true); // still marked failed
+    expect(leaky.errorExcerpt).toBeUndefined(); // the excerpt failed the leak gate
+    const cleanRun = shells.find((e) => e.command === "pnpm lint")!;
+    expect(cleanRun.isError).toBe(false); // the call succeeded
+    expect(cleanRun.errorExcerpt).toBeUndefined(); // only failed results keep one
   });
 
   it("streams a giant session and caps stored events", async () => {

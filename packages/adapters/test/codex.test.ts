@@ -76,6 +76,25 @@ describe("CodexAdapter", () => {
     expect(s.events).toContainEqual(expect.objectContaining({ kind: "shell", command: "pnpm lint", isError: true }));
   });
 
+  it("keeps a redacted excerpt of a failed call's output", async () => {
+    await writeRollout("rollout-f.jsonl", [
+      meta,
+      line("event_msg", { type: "user_message", message: "why does lint fail" }),
+      line("response_item", { type: "local_shell_call", call_id: "c1", action: { type: "exec", command: ["bash", "-lc", "pnpm lint"] } }),
+      line("response_item", {
+        type: "function_call_output",
+        call_id: "c1",
+        output: "Process exited with exit code: 2\nNPM_TOKEN=npm_a1B2c3D4e5F6g7H8i9J0k1L2m3N4o5P6q7R8 was missing from the environment",
+      }),
+    ]);
+    const [r] = await parseAll();
+    const s = r!.sessions[0]!;
+    const failed = s.events.find((e) => e.kind === "shell" && e.isError === true)!;
+    expect("errorExcerpt" in failed && failed.errorExcerpt).toBeDefined();
+    expect("errorExcerpt" in failed && failed.errorExcerpt).not.toContain("npm_a1B2");
+    expect("errorExcerpt" in failed && failed.errorExcerpt!.length).toBeLessThanOrEqual(200);
+  });
+
   it("skips malformed lines and bad tool arguments without failing the file", async () => {
     await writeRollout("rollout-c.jsonl", [
       meta,
