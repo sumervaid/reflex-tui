@@ -12,7 +12,7 @@ import { readJsonl } from "./jsonl";
 
 // eslint-disable-next-line no-control-regex -- stripping control characters is the point
 const CONTROL = /[\x00-\x1f\x7f-\x9f]/g;
-import { MAX_EVENTS_PER_SESSION, SessionBuilder, clean, cutoffFor, isDirectory, listFiles, modelName, patchedFiles, toTranscriptFiles } from "./common";
+import { MAX_EVENTS_PER_SESSION, SessionBuilder, clean, cutoffFor, errorExcerpt, isDirectory, listFiles, modelName, patchedFiles, toTranscriptFiles } from "./common";
 
 /**
  * Cursor agent transcripts: `<root>/<encoded-workspace>/agent-transcripts/<id>/<id>.jsonl`, one
@@ -197,7 +197,7 @@ export class CursorAdapter implements TranscriptAdapter {
       );
       if (allowed) this.models = new CursorModelIndex(this.stateDb);
       const outcomes = await ask(
-        `Also read whether each tool call succeeded or failed, from the same database? Read-only; only tool names, statuses, shell commands, exit codes and rejected flags are extracted — never messages or tool output.`,
+        `Also read whether each tool call succeeded or failed, from the same database? Read-only; only tool names, statuses, shell commands, exit codes and rejected flags are extracted, and for failed calls the first 200 characters of the error output, redacted — never messages, and never the output of a call that succeeded.`,
       );
       if (outcomes) this.outcomes = new CursorToolOutcomes(this.stateDb);
       const dbChats = await ask(
@@ -435,18 +435,28 @@ export class CursorAdapter implements TranscriptAdapter {
       return undefined;
     };
     const failed = (row: ToolOutcome): boolean => !row.rejected && row.status !== "cancelled" && row.status !== "loading" && errorOf(row);
+    type Toolish = Extract<SessionEvent, { kind: "shell" }> | Extract<SessionEvent, { kind: "file" }> | Extract<SessionEvent, { kind: "tool" }>;
+    const mark = (ev: Toolish, row: ToolOutcome): void => {
+      // A refusal is the developer's clearest correction (#72), but it is not a failure.
+      if (row.rejected) {
+        if (ev.kind === "shell") ev.rejected = true;
+        return;
+      }
+      if (!failed(row)) return;
+      ev.isError = true;
+      const excerpt = errorExcerpt(row.errorOutput);
+      if (excerpt) ev.errorExcerpt = excerpt;
+    };
     for (const ev of b.events) {
       if (ev.kind === "shell") {
         const row = claim("shell", ev.command);
-        if (!row) continue;
-        // A refusal is the developer's clearest correction (#72), but it is not a failure.
-        if (row.rejected) ev.rejected = true;
-        else if (failed(row)) ev.isError = true;
-      } else if (ev.kind === "file") {        const row = claim(ev.op === "read" ? "read" : "edit");
-        if (row && failed(row)) ev.isError = true;
+        if (row) mark(ev, row);
+      } else if (ev.kind === "file") {
+        const row = claim(ev.op === "read" ? "read" : "edit");
+        if (row) mark(ev, row);
       } else if (ev.kind === "tool") {
         const row = claim("tool");
-        if (row && failed(row)) ev.isError = true;
+        if (row) mark(ev, row);
       }
     }
   }
@@ -493,7 +503,10 @@ export class CursorAdapter implements TranscriptAdapter {
   private pushDbTool(b: SessionBuilder, bubble: DbBubble): void {
     const tool = bubble.tool!;
     const failed = tool.status === "error" || (tool.status === "completed" && tool.exitCode !== undefined && tool.exitCode !== 0);
-    const outcome = tool.rejected ? { rejected: true as const } : failed ? { isError: true as const } : {};
+    const excerpt = failed ? errorExcerpt(tool.errorOutput) : undefined;
+    const outcome = tool.rejected
+      ? { rejected: true as const }
+      : { ...(failed ? { isError: true as const } : {}), ...(excerpt ? { errorExcerpt: excerpt } : {}) };
     if (SHELL_DB_TOOLS.has(tool.name)) {
       if (tool.command) b.push({ kind: "shell", at: bubble.createdAt, command: clean.command(tool.command), ...outcome });
       else b.push({ kind: "tool", at: bubble.createdAt, tool: "Shell", ...outcome });

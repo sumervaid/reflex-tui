@@ -62,7 +62,7 @@ async function parseWith(adapter: CursorAdapter): Promise<NormalizedSession[]> {
 
 describe("Cursor tool outcomes from the app database", () => {
   it("marks the events the database calls errors, and only those", async () => {
-    call("run_terminal_command_v2", { status: "completed", command: "pnpm test", result: { output: "9 passed", exitCode: 1 } });
+    call("run_terminal_command_v2", { status: "completed", command: "pnpm test", result: { output: "9 passed but NPM_TOKEN=npm_a1B2c3D4e5F6g7H8i9J0k1L2m3N4o5P6q7R8 was missing", exitCode: 1 } });
     call("run_terminal_command_v2", { status: "completed", command: "pnpm build", result: { output: "built" } });
     call("run_terminal_command_v2", { status: "completed", command: "rm -rf /", result: { rejected: true } });
     call("run_terminal_command_v2", { status: "cancelled", command: "git push" });
@@ -97,6 +97,14 @@ describe("Cursor tool outcomes from the app database", () => {
     expect(byCommand.get("rm -rf /")).toBeUndefined(); // rejected: never ran
     expect(byCommand.get("git push")).toBeUndefined(); // cancelled: never finished
     expect(byCommand.get("npm ci")).toBe(true); // error status
+    // A failed call keeps a redacted excerpt of its output (#79); a successful one keeps none.
+    const failedShell = shells.find((e) => e.command === "pnpm test")!;
+    expect(failedShell.errorExcerpt).toBeDefined();
+    expect(failedShell.errorExcerpt!.length).toBeLessThanOrEqual(200);
+    expect(failedShell.errorExcerpt).not.toContain("npm_a1B2"); // the output was redacted
+    expect(shells.find((e) => e.command === "pnpm build")?.errorExcerpt).toBeUndefined();
+    const errorEdit = session!.events.find((e): e is Extract<SessionEvent, { kind: "file" }> => e.kind === "file" && e.isError === true)!;
+    expect(errorEdit.errorExcerpt).toBeDefined();
     // The refusal itself is recorded for the corrections pipeline (#72).
     const refused = shells.find((e) => e.command === "rm -rf /");
     expect(refused?.rejected).toBe(true);
@@ -137,13 +145,17 @@ describe("Cursor tool outcomes from the app database", () => {
     outcomes.close();
   });
 
-  it("the reader hands back only the five fields, never output text", async () => {
+  it("the reader hands back the outcome fields, and output text only for a failed call", async () => {
     call("run_terminal_command_v2", { status: "completed", command: "pnpm test", result: { output: "SECRET-OUTPUT", exitCode: 3 } });
+    call("run_terminal_command_v2", { status: "completed", command: "pnpm build", result: { output: "SUCCESS-OUTPUT" } });
     const outcomes = new CursorToolOutcomes(dbPath);
     const rows = outcomes.forChat(CHAT)!;
-    expect(rows).toHaveLength(1);
-    expect(JSON.stringify(rows[0])).not.toContain("SECRET-OUTPUT");
-    expect(rows[0]).toEqual({ name: "run_terminal_command_v2", status: "completed", command: "pnpm test", exitCode: 3, rejected: false });
+    expect(rows).toHaveLength(2);
+    // The failed call's first 400 characters are read for the redacted excerpt (#79)…
+    expect(rows[0]).toEqual({ name: "run_terminal_command_v2", status: "completed", command: "pnpm test", exitCode: 3, rejected: false, errorOutput: "SECRET-OUTPUT" });
+    // …while a call that succeeded contributes no output at all.
+    expect(JSON.stringify(rows[1])).not.toContain("SUCCESS-OUTPUT");
+    expect(rows[1]).toEqual({ name: "run_terminal_command_v2", status: "completed", command: "pnpm build", rejected: false });
     outcomes.close();
   });
 });

@@ -5,7 +5,7 @@ import type { DetectionResult, DiscoveryOptions, ParseResult, TranscriptAdapter,
 import { debug, historyWindow } from "@reflex/core";
 import { displayPath } from "@reflex/safety";
 import { readJsonl } from "./jsonl";
-import { SessionBuilder, clean, cutoffFor, isDirectory, listFiles, modelName, patchedFiles, toTranscriptFiles, tokens } from "./common";
+import { SessionBuilder, clean, cutoffFor, errorExcerpt, isDirectory, listFiles, modelName, patchedFiles, textContent, toTranscriptFiles, tokens } from "./common";
 
 /**
  * Codex CLI rollout files: one JSON object per line, `{ timestamp, type, payload }`, where type is
@@ -112,9 +112,7 @@ function shellText(command: unknown): string | undefined {
 
 /** Tool output as text: a string, or (newer builds) a list of content items. */
 function outputText(output: unknown): string | undefined {
-  if (typeof output === "string") return output;
-  if (!Array.isArray(output)) return undefined;
-  return output.map((c) => (c && typeof c === "object" && typeof (c as { text?: unknown }).text === "string" ? (c as { text: string }).text : "")).join("\n");
+  return textContent(output);
 }
 
 /**
@@ -294,7 +292,10 @@ export class CodexAdapter implements TranscriptAdapter {
           case "function_call_output":
           case "local_shell_call_output":
           case "custom_tool_call_output":
-            if (item.call_id) b.markResult(item.call_id, exitFailed(item.output));
+            if (item.call_id) {
+              const failed = exitFailed(item.output);
+              b.markResult(item.call_id, failed, failed ? errorExcerpt(outputText(item.output)) : undefined);
+            }
             break;
           default:
             break;
