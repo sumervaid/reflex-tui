@@ -123,7 +123,9 @@ Token usage, where recorded, is attached to the session as `{input, output, cach
 in Claude Code, exit codes in Codex, the app database's status and exit code in Cursor), the first
 200 characters of the failed call's output are stored on the event — redacted first, then gated by
 the same leak scan generated text passes, so an excerpt that still looks like a leak is dropped
-entirely. Successful calls keep nothing. The excerpt is event data for analysis (which fixes go
+entirely. Successful calls keep nothing. Shell events also keep the numeric exit code when the
+source reports one (Codex's `metadata.exit_code` and its text forms, Cursor's exit code, and an
+exit code the output text itself reports). The excerpt is event data for analysis (which fixes go
 with which errors); no skill, memory entry or handbook practice is generated from it.
 
 ## From sessions to suggestions

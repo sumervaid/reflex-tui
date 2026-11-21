@@ -5,7 +5,7 @@ import type { DetectionResult, DiscoveryOptions, ParseResult, SessionEvent, Tran
 import { addUsage, debug, historyWindow } from "@reflex/core";
 import { displayPath } from "@reflex/safety";
 import { readJsonl } from "./jsonl";
-import { MAX_EVENTS_PER_SESSION, SessionBuilder, clean, cutoffFor, errorExcerpt, isDirectory, listFiles, modelName, skillName, textContent, toTranscriptFiles, tokens } from "./common";
+import { MAX_EVENTS_PER_SESSION, SessionBuilder, clean, cutoffFor, errorExcerpt, exitCodeFromText, isDirectory, listFiles, modelName, skillName, textContent, toTranscriptFiles, tokens } from "./common";
 
 const ContentBlock = z
   .object({
@@ -165,7 +165,8 @@ export class ClaudeCodeAdapter implements TranscriptAdapter {
             if (blk.type === "text" && blk.text) b.addRequest(blk.text, at);
             else if (blk.type === "tool_result" && blk.tool_use_id) {
               const failed = blk.is_error === true;
-              b.markResult(blk.tool_use_id, failed, failed ? errorExcerpt(textContent(blk.content)) : undefined);
+              const output = textContent(blk.content);
+              b.markResult(blk.tool_use_id, failed, failed ? errorExcerpt(output) : undefined, failed ? exitCodeFromText(output) : undefined);
             }
           }
           continue;
@@ -291,7 +292,8 @@ export class ClaudeCodeAdapter implements TranscriptAdapter {
         }
         if (block.data.type === "tool_result" && block.data.tool_use_id) {
           const failed = block.data.is_error === true;
-          b.markResult(block.data.tool_use_id, failed, failed ? errorExcerpt(textContent(block.data.content)) : undefined);
+          const output = textContent(block.data.content);
+          b.markResult(block.data.tool_use_id, failed, failed ? errorExcerpt(output) : undefined, failed ? exitCodeFromText(output) : undefined);
         }
       }
       return;

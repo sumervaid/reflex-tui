@@ -226,6 +226,33 @@ describe("ClaudeCodeAdapter", () => {
     const cleanRun = shells.find((e) => e.command === "pnpm lint")!;
     expect(cleanRun.isError).toBe(false); // the call succeeded
     expect(cleanRun.errorExcerpt).toBeUndefined(); // only failed results keep one
+    expect(cleanRun.exitCode).toBeUndefined();
+  });
+
+  it("keeps the numeric exit code a failed result reports", async () => {
+    const toolUse = (id: string, name: string, input: Record<string, unknown>) => ({
+      type: "assistant",
+      sessionId: "s1",
+      timestamp: "2026-10-10T10:01:00.000Z",
+      message: { role: "assistant", content: [{ type: "tool_use", id, name, input }] },
+    });
+    const toolResult = (id: string, content: string) => ({
+      type: "user",
+      sessionId: "s1",
+      timestamp: "2026-10-10T10:02:00.000Z",
+      message: { role: "user", content: [{ type: "tool_result", tool_use_id: id, content, is_error: true }] },
+    });
+    await writeSession("s1", [
+      user("fix the tests"),
+      toolUse("t1", "Bash", { command: "pnpm test" }),
+      toolResult("t1", "Process exited with code 2\n    at run"),
+      toolUse("t2", "Bash", { command: "pnpm lint" }),
+      toolResult("t2", "failed with exit code: 127"),
+    ]);
+    const [result] = await parseOnly(new ClaudeCodeAdapter(root));
+    const shells = result!.sessions[0]!.events.filter((e): e is Extract<SessionEvent, { kind: "shell" }> => e.kind === "shell");
+    expect(shells.find((e) => e.command === "pnpm test")?.exitCode).toBe(2);
+    expect(shells.find((e) => e.command === "pnpm lint")?.exitCode).toBe(127);
   });
 
   it("streams a giant session and caps stored events", async () => {
