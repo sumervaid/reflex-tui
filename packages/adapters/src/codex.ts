@@ -5,7 +5,7 @@ import type { DetectionResult, DiscoveryOptions, ParseResult, TranscriptAdapter,
 import { debug, historyWindow } from "@reflex/core";
 import { displayPath } from "@reflex/safety";
 import { readJsonl } from "./jsonl";
-import { SessionBuilder, clean, cutoffFor, errorExcerpt, isDirectory, listFiles, modelName, patchedFiles, textContent, toTranscriptFiles, tokens } from "./common";
+import { SessionBuilder, clean, cutoffFor, errorExcerpt, exitCodeFromText, isDirectory, listFiles, modelName, patchedFiles, textContent, toTranscriptFiles, tokens } from "./common";
 
 /**
  * Codex CLI rollout files: one JSON object per line, `{ timestamp, type, payload }`, where type is
@@ -116,19 +116,21 @@ function outputText(output: unknown): string | undefined {
 }
 
 /**
- * Whether a command failed. The old `shell` tool returned JSON with `metadata.exit_code`; later
- * builds write "Exit code: 1", and `exec_command` (unified exec) "Process exited with code 1".
+ * The numeric exit code a call reported, when it did: the old `shell` tool returned JSON with
+ * `metadata.exit_code`; later builds write "Exit code: 1", and `exec_command` (unified exec)
+ * "Process exited with code 1".
  */
-function exitFailed(output: unknown): boolean {
+function exitCodeOf(output: unknown): number | undefined {
   const text = outputText(output);
-  if (text === undefined) return false;
+  if (text === undefined) return undefined;
   try {
     const parsed = JSON.parse(text) as { metadata?: { exit_code?: number } };
     const code = parsed?.metadata?.exit_code;
-    return typeof code === "number" && code !== 0;
+    if (typeof code === "number") return code;
   } catch {
-    return /(exit code:?|exited with code)\s*[1-9]/i.test(text.slice(0, 400));
+    // not JSON: the code is in the text, if anywhere
   }
+  return exitCodeFromText(text);
 }
 
 export class CodexAdapter implements TranscriptAdapter {
@@ -293,8 +295,9 @@ export class CodexAdapter implements TranscriptAdapter {
           case "local_shell_call_output":
           case "custom_tool_call_output":
             if (item.call_id) {
-              const failed = exitFailed(item.output);
-              b.markResult(item.call_id, failed, failed ? errorExcerpt(outputText(item.output)) : undefined);
+              const code = exitCodeOf(item.output);
+              const failed = code !== undefined && code !== 0;
+              b.markResult(item.call_id, failed, failed ? errorExcerpt(outputText(item.output)) : undefined, code);
             }
             break;
           default:

@@ -93,6 +93,7 @@ describe("CodexAdapter", () => {
     expect("errorExcerpt" in failed && failed.errorExcerpt).toBeDefined();
     expect("errorExcerpt" in failed && failed.errorExcerpt).not.toContain("npm_a1B2");
     expect("errorExcerpt" in failed && failed.errorExcerpt!.length).toBeLessThanOrEqual(200);
+    expect("exitCode" in failed && failed.exitCode).toBe(2);
   });
 
   it("skips malformed lines and bad tool arguments without failing the file", async () => {

@@ -444,6 +444,7 @@ export class CursorAdapter implements TranscriptAdapter {
       }
       if (!failed(row)) return;
       ev.isError = true;
+      if (row.exitCode !== undefined && ev.kind === "shell") ev.exitCode = row.exitCode;
       const excerpt = errorExcerpt(row.errorOutput);
       if (excerpt) ev.errorExcerpt = excerpt;
     };
@@ -507,8 +508,9 @@ export class CursorAdapter implements TranscriptAdapter {
     const outcome = tool.rejected
       ? { rejected: true as const }
       : { ...(failed ? { isError: true as const } : {}), ...(excerpt ? { errorExcerpt: excerpt } : {}) };
+    const code = failed && tool.exitCode !== undefined ? { exitCode: tool.exitCode } : {};
     if (SHELL_DB_TOOLS.has(tool.name)) {
-      if (tool.command) b.push({ kind: "shell", at: bubble.createdAt, command: clean.command(tool.command), ...outcome });
+      if (tool.command) b.push({ kind: "shell", at: bubble.createdAt, command: clean.command(tool.command), ...code, ...outcome });
       else b.push({ kind: "tool", at: bubble.createdAt, tool: "Shell", ...outcome });
       return;
     }

@@ -45,6 +45,13 @@ export function textContent(content: unknown): string | undefined {
     .join("\n");
 }
 
+/** A numeric exit code an output text reports ("Exit code: 2", "Process exited with code 1"). */
+export function exitCodeFromText(text: string | undefined): number | undefined {
+  if (!text) return undefined;
+  const m = /(exit code:?|exited with code)\s*(\d+)/i.exec(text.slice(0, 400));
+  return m ? Number(m[2]) : undefined;
+}
+
 /** Text injected by the harness rather than typed by the developer. */
 export function isHarnessText(text: string): boolean {
   const t = text.trimStart();
@@ -198,9 +205,13 @@ export class SessionBuilder {
     if (toolId) this.pendingTools.set(toolId, event);
   }
 
-  markResult(toolId: string, isError: boolean, excerpt?: string): void {
+  markResult(toolId: string, isError: boolean, excerpt?: string, exitCode?: number): void {
     const ev = this.pendingTools.get(toolId);
-    if (ev && (ev.kind === "shell" || ev.kind === "file" || ev.kind === "tool")) {
+    if (ev && ev.kind === "shell") {
+      ev.isError = isError;
+      if (isError && excerpt) ev.errorExcerpt = excerpt;
+      if (exitCode !== undefined) ev.exitCode = exitCode;
+    } else if (ev && (ev.kind === "file" || ev.kind === "tool")) {
       ev.isError = isError;
       if (isError && excerpt) ev.errorExcerpt = excerpt;
     }

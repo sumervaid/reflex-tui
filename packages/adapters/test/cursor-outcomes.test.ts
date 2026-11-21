@@ -102,6 +102,7 @@ describe("Cursor tool outcomes from the app database", () => {
     expect(failedShell.errorExcerpt).toBeDefined();
     expect(failedShell.errorExcerpt!.length).toBeLessThanOrEqual(200);
     expect(failedShell.errorExcerpt).not.toContain("npm_a1B2"); // the output was redacted
+    expect(failedShell.exitCode).toBe(1); // the numeric code the database reported
     expect(shells.find((e) => e.command === "pnpm build")?.errorExcerpt).toBeUndefined();
     const errorEdit = session!.events.find((e): e is Extract<SessionEvent, { kind: "file" }> => e.kind === "file" && e.isError === true)!;
     expect(errorEdit.errorExcerpt).toBeDefined();
